@@ -6,6 +6,7 @@ import { partyNote, RK_RADIUS } from './rakuten.js';
 import { clothesTip } from './weather.js';
 import { SITES, siteUrl, priceOptions } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
+import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText } from './vault.js';
 import { mapSVG } from './map.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
@@ -519,6 +520,7 @@ export function vPlan(s){
     <p class="eyebrow">Step 6 · 일정</p>
     <h1>날짜별 일정 초안</h1>
     <p class="lead">${esc(P.hotel.name)}에 묵는 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${s.hotelArea || P.hotel.cand ? '' : ' 숙소 동네를 아직 안 정해서 1순위 동네로 계산했어요.'}</p>
+    <div><button type="button" class="ghost small" data-act="replan">손으로 옮긴 것 지우고 다시 짜기</button></div>
     ${mapSVG('plan', s, P)}
     ${P.days.map(d => { const col = DAY_COLORS[d.i % DAY_COLORS.length]; const pct = d.cap ? Math.min(100, d.used / d.cap * 100) : 0;
       const body = d.full
@@ -539,4 +541,68 @@ export function vPlan(s){
   </section>`;
 }
 
-export const VIEWS = [vWho, vWhere, vMust, vPick, vStay, vPlan];
+/* Step 7 · 보관함 (예약·티켓, 이 기기에만) */
+function vaultDay(s, date){
+  if(!date) return '날짜 없음';
+  const d = parseDate(date); const i = buildDays(s).findIndex(x => x.date.getTime() === d.getTime());
+  return `${d.getMonth()+1}/${d.getDate()} (${['일','월','화','수','목','금','토'][d.getDay()]})${i >= 0 ? ` · ${i+1}일차` : ''}`;
+}
+
+function vaultCard(s, it){
+  const k = kindOf(it.kind); const pn = it.placeId ? placeName(s, it.placeId) : '';
+  const armed = s.sh && s.sh.vdel === it.id; const link = safeHttpsUrl(it.link);
+  return `<article class="vcard" id="v-${esc(it.id)}">
+    <div class="vhead"><span class="vicon" aria-hidden="true">${k.icon}</span><div><h3>${esc(it.title)}</h3>
+      <p class="meta">${esc(k.label)}${it.time ? ' · ' + esc(it.time) : ''}${pn && pn !== it.title ? ' · ' + esc(pn) : ''}</p></div></div>
+    ${it.code ? `<div class="vcode"><span>예약번호</span><b>${esc(it.code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(it.id)}">복사</button></div>` : ''}
+    ${it.memo ? `<p class="pnote">${esc(it.memo)}</p>` : ''}
+    ${(it.files || []).length ? `<div class="vfiles">${it.files.map(f => /^image\//.test(f.type)
+      ? `<button type="button" class="vthumb" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}" aria-label="${esc(f.name)} 크게 보기"><img data-fid="${esc(f.fid)}" alt=""></button>`
+      : `<button type="button" class="vpdf" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}">📄 ${esc(f.name)}</button>`).join('')}</div>` : ''}
+    <div class="pfoot">
+      ${link ? `<a class="link" href="${esc(link)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
+      <button type="button" class="link" data-act="vedit" data-v="${esc(it.id)}">고치기</button>
+      <button type="button" class="link${armed ? ' warnlink' : ''}" data-act="vdel" data-v="${esc(it.id)}">${armed ? '한 번 더 누르면 지워져요' : '지우기'}</button>
+    </div>
+  </article>`;
+}
+
+export function vVault(s){
+  const items = s.vault || []; const miss = missingBookings(s, items);
+  const editing = s.vedit ? items.find(x => x.id === s.vedit) : null;
+  const d = editing || s.vdraft || {};
+  const groups = groupVault(items);
+  return `<section class="step">
+    <p class="eyebrow">Step 7 · 보관함</p>
+    <h1>예약과 티켓을 한곳에</h1>
+    <p class="lead">항공권·숙소·입장권·입국 QR을 모아 두면 공항·호텔·입구에서 인터넷 없이 바로 꺼내 보여 줄 수 있어요.</p>
+    <div class="box tip"><p>보관함은 <b>이 기기에만</b> 저장돼요. 예약번호·QR은 민감한 정보라 함께 짜기로 공유하지 않아요. 가족에게 줄 티켓은 사진을 열어 '보내기'로 전해 주세요.${s.sh && s.sh.vusage ? ` 이 앱이 기기에서 쓰는 저장 공간은 약 ${sizeText(s.sh.vusage)}이에요.` : ''}</p></div>
+    ${miss.length ? `<div class="box"><h2>아직 보관함에 없는 예약<small>${miss.length}가지</small></h2>
+      <ul class="implist">${miss.map((m, i) => `<li class="imp"><div class="sbody"><b>${kindOf(m.kind).icon} ${esc(m.title)}</b><span>${esc(m.why)}</span></div>
+        <button type="button" class="ghost small" data-act="vaddq" data-v="${i}">넣기</button></li>`).join('')}</ul></div>` : ''}
+    ${groups.length ? groups.map(g => `<h2 class="vday">${esc(vaultDay(s, g.date))}</h2><div class="list">${g.items.map(it => vaultCard(s, it)).join('')}</div>`).join('')
+      : '<p class="empty">아직 넣은 예약이 없어요. 아래에서 첫 예약을 넣어 보세요.</p>'}
+    <form class="box" id="vaultform" autocomplete="off">
+      <h2>${editing ? '예약 고치기' : '보관함에 넣기'}</h2>
+      <div class="row2">
+        <label for="vkind">종류<select id="vkind">${VAULT_KINDS.map(k => `<option value="${k.key}"${(d.kind || 'flight') === k.key ? ' selected' : ''}>${k.icon} ${k.label}</option>`).join('')}</select></label>
+        <label for="vdate">날짜<input id="vdate" type="date" value="${esc(d.date || '')}"></label>
+      </div>
+      <label for="vtitle">이름<input id="vtitle" type="text" required maxlength="60" value="${esc(d.title || '')}" placeholder="예: 가는 편 인천 → 나리타"></label>
+      <div class="row2">
+        <label for="vtime">시간<input id="vtime" type="time" value="${esc(d.time || '')}"></label>
+        <label for="vcode">예약번호<input id="vcode" type="text" maxlength="40" value="${esc(d.code || '')}" spellcheck="false"></label>
+      </div>
+      <label for="vlink">예약 페이지 주소 (선택)<input id="vlink" type="url" inputmode="url" value="${esc(d.link || '')}" placeholder="https://"></label>
+      <label for="vmemo">메모 (선택)<textarea id="vmemo" rows="2" maxlength="300" placeholder="예: 체크인 15시 · 짐은 프런트에 맡기기">${esc(d.memo || '')}</textarea></label>
+      <label for="vfiles">티켓·QR 사진, PDF (선택, 여러 개)<input id="vfiles" type="file" accept="image/*,application/pdf" multiple></label>
+      <input type="hidden" id="vplace" value="${esc(d.placeId || '')}">
+      ${editing && (editing.files || []).length ? `<p class="fine">이미 넣은 첨부 ${editing.files.length}개는 그대로 둬요. 새로 고른 파일은 더해져요.</p>` : ''}
+      <div class="pfoot"><button type="submit" class="primary small">${editing ? '고친 내용 저장' : '보관함에 넣기'}</button>
+        ${editing || s.vdraft ? '<button type="button" class="ghost small" data-act="vcancel">취소</button>' : ''}</div>
+      <p class="fine">큰 사진은 줄여서 저장하고, QR 캡처는 선명하게 그대로 둬요. 아이폰은 홈 화면에 추가한 앱에서 써야 오래 안전하게 남아요. 원본은 메일·사진첩에도 꼭 남겨 두세요.</p>
+    </form>
+  </section>`;
+}
+
+export const VIEWS = [vWho, vWhere, vMust, vPick, vStay, vPlan, vVault];

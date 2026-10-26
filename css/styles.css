@@ -54,9 +54,9 @@ p{margin:0}
 .logo{font:400 22px/1 var(--f-display); letter-spacing:.02em}
 .tag{font:500 11px/1 var(--f-mono); color:var(--muted); letter-spacing:.08em; text-transform:uppercase;
   border:1px solid var(--rule); border-radius:4px; padding:3px 5px}
-.line{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(6,1fr); position:relative}
-.line::before{content:""; position:absolute; left:8.3%; right:8.3%; top:13px; height:4px; border-radius:2px; background:var(--rule)}
-.line .fill{position:absolute; left:8.3%; top:13px; height:4px; border-radius:2px; background:var(--ink); transition:width .25s ease}
+.line{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(var(--n, 6),1fr); position:relative}
+.line::before{content:""; position:absolute; left:calc(50% / var(--n, 6)); right:calc(50% / var(--n, 6)); top:13px; height:4px; border-radius:2px; background:var(--rule)}
+.line .fill{position:absolute; left:calc(50% / var(--n, 6)); top:13px; height:4px; border-radius:2px; background:var(--ink); transition:width .25s ease}
 .stn button{width:100%; background:none; border:0; padding:4px 0 0; display:flex; flex-direction:column; align-items:center; gap:6px;
   color:var(--muted); font:500 11.5px/1.25 var(--f-body); text-align:center}
 .stn .dot{width:22px; height:22px; border-radius:50%; background:var(--surface); border:4px solid var(--rule); position:relative; z-index:1}
@@ -276,3 +276,32 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .cmlist p{margin:2px 0 0}
 .cmform{display:flex; gap:6px; align-items:flex-end}
 .cmform textarea{flex:1; min-width:0; padding:8px; border:1.5px solid var(--rule); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; font-size:14px; resize:vertical}
+
+/* 보관함 */
+.vday{margin:6px 0 -4px; font-size:15px}
+.vcard{background:var(--surface); border:1.5px solid var(--rule); border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; gap:8px}
+.vhead{display:flex; gap:10px; align-items:center}
+.vhead > div{min-width:0}
+.vhead h3{margin:0; overflow-wrap:anywhere}
+.vicon{font-size:24px; line-height:1}
+.vcode{display:flex; align-items:baseline; gap:8px; background:var(--paper); border-radius:8px; padding:8px 10px}
+.vcode span{font-size:12px; color:var(--muted)}
+.vcode b{font:600 17px var(--f-mono); letter-spacing:.04em; overflow-wrap:anywhere; flex:1}
+.vfiles{display:flex; gap:8px; flex-wrap:wrap}
+.vthumb{width:72px; height:72px; padding:0; border:1px solid var(--rule); border-radius:8px; overflow:hidden; background:var(--paper)}
+.vthumb img{width:100%; height:100%; object-fit:cover; display:block}
+.vpdf{border:1px solid var(--rule); border-radius:8px; background:var(--paper); padding:8px 10px; font-size:13px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.warnlink{color:var(--warn) !important}
+#vaultform input, #vaultform textarea{padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--paper); color:var(--ink); font:inherit; width:100%; min-width:0}
+#vaultform input[type="file"]{padding:8px; background:var(--surface)}
+.viewer{position:fixed; inset:0; z-index:70; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px)}
+.viewer img{max-width:100%; max-height:calc(100% - 64px); object-fit:contain; background:#FFFFFF}
+.viewer .vbar{display:flex; gap:8px; padding:10px}
+.viewer .ghost{color:#FFFFFF; border-color:#FFFFFF66}
+
+/* 제목줄: 폰 너비에서 꺾이지 않게 */
+.logo{white-space:nowrap}
+.brand{min-width:0}
+.topbtns .ghost{white-space:nowrap}
+@media (max-width:420px){ .tag{display:none} .topbtns{gap:4px} .topbtns .small{padding:7px 10px} }

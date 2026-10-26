@@ -8,6 +8,8 @@ import { openMap } from './livemap.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx } from './prices.js';
+import { missingBookings } from './vault.js';
+import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } from './vaultdb.js';
 import * as SH from './share.js';
 import { sharedOf, diffShared, applyRemote, inviteLink, parseJoin, describeChange, voteSummary, DELETE } from './sharecore.js';
 
@@ -279,12 +281,13 @@ document.addEventListener('focusout', () => { if(renderLater){ renderLater = fal
 function render(){
   const s = state;
   document.getElementById('line').innerHTML =
-    `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * 83.4}%"></span>` +
+    `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
   document.getElementById('view').innerHTML = VIEWS[s.step](s);
+  document.getElementById('line').style.setProperty('--n', STEPS.length);
   document.getElementById('bar').innerHTML = s.step < STEPS.length-1
     ? `<button type="button" class="ghost" data-act="prev"${s.step === 0 ? ' disabled' : ''}>이전</button><button type="button" class="primary" data-act="next">다음 · ${STEPS[s.step+1]}</button>`
-    : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="replan">손댄 것 지우고 다시 짜기</button>`;
+    : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="vnew">예약 넣기</button>`;
   const rb = document.getElementById('resetBtn');
   rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터';
   rb.classList.toggle('armed', resetArmed);
@@ -298,7 +301,95 @@ function render(){
   document.body.classList.toggle('noscroll', !!s.sh.open);
   ensureWeather(false);
   ensureFx();
+  hydrateThumbs();
 }
+
+/* ---------- 보관함 (예약·티켓, 이 기기에만) ---------- */
+const urls = new Map();   // 첨부 id → 화면에 띄울 주소 (한 번 만들면 다시 씀)
+async function fileUrl(fid){
+  if(urls.has(fid)) return urls.get(fid);
+  const rec = await getFile(fid); if(!rec) return null;
+  const u = URL.createObjectURL(rec.blob); urls.set(fid, u); return u;
+}
+function hydrateThumbs(){
+  document.querySelectorAll('img[data-fid]:not([src])').forEach(img => { fileUrl(img.dataset.fid).then(u => { if(u) img.src = u; }); });
+}
+async function refreshUsage(){ const u = await usage(); if(state.sh.vusage !== u){ state.sh.vusage = u; if(state.step === STEPS.length-1) render(); } }
+
+async function saveVault(){
+  const s = state, g = id => document.getElementById(id);
+  const title = g('vtitle').value.trim(); if(!title) return;
+  const picked = Array.from(g('vfiles').files || []);
+  const editing = s.vedit ? s.vault.find(x => x.id === s.vedit) : null;
+  const it = editing || { id:'v' + Date.now().toString(36), files:[] };
+  Object.assign(it, { kind:g('vkind').value, title:title.slice(0, 60), date:g('vdate').value, time:g('vtime').value,
+    code:g('vcode').value.trim().slice(0, 40), link:safeHttpsUrl(g('vlink').value), memo:g('vmemo').value.trim().slice(0, 300),
+    placeId:g('vplace').value || it.placeId || null });
+  const skipped = [];
+  for(const f of picked){
+    const blob = await shrinkImage(f);
+    if(blob.size > MAX_FILE){ skipped.push(f.name); continue; }
+    const fid = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    try{ await putFile(fid, { blob, name:f.name.slice(0, 80), type:blob.type || f.type, size:blob.size }); it.files.push({ fid, name:f.name.slice(0, 80), type:blob.type || f.type, size:blob.size }); }
+    catch(e){ skipped.push(f.name); }
+  }
+  if(!editing) s.vault.push(it);
+  s.vedit = null; s.vdraft = null;
+  keepStorage(); save(); render(); refreshUsage();
+  if(skipped.length) toast(`${skipped.join(', ')}은(는) 너무 크거나 저장 공간이 모자라 넣지 못했어요 (파일 하나 15MB까지).`);
+  const card = document.getElementById('v-' + it.id); if(card) card.scrollIntoView({ block:'center' });
+}
+
+async function deleteVault(id){
+  const s = state; const it = s.vault.find(x => x.id === id); if(!it) return;
+  for(const f of it.files || []){ try{ await delFile(f.fid); }catch(e){} if(urls.has(f.fid)){ URL.revokeObjectURL(urls.get(f.fid)); urls.delete(f.fid); } }
+  s.vault = s.vault.filter(x => x.id !== id); if(s.vedit === id) s.vedit = null;
+  save(); render(); refreshUsage();
+}
+
+// 첨부 크게 보기: 사진은 화면 가득(QR을 보여 주기 좋게), PDF는 새 창으로. 보내기·이 첨부 지우기
+async function openViewer(itemId, fid){
+  const it = state.vault.find(x => x.id === itemId); const f = it && (it.files || []).find(x => x.fid === fid); if(!f) return;
+  const u = await fileUrl(fid);
+  if(!u){ toast('이 첨부를 찾지 못했어요. 이 기기에서 지워졌을 수 있어요.'); return; }
+  if(!/^image\//.test(f.type)){ window.open(u, '_blank', 'noopener'); return; }
+  const v = document.createElement('div'); v.className = 'viewer'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-label', f.name);
+  v.innerHTML = `<img src="${u}" alt="">
+    <div class="vbar"><button type="button" class="ghost small" data-v="close">닫기</button>
+      <button type="button" class="ghost small" data-v="share">보내기</button>
+      <button type="button" class="ghost small" data-v="del">이 첨부 지우기</button></div>`;
+  document.body.appendChild(v); document.body.classList.add('noscroll');
+  const close = () => { v.remove(); if(!state.sh.open) document.body.classList.remove('noscroll'); };
+  v.addEventListener('click', async e => {
+    const b = e.target.closest('[data-v]'); if(!b){ if(e.target === v) close(); return; }
+    if(b.dataset.v === 'close') close();
+    else if(b.dataset.v === 'share'){
+      const rec = await getFile(fid); const file = new File([rec.blob], rec.name, { type:rec.type });
+      if(navigator.canShare && navigator.canShare({ files:[file] })){ try{ await navigator.share({ files:[file], title:it.title }); }catch(err){} }
+      else toast('이 브라우저에서는 바로 보내기가 안 돼요. 사진을 길게 눌러 저장한 뒤 보내 주세요.');
+    } else if(b.dataset.v === 'del'){
+      if(b.dataset.armed !== '1'){ b.dataset.armed = '1'; b.textContent = '한 번 더 누르면 지워져요'; return; }
+      try{ await delFile(fid); }catch(err){} URL.revokeObjectURL(u); urls.delete(fid);
+      it.files = it.files.filter(x => x.fid !== fid); save(); close(); render(); refreshUsage();
+    }
+  });
+}
+
+function vaultAct(a, v){
+  const s = state;
+  switch(a){
+    case 'vnew': s.vedit = null; s.vdraft = null; render(); focusVaultForm(); return;
+    case 'vaddq': { const m = missingBookings(s, s.vault)[+v]; if(!m) return; s.vedit = null; s.vdraft = m; render(); focusVaultForm(); return; }
+    case 'vedit': s.vedit = v; s.vdraft = null; render(); focusVaultForm(); return;
+    case 'vcancel': s.vedit = null; s.vdraft = null; render(); return;
+    case 'vcopy': { const it = s.vault.find(x => x.id === v); if(it && it.code) copyText(it.code, `예약번호 ${it.code}을(를) 복사했어요.`); return; }
+    case 'vview': { const [id, fid] = v.split('|'); openViewer(id, fid); return; }
+    case 'vdel':
+      if(s.sh.vdel !== v){ s.sh.vdel = v; render(); setTimeout(() => { if(state.sh.vdel === v){ state.sh.vdel = null; render(); } }, 4000); return; }
+      s.sh.vdel = null; deleteVault(v); return;
+  }
+}
+function focusVaultForm(){ const f = document.getElementById('vaultform'); if(f){ f.scrollIntoView({ block:'start' }); document.getElementById('vtitle').focus({ preventScroll:true }); } }
 
 function unpick(s, id){ delete s.picked[id]; delete s.must[id]; delete s.assign[id]; delete s.fullDay[id]; }
 
@@ -414,6 +505,7 @@ function act(a, v){
       s.imports = s.imports.filter(r => !r.skip && !ready.includes(r));
       break;
     }
+    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
     case 'shareopen': s.sh.open = true; startShare(); render(); return;
     case 'shareclose': s.sh.open = false; render(); return;
     case 'login': case 'logout': case 'sharestart': case 'joinok': case 'joincancel': case 'restore': case 'copylink': case 'sendlink':
@@ -489,6 +581,7 @@ function onSubmit(e){
   }
   if(e.target.id === 'hotelform'){ e.preventDefault(); addHotel(); return; }
   if(e.target.classList.contains('cmform')){ e.preventDefault(); onShareSubmit(e.target); return; }
+  if(e.target.id === 'vaultform'){ e.preventDefault(); saveVault(); return; }
   if(e.target.id === 'rkform'){
     e.preventDefault();
     const appId = document.getElementById('rkapp').value.trim(), key = document.getElementById('rkkey').value.trim();
@@ -518,6 +611,7 @@ document.addEventListener('submit', onSubmit);
   } else if(state.shareId) startShare();
 }
 render();
+if(state.step === STEPS.length-1) refreshUsage();
 
 // 오프라인 사용(홈 화면 앱). localhost 개발 중에는 캐시 때문에 헷갈리지 않게 등록하지 않음
 if('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)){
