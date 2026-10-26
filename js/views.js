@@ -5,7 +5,7 @@ import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAr
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { clothesTip } from './weather.js';
 import { mapSVG } from './map.js';
-import { esc, chip, badge, gmap } from './ui.js';
+import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 
 export function partyText(s){
@@ -232,6 +232,11 @@ export function vPick(s){
       <p class="fine">${!cap.total ? '여행 날짜를 정하면 쓸 수 있는 시간을 계산해 드려요.' : over ? '쓸 수 있는 시간보다 많이 담았어요. 일정에서 넘치는 곳은 따로 모아둘게요.' : `하루 종일 쓰는 곳을 뺀 나머지 날에 ${+(cap.total - cap.used).toFixed(1)}시간 정도 여유가 있어요.`}</p>
       <div><button type="button" class="ghost small" data-act="autopick">추천 순서대로 빈 시간 채우기</button></div>
     </div>
+    <div class="box">
+      <h2>지도에서 찾아 담기</h2>
+      <p class="fine">지도에서 이름으로 찾거나 원하는 자리를 눌러 바로 담아요. 목록에 없는 식당·가게도 담을 수 있어요.</p>
+      <div><button type="button" class="primary small" data-act="mapopen">지도 열기</button></div>
+    </div>
     ${importBox(s)}
     <div class="scroller" role="group" aria-label="동네로 거르기">
       ${chip('filter', 'all', '추천순 전체', s.areaFilter === 'all')}
@@ -421,10 +426,11 @@ export function vPlan(s){
     ${mapSVG('plan', s, P)}
     ${P.days.map(d => { const col = DAY_COLORS[d.i % DAY_COLORS.length]; const pct = d.cap ? Math.min(100, d.used / d.cap * 100) : 0;
       const body = d.full
-        ? `<div class="fullday"><b>${esc(d.full.name)}</b><span>하루 종일 · ${esc(d.full.note || '')}</span>${(d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
+        ? `<div class="fullday"><b>${esc(d.full.name)}</b><span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(P.hotel, d.full))}" target="_blank" rel="noopener">숙소에서 길찾기 ↗</a>${(d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
         : d.items.length
           ? `<ol class="stops">${d.items.map((p, j) => { const cl = p.closed && p.closed.includes(d.wd);
-              return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span></div>${moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
+              const prev = j ? d.items[j-1] : P.hotel;
+              return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a></div>${moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day" style="--day:${col}">
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}</p></div></header>

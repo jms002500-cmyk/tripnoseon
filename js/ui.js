@@ -10,3 +10,11 @@ export function chip(act, v, label, on, dis){
 // 도쿄 메트로 역 번호판처럼 생긴 날짜 배지 (D1, D2 …)
 export function badge(i){ return `<span class="badge" style="--day:${DAY_COLORS[i % DAY_COLORS.length]}">D${i+1}</span>`; }
 export function gmap(q){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`; }
+
+// 구글 지도 길찾기(대중교통). 폰에서는 구글 지도 앱이 열림. 길찾기는 직접 만들지 않고 연결만 함
+//   이름이 확실한 기본 장소는 일본어 이름으로, 나머지(직접 담은 곳·숙소)는 좌표로
+export function gdirPoint(p){ return p.ja && !p.custom ? p.ja : `${(+p.lat).toFixed(6)},${(+p.lng).toFixed(6)}`; }
+export function gdir(from, to){
+  const q = new URLSearchParams({ api:'1', origin:gdirPoint(from), destination:gdirPoint(to), travelmode:'transit' });
+  return `https://www.google.com/maps/dir/?${q}`;
+}

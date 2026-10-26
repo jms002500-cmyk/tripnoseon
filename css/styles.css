@@ -225,3 +225,23 @@ button[disabled]{opacity:.4; cursor:not-allowed}
 /* 날씨 */
 .wxd{flex:none; min-width:42px; font:600 13px var(--f-mono); color:var(--muted)}
 .wx .daystrip li + li::before{display:none}
+
+/* 지도에서 찾아 담기 (화면 전체 시트) */
+body.noscroll{overflow:hidden}
+.mapsheet{position:fixed; inset:0; z-index:50; background:var(--paper); display:flex; flex-direction:column;
+  padding:env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(12px, env(safe-area-inset-left, 0px))}
+.mapsheet[hidden]{display:none}
+.mshead{display:flex; align-items:center; justify-content:space-between; padding:10px 0}
+.mshead b{font:400 20px var(--f-display)}
+.mssearch{display:flex; gap:8px; padding-bottom:8px}
+.mssearch input{flex:1; min-width:0; padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--surface); color:var(--ink); font:inherit}
+.msmap{flex:1; min-height:240px; border-radius:12px; overflow:hidden; border:1px solid var(--rule)}
+.msinfo{max-height:38vh; overflow:auto; padding:10px 0 12px}
+.msinfo label{display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted)}
+.msinfo input, .msinfo select{padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--surface); color:var(--ink); font:inherit; width:100%}
+.msadd{display:flex; flex-direction:column; gap:8px}
+.msbtn{display:flex; align-items:flex-end}
+.mspin{background:var(--accent); border:3px solid #FFFFFF; border-radius:50% 50% 50% 0; transform:rotate(-45deg); box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.leaflet-popup-content{font:14px/1.5 var(--f-body)}
+.leaflet-popup-content .small{margin-top:6px}
+.sbody .link, .fullday .link{font-size:12.5px; align-self:flex-start}

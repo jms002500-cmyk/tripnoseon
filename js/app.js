@@ -4,6 +4,7 @@ import { clone, buildDays, fullAssign, autoPickIds, allPlaces } from './logic.js
 import { VIEWS } from './views.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
+import { openMap } from './livemap.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 
@@ -146,6 +147,21 @@ function addHotel(){
   if(!has) findHotelLocations();
 }
 
+// 지도 시트: 담은 곳 표시, 점 눌러 담기/빼기, 새 자리 담기
+function openLiveMap(){
+  openMap({
+    getState: () => state,
+    onToggle: id => { const s = state; if(s.picked[id]) unpick(s, id); else s.picked[id] = true; save(); render(); },
+    onAdd: ({ name, lat, lng, hours }) => {
+      const s = state; const id = 'm' + Date.now().toString(36);
+      s.custom.push({ id, name:(name || '지도에서 고른 곳').slice(0, 60), ja:'', area:nearestArea({ lat, lng }).key, lat, lng, hours:hours || 1.5,
+        tags:[], kid:'all', custom:true, src:'map' });
+      s.picked[id] = true; save(); render();
+    },
+    onClose: () => render()
+  });
+}
+
 function importRowOf(k){ return state.imports.find(r => r.k === k); }
 
 function act(a, v){
@@ -174,6 +190,7 @@ function act(a, v){
     case 'replan': s.assign = {}; break;
     case 'impfind': findLocations(); return;
     case 'hfind': findHotelLocations(); return;
+    case 'mapopen': openLiveMap(); return;
     case 'wxretry': ensureWeather(true); return;
     case 'hpick': s.hotelPick = s.hotelPick === v ? null : v; break;
     case 'hdel': s.hotels = s.hotels.filter(h => h.id !== v); if(s.hotelPick === v) s.hotelPick = null; break;
