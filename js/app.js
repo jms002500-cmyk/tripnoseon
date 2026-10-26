@@ -10,12 +10,15 @@ import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx } from './prices.js';
 import { missingBookings } from './vault.js';
 import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } from './vaultdb.js';
+import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blobToB64, b64ToBlob } from './backup.js';
+import { sizeText } from './vault.js';
 import * as SH from './share.js';
 import { sharedOf, diffShared, applyRemote, inviteLink, parseJoin, describeChange, voteSummary, DELETE } from './sharecore.js';
 
 const S_KEY = 'tripnoseon-v1';
 const RK_KEY = 'tripnoseon-rakuten';   // 라쿠텐 키는 일정 상태와 따로 저장 (상태를 내보내거나 백업해도 키는 안 섞이게)
-const BK_KEY = 'tripnoseon-before-join';   // 공유 여행에 참여하기 직전 내 일정 (되돌리기용)
+const BK_KEY = 'tripnoseon-before-join';
+const RS_KEY = 'tripnoseon-before-restore';   // 백업으로 바꾸기 직전 상태 (되돌리기 취소용)   // 공유 여행에 참여하기 직전 내 일정 (되돌리기용)
 let state = load();
 state.rkOn = !!rkKeys();
 state.sh = freshSh();
@@ -113,7 +116,8 @@ document.addEventListener('click', e => {
 });
 
 // 함께 짜기 화면 상태(로그인, 참여자, 투표, 의견, 기록). 기기에 저장하지 않음
-function freshSh(){ return { open:false, user:null, authReady:false, trip:null, votes:{}, comments:[], log:[], msg:'', busy:false, pendingJoin:null, cmPlace:null, delArmed:false, hasBackup:hasBackup() }; }
+function freshSh(){ return { open:false, user:null, authReady:false, trip:null, votes:{}, comments:[], log:[], msg:'', busy:false, pendingJoin:null, cmPlace:null, delArmed:false, hasBackup:hasBackup(), hasRestoreUndo:hasKey(RS_KEY), restore:null, bkmsg:'', bkbusy:false }; }
+function hasKey(k){ try{ return !!localStorage.getItem(k); }catch(e){ return false; } }
 function hasBackup(){ try{ return !!localStorage.getItem(BK_KEY); }catch(e){ return false; } }
 
 function saveLocal(){ try{ localStorage.setItem(S_KEY, JSON.stringify(state, (k, v) => k === 'sh' ? undefined : v)); }catch(e){} }
@@ -389,6 +393,78 @@ function vaultAct(a, v){
       s.sh.vdel = null; deleteVault(v); return;
   }
 }
+/* ---------- 백업 · 되돌리기 ---------- */
+function downloadBlob(blob, name){
+  const u = URL.createObjectURL(blob); const a = document.createElement('a');
+  a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 10000);
+}
+
+async function exportBackup(){
+  const s = state; const sh = s.sh; if(sh.bkbusy) return;
+  const withKeys = !!(document.getElementById('bkkeys') || {}).checked;
+  sh.bkbusy = true; sh.bkmsg = ''; render();
+  try{
+    const files = [];
+    for(const it of s.vault || []) for(const f of it.files || []){
+      const rec = await getFile(f.fid);
+      if(rec) files.push({ fid:f.fid, name:rec.name, type:rec.type, size:rec.size, data:await blobToB64(rec.blob) });
+    }
+    const now = new Date(); const b = makeBackup(s, files, withKeys ? rkKeys() : null, now);
+    const blob = new Blob([JSON.stringify(b)], { type:'application/json' }); const name = backupName(now);
+    const file = new File([blob], name, { type:'application/json' });
+    // 폰에서는 공유 창(파일 앱·메일·카톡으로 저장), PC에서는 내려받기
+    if(matchMedia('(pointer:coarse)').matches && navigator.canShare && navigator.canShare({ files:[file] })){
+      try{ await navigator.share({ files:[file], title:'트립노선 백업' }); }
+      catch(e){ if(e && e.name === 'AbortError'){ sh.bkbusy = false; render(); return; } downloadBlob(blob, name); }
+    } else downloadBlob(blob, name);
+    s.lastBackup = stamp(); sh.bkmsg = `백업 파일 ${name}을(를) 만들었어요 (${sizeText(blob.size)}).${withKeys ? ' 라쿠텐 키가 들어 있으니 남에게 보내지 마세요.' : ''}`;
+    saveLocal();
+  }catch(e){ sh.bkmsg = '백업 파일을 만들지 못했어요. 저장 공간을 확인하고 다시 해 주세요.'; }
+  sh.bkbusy = false; render();
+}
+
+async function readBackupFile(file){
+  const sh = state.sh; sh.bkmsg = ''; sh.restore = null;
+  let text = ''; try{ text = await file.text(); }catch(e){}
+  const r = parseBackup(text);
+  if(!r.ok){ sh.bkmsg = r.error; render(); return; }
+  sh.restore = { data:r.data, sum:summarizeBackup(r.data), name:file.name }; render();
+  const box = document.getElementById('backupbox'); if(box) box.scrollIntoView({ block:'start' });
+}
+
+// 백업으로 바꾸기: 첨부를 기기에 다시 넣고, 일정·보관함 목록을 바꿈. 공유 여행이면 일정은 서버 최신 내용을 따름
+async function doRestore(){
+  const s = state; const sh = s.sh; const rs = sh.restore; if(!rs || sh.bkbusy) return;
+  sh.bkbusy = true; render();
+  try{ localStorage.setItem(RS_KEY, JSON.stringify(s, (k, v) => k === 'sh' ? undefined : v)); }catch(e){}
+  let failed = 0;
+  for(const f of rs.data.files || []){
+    try{ await putFile(f.fid, { blob:b64ToBlob(f.data, f.type), name:f.name, type:f.type, size:f.size }); }catch(e){ failed++; }
+  }
+  if(rs.data.rakuten && rs.data.rakuten.key){ try{ localStorage.setItem(RK_KEY, JSON.stringify(rs.data.rakuten)); }catch(e){} }
+  unwatch(); clearTimeout(pushTimer); pushTimer = null; lastSynced = null;   // 공유 여행이면 서버 일정을 그대로 받음
+  state = restoreState(rs.data); state.rkOn = !!rkKeys(); state.sh = sh;
+  sh.restore = null; sh.bkbusy = false; sh.hasRestoreUndo = true;
+  sh.bkmsg = failed ? `백업으로 바꿨지만 첨부 ${failed}개는 저장 공간이 모자라 넣지 못했어요.` : '백업으로 바꿨어요.';
+  saveLocal();
+  if(state.shareId){ if(sh.user) watchTrip(); else startShare(); }
+  render(); refreshUsage();
+}
+
+function undoRestore(){
+  let prev = null; try{ prev = JSON.parse(localStorage.getItem(RS_KEY) || 'null'); }catch(e){}
+  if(!prev) return;
+  const sh = state.sh;
+  unwatch(); clearTimeout(pushTimer); pushTimer = null; lastSynced = null;
+  state = restoreState({ state:prev }); state.rkOn = !!rkKeys(); state.sh = sh;
+  try{ localStorage.removeItem(RS_KEY); }catch(e){}
+  sh.hasRestoreUndo = false; sh.bkmsg = '백업으로 바꾸기 전 상태로 돌아왔어요.';
+  saveLocal();
+  if(state.shareId){ if(sh.user) watchTrip(); else startShare(); }
+  render(); refreshUsage();
+}
+
 function focusVaultForm(){ const f = document.getElementById('vaultform'); if(f){ f.scrollIntoView({ block:'start' }); document.getElementById('vtitle').focus({ preventScroll:true }); } }
 
 function unpick(s, id){ delete s.picked[id]; delete s.must[id]; delete s.assign[id]; delete s.fullDay[id]; }
@@ -506,6 +582,10 @@ function act(a, v){
       break;
     }
     case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
+    case 'bkexport': exportBackup(); return;
+    case 'bkrestore': doRestore(); return;
+    case 'bkcancel': s.sh.restore = null; render(); return;
+    case 'bkundo': undoRestore(); return;
     case 'shareopen': s.sh.open = true; startShare(); render(); return;
     case 'shareclose': s.sh.open = false; render(); return;
     case 'login': case 'logout': case 'sharestart': case 'joinok': case 'joincancel': case 'restore': case 'copylink': case 'sendlink':
@@ -541,6 +621,7 @@ function onChange(e){
     });
     t.value = ''; return;
   }
+  else if(t.dataset.bkimport != null){ const f = t.files && t.files[0]; t.value = ''; if(f) readBackupFile(f); return; }
   else if(t.dataset.hcur != null){ s.hotelCur = t.value; }
   else if(t.dataset.hprice != null || t.dataset.hpcur != null){
     // 사이트별 가격: 'hotelId|siteKey'

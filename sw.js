@@ -1,10 +1,10 @@
 // 오프라인 지원: 네트워크 우선, 실패하면 저장해 둔 사본으로.
 // 파일 목록을 바꾸면 CACHE 이름의 숫자를 올려 주세요.
-const CACHE = 'tripnoseon-v10';
+const CACHE = 'tripnoseon-v11';
 const SHELL = [
   './', './index.html', './css/styles.css', './manifest.webmanifest',
   './js/app.js', './js/data.js', './js/logic.js', './js/map.js', './js/ui.js', './js/views.js',
-  './js/gimport.js', './js/geocode.js', './js/rakuten.js', './js/weather.js', './js/livemap.js', './js/prices.js', './js/share.js', './js/sharecore.js', './js/firebase-config.js', './js/vault.js', './js/vaultdb.js', './js/vendor/leaflet/leaflet.js', './js/vendor/leaflet/leaflet.css',
+  './js/gimport.js', './js/geocode.js', './js/rakuten.js', './js/weather.js', './js/livemap.js', './js/prices.js', './js/share.js', './js/sharecore.js', './js/firebase-config.js', './js/vault.js', './js/vaultdb.js', './js/backup.js', './js/vendor/leaflet/leaflet.js', './js/vendor/leaflet/leaflet.css',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'
 ];
 

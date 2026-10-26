@@ -567,6 +567,34 @@ function vaultCard(s, it){
   </article>`;
 }
 
+// 백업 · 되돌리기 (보관함 단계 맨 아래)
+function backupBox(s){
+  const sh = s.sh || {}; const r = sh.restore;
+  const when = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }); };
+  const bad = sh.bkmsg && /못|아니에요|알 수 없|새 버전/.test(sh.bkmsg);
+  return `<div class="box" id="backupbox">
+    <h2>백업 · 되돌리기<small>${s.lastBackup ? `마지막 백업 ${esc(s.lastBackup)}` : '아직 백업하지 않았어요'}</small></h2>
+    <p class="fine">일정·숙소 후보·가져온 장소·보관함(첨부 사진·PDF 포함)을 파일 하나로 저장해요. 폰을 바꾸거나 데이터가 지워져도 이 파일로 되돌릴 수 있어요. 파일은 '파일' 앱이나 메일·카톡 '나에게 보내기'로 보관하세요.</p>
+    ${s.rkOn ? '<label class="chk"><input type="checkbox" id="bkkeys"> 라쿠텐 키도 넣기 <span class="fine">(키가 든 파일은 남에게 보내지 마세요)</span></label>' : ''}
+    <div class="pfoot"><button type="button" class="primary small" data-act="bkexport"${sh.bkbusy ? ' disabled' : ''}>${sh.bkbusy ? '만드는 중…' : '백업 파일 만들기'}</button>
+      <label class="ghost small filebtn">백업 파일로 되돌리기<input type="file" accept=".json,application/json" data-bkimport hidden></label></div>
+    ${sh.bkmsg ? `<p class="${bad ? 'warnline' : 'fine'}">${esc(sh.bkmsg)}</p>` : ''}
+    ${r ? `<div class="box tip"><h2>이 백업으로 바꿀까요?</h2>
+      <ul class="bklist">
+        <li>만든 때: ${esc(when(r.sum.at))}</li>
+        ${r.sum.dates ? `<li>여행 날짜: ${esc(r.sum.dates)}</li>` : ''}
+        <li>담은 곳 ${r.sum.places}곳${r.sum.custom ? ` (직접 담은 곳 ${r.sum.custom}곳)` : ''} · 숙소 후보 ${r.sum.hotels}곳</li>
+        <li>보관함 ${r.sum.vault}건 · 첨부 ${r.sum.files}개${r.sum.bytes ? ` (${sizeText(r.sum.bytes)})` : ''}</li>
+        ${r.sum.shared ? '<li>공유 여행이 연결된 백업이에요. 일정은 공유 여행의 최신 내용으로 맞춰지고, 보관함 등 이 기기 것만 백업에서 돌아와요.</li>' : ''}
+        ${r.sum.keys ? '<li>라쿠텐 키가 들어 있어요.</li>' : ''}
+      </ul>
+      <p class="fine">지금 이 기기의 일정과 보관함 목록이 이 백업으로 바뀌어요. 바꾸기 전 상태는 따로 보관해서 '되돌리기 취소'로 돌아갈 수 있어요.</p>
+      <div class="pfoot"><button type="button" class="primary small" data-act="bkrestore"${sh.bkbusy ? ' disabled' : ''}>이 백업으로 바꾸기</button><button type="button" class="ghost small" data-act="bkcancel">취소</button></div>
+    </div>` : ''}
+    ${sh.hasRestoreUndo && !r ? '<p class="fine">백업으로 바꾸기 전 상태가 보관돼 있어요. <button type="button" class="link" data-act="bkundo">되돌리기 취소</button></p>' : ''}
+  </div>`;
+}
+
 export function vVault(s){
   const items = s.vault || []; const miss = missingBookings(s, items);
   const editing = s.vedit ? items.find(x => x.id === s.vedit) : null;
@@ -602,6 +630,7 @@ export function vVault(s){
         ${editing || s.vdraft ? '<button type="button" class="ghost small" data-act="vcancel">취소</button>' : ''}</div>
       <p class="fine">큰 사진은 줄여서 저장하고, QR 캡처는 선명하게 그대로 둬요. 아이폰은 홈 화면에 추가한 앱에서 써야 오래 안전하게 남아요. 원본은 메일·사진첩에도 꼭 남겨 두세요.</p>
     </form>
+    ${backupBox(s)}
   </section>`;
 }
 

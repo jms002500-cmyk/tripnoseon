@@ -305,3 +305,8 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .brand{min-width:0}
 .topbtns .ghost{white-space:nowrap}
 @media (max-width:420px){ .tag{display:none} .topbtns{gap:4px} .topbtns .small{padding:7px 10px} }
+
+/* 백업 */
+.chk{display:flex; align-items:center; gap:8px; font-size:14px}
+.chk input{width:18px; height:18px}
+.bklist{margin:0; padding-left:18px; font-size:14px; display:flex; flex-direction:column; gap:4px}
