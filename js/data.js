@@ -130,10 +130,11 @@ export const DAY_COLORS = ['#F39700','#E60012','#00A7DB','#009944','#9B7CB6','#B
 export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'normal',
   country:'jp', city:'tokyo', start:'', end:'',
   picked:{}, must:{}, fullDay:{}, custom:[], hotelArea:null, assign:{}, areaFilter:'all', kindFilter:'all', anchorKind:'all',
-  imports:[], geoBusy:false, geoErr:false, impMsg:'',   // imports: 구글 지도에서 가져와 확인을 기다리는 곳
-  hotels:[], hotelPick:null, hotelCur:'JPY', hotelSort:'place', hotelMsg:'', hotelBusy:false, hotelErr:false,
-  rkOn:false, rk:null, rkBusy:false,
-  wx:null, wxBusy:false, fx:null};   // fx: 환율 { rate: 1엔당 원, date, src }   // wx: 여행 날짜 날씨(이맘때 평균·예보)   // rkOn: 라쿠텐 키가 이 기기에 있는지(키 자체는 상태에 넣지 않음), rk: 마지막 빈방 검색 결과   // hotels: 직접 담은 숙소 후보 (이 기기에만 저장)
+  imports:[], geoBusy:false, geoErr:false, impMsg:'',       // imports: 구글 지도에서 가져와 확인을 기다리는 곳
+  hotels:[], hotelPick:null, hotelCur:'JPY', hotelSort:'place', hotelMsg:'', hotelBusy:false, hotelErr:false,   // hotels: 숙소 후보
+  rkOn:false, rk:null, rkBusy:false,   // rkOn: 라쿠텐 키가 이 기기에 있는지(키 자체는 상태에 넣지 않음), rk: 마지막 빈방 검색 결과
+  wx:null, wxBusy:false, fx:null,      // wx: 여행 날짜 날씨(이맘때 평균·예보), fx: 환율 { rate: 1엔당 원, date, src }
+  shareId:null};                       // shareId: 함께 짜는 공유 여행 번호(없으면 이 기기에만 있는 여행)
 
 // 숙소 가격 통화. 후보끼리 비교해야 해서 여행 하나에 통화 하나만 씀
 export const CURRENCY = { JPY:{ label:'엔', sign:'¥' }, KRW:{ label:'원', sign:'₩' } };

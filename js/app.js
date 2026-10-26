@@ -1,18 +1,22 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces } from './logic.js';
-import { VIEWS } from './views.js';
+import { VIEWS, SHEET } from './views.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
 import { openMap } from './livemap.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx } from './prices.js';
+import * as SH from './share.js';
+import { sharedOf, diffShared, applyRemote, inviteLink, parseJoin, describeChange, voteSummary, DELETE } from './sharecore.js';
 
 const S_KEY = 'tripnoseon-v1';
 const RK_KEY = 'tripnoseon-rakuten';   // 라쿠텐 키는 일정 상태와 따로 저장 (상태를 내보내거나 백업해도 키는 안 섞이게)
+const BK_KEY = 'tripnoseon-before-join';   // 공유 여행에 참여하기 직전 내 일정 (되돌리기용)
 let state = load();
 state.rkOn = !!rkKeys();
+state.sh = freshSh();
 let resetArmed = false; let resetTimer = null;
 
 function load(){
@@ -106,7 +110,171 @@ document.addEventListener('click', e => {
   if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(name).then(ok, legacy); else legacy();
 });
 
-function save(){ try{ localStorage.setItem(S_KEY, JSON.stringify(state)); }catch(e){} }
+// 함께 짜기 화면 상태(로그인, 참여자, 투표, 의견, 기록). 기기에 저장하지 않음
+function freshSh(){ return { open:false, user:null, authReady:false, trip:null, votes:{}, comments:[], log:[], msg:'', busy:false, pendingJoin:null, cmPlace:null, delArmed:false, hasBackup:hasBackup() }; }
+function hasBackup(){ try{ return !!localStorage.getItem(BK_KEY); }catch(e){ return false; } }
+
+function saveLocal(){ try{ localStorage.setItem(S_KEY, JSON.stringify(state, (k, v) => k === 'sh' ? undefined : v)); }catch(e){} }
+function save(){ saveLocal(); schedulePush(); }
+
+/* ---------- 함께 짜기 (공유 여행) ---------- */
+let unsubs = [], lastSynced = null, pushTimer = null, userWatching = false;
+
+// Firebase를 불러오고 로그인 상태를 지켜봄 (함께 짜기를 열거나 공유 여행이 있을 때만)
+async function startShare(){
+  if(userWatching) return; userWatching = true;
+  try{
+    await SH.watchUser(u => {
+      const sh = state.sh; sh.user = u; sh.authReady = true;
+      if(u && state.shareId) watchTrip(); else if(!u) unwatch();
+      render();
+    });
+  }catch(e){ userWatching = false; state.sh.msg = '함께 짜기를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요.'; state.sh.authReady = true; render(); }
+}
+
+function unwatch(){ unsubs.forEach(f => { try{ f(); }catch(e){} }); unsubs = []; }
+
+// 'p.key' / 'p.key.id' 경로의 값을 상태에 직접 넣기 (아직 못 올린 내 변경을 서버 일정 위에 다시 얹을 때)
+function setPath(s, path, v){
+  const [, key, sub] = path.split('.');
+  if(sub == null){ s[key] = v; return; }
+  s[key] = s[key] && typeof s[key] === 'object' ? s[key] : {};
+  if(v === DELETE) delete s[key][sub]; else s[key][sub] = v;
+}
+
+function watchTrip(){
+  unwatch(); const id = state.shareId; if(!id) return;
+  unsubs.push(SH.watchTrip(id, data => {
+    if(state.shareId !== id) return;
+    if(!data){ stopShare('공유 여행이 지워졌어요. 이 기기의 일정은 그대로 남아요.'); return; }
+    const s = state;
+    s.sh.trip = { title:data.title || '', ownerUid:data.ownerUid, members:data.members || {}, memberUids:data.memberUids || [], open:!!data.open, updatedBy:data.updatedBy || null };
+    s.sh.votes = data.votes || {};
+    if(data.p){
+      // 아직 서버에 못 올린 내 변경을 기억했다가, 서버 일정을 받은 뒤 그 위에 다시 얹음 (서로 덮어쓰지 않게)
+      const pending = lastSynced ? diffShared(lastSynced, sharedOf(s)) : [];
+      applyRemote(s, data.p);
+      lastSynced = sharedOf(s);
+      pending.forEach(([path, v]) => setPath(s, path, v));
+      saveLocal();
+      if(pending.length) schedulePush();
+    }
+    renderRemote();
+  }, code => {
+    if(code === 'permission-denied') stopShare('이 공유 여행에 들어갈 수 없어요. 초대 링크가 닫혔거나 여행에서 빠졌어요. 이 기기의 일정은 그대로 남아요.');
+    else { state.sh.msg = '공유 연결이 끊겼어요. 잠시 후 다시 열어 주세요.'; render(); }
+  }));
+  unsubs.push(SH.watchComments(id, list => { state.sh.comments = list; renderRemote(); }));
+  unsubs.push(SH.watchLog(id, list => { state.sh.log = list; renderRemote(); }));
+}
+
+// 이 기기에서 공유를 끊음 (일정은 마지막 상태 그대로 남김)
+function stopShare(msg){
+  unwatch(); clearTimeout(pushTimer); pushTimer = null; lastSynced = null;
+  const s = state; s.shareId = null; s.sh.trip = null; s.sh.votes = {}; s.sh.comments = []; s.sh.log = []; s.sh.cmPlace = null; s.sh.msg = msg || '';
+  saveLocal(); render();
+}
+
+function schedulePush(){
+  if(!state.shareId || !state.sh || !state.sh.user || !lastSynced) return;
+  clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, 500);
+}
+async function pushNow(){
+  pushTimer = null;
+  const s = state, id = s.shareId, u = s.sh.user; if(!id || !u || !lastSynced) return;
+  const next = sharedOf(s); const changes = diffShared(lastSynced, next); if(!changes.length) return;
+  const prev = lastSynced; const text = describeChange(prev, next); lastSynced = next;
+  try{ await SH.pushChanges(id, u, changes); if(text) SH.addLog(id, u, text).catch(() => {}); }
+  catch(e){ if(state.shareId === id){ lastSynced = prev; s.sh.msg = '바뀐 내용을 공유 여행에 올리지 못했어요. 잠시 후 다시 고쳐 보세요.'; render(); } }
+}
+
+async function shareAct(a, v){
+  const s = state, sh = s.sh, u = sh.user, id = s.shareId;
+  sh.msg = '';
+  try{
+    switch(a){
+      case 'login': await SH.signIn(); break;
+      case 'logout': unwatch(); await SH.signOut(); break;
+      case 'sharestart': {
+        if(!u || sh.busy) return;
+        const title = (document.getElementById('sharetitle')?.value || '').trim().slice(0, 40) || '함께 짜는 여행';
+        sh.busy = true; render();
+        const newId = await SH.createTrip(u, title, sharedOf(s));
+        s.shareId = newId; lastSynced = sharedOf(s); sh.busy = false; saveLocal(); watchTrip();
+        SH.addLog(newId, u, '공유 여행을 만듦').catch(() => {});
+        break;
+      }
+      case 'joinok': {
+        const jid = sh.pendingJoin; if(!u || !jid || sh.busy) return;
+        sh.busy = true; render();
+        try{ localStorage.setItem(BK_KEY, JSON.stringify(s, (k, val) => k === 'sh' ? undefined : val)); }catch(e){}
+        try{ await SH.joinTrip(jid, u); }catch(e){ /* 이미 참여한 여행이면 규칙상 거절됨 → 그대로 열어 봄 */ }
+        unwatch(); clearTimeout(pushTimer); lastSynced = null;   // 첫 일정은 서버 것을 그대로 받음
+        s.shareId = jid; sh.pendingJoin = null; sh.busy = false; sh.hasBackup = true; saveLocal(); watchTrip();
+        SH.addLog(jid, u, '여행에 참여함').catch(() => {});
+        break;
+      }
+      case 'joincancel': sh.pendingJoin = null; break;
+      case 'restore': {
+        let bk = null; try{ bk = JSON.parse(localStorage.getItem(BK_KEY) || 'null'); }catch(e){}
+        if(!bk) return;
+        const keepSh = sh; state = Object.assign(clone(DEFAULT), bk, { shareId:null }); state.rkOn = !!rkKeys(); state.sh = keepSh;
+        try{ localStorage.removeItem(BK_KEY); }catch(e){} keepSh.hasBackup = false; saveLocal(); break;
+      }
+      case 'copylink': copyText(inviteLink(location.href, id), '초대 링크를 복사했어요. 카톡이나 문자로 보내 주세요.'); return;
+      case 'sendlink': {
+        const url = inviteLink(location.href, id);
+        if(navigator.share){ try{ await navigator.share({ title:'트립노선', text:`'${sh.trip ? sh.trip.title : '여행'}' 일정을 함께 짜요`, url }); }catch(e){} }
+        else copyText(url, '초대 링크를 복사했어요. 카톡이나 문자로 보내 주세요.');
+        return;
+      }
+      case 'linkopen': if(sh.trip) await SH.setOpen(id, !sh.trip.open); break;
+      case 'kick': await SH.removeMember(id, v); break;
+      case 'leave': await SH.removeMember(id, u.uid); stopShare('공유 여행에서 나왔어요. 이 기기의 일정은 그대로 남아요.'); return;
+      case 'unlink': stopShare('이 기기에서 공유를 끊었어요. 일정은 그대로 남아 있고, 초대 링크로 다시 들어갈 수 있어요.'); return;
+      case 'sharedel':
+        if(!sh.delArmed){ sh.delArmed = true; setTimeout(() => { state.sh.delArmed = false; render(); }, 4000); break; }
+        sh.delArmed = false; await SH.deleteTrip(id); stopShare('공유 여행을 지웠어요. 이 기기의 일정은 그대로 남아요.'); return;
+      case 'vote': {
+        if(!u || !id) return;
+        const [pid, val] = v.split('|'); const mine = voteSummary(sh.votes, pid, u.uid).mine; const nv = mine === +val ? 0 : +val;
+        sh.votes = Object.assign({}, sh.votes, { [pid]:Object.assign({}, sh.votes[pid], { [u.uid]:nv || undefined }) });   // 화면에 바로
+        render(); await SH.setVote(id, u, pid, nv); return;
+      }
+      case 'cmopen': sh.cmPlace = sh.cmPlace === v ? null : v; break;
+      case 'cmdel': await SH.deleteComment(id, v); return;
+    }
+  }catch(e){ sh.busy = false; sh.msg = shareError(e); }
+  render();
+}
+
+function shareError(e){
+  const c = (e && e.code) || '';
+  if(/unauthorized-domain/.test(c)) return '이 주소에서는 구글 로그인을 쓸 수 없어요. Firebase의 승인된 도메인을 확인해 주세요.';
+  if(/permission-denied/.test(c)) return '권한이 없어요. 초대 링크가 닫혔거나, 여행 주인만 할 수 있는 일이에요.';
+  if(/network|unavailable/.test(c)) return '인터넷 연결을 확인하고 다시 해 주세요.';
+  return `함께 짜기에서 문제가 생겼어요 (${c || '알 수 없음'}). 잠시 후 다시 해 주세요.`;
+}
+
+function copyText(text, okMsg){
+  const ok = () => toast(okMsg);
+  const fail = () => toast(`이 링크를 보내 주세요: ${text}`);
+  if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(ok, fail); else fail();
+}
+
+function onShareSubmit(f){
+  const s = state, u = s.sh.user;
+  if(!u || !s.shareId) return;
+  const ta = f.querySelector('textarea'); const text = (ta.value || '').trim(); if(!text) return;
+  const placeId = f.dataset.place || null; ta.value = '';
+  SH.addComment(s.shareId, u, placeId, text).catch(e => { s.sh.msg = shareError(e); render(); });
+}
+
+// 다른 사람의 변경(실시간)으로 다시 그릴 때: 글자를 입력하는 중이면 미뤘다가 입력칸을 벗어나면 그림
+let renderLater = false;
+function typing(){ const a = document.activeElement; return !!a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(button|checkbox|radio|file)$/.test(a.type))); }
+function renderRemote(){ if(typing()){ renderLater = true; return; } render(); }
+document.addEventListener('focusout', () => { if(renderLater){ renderLater = false; setTimeout(() => { if(!typing()) render(); else renderLater = true; }, 0); } });
 
 function render(){
   const s = state;
@@ -120,6 +288,14 @@ function render(){
   const rb = document.getElementById('resetBtn');
   rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터';
   rb.classList.toggle('armed', resetArmed);
+  const sb = document.getElementById('shareBtn');
+  sb.textContent = s.shareId && s.sh.trip ? `함께 · ${s.sh.trip.memberUids.length}명` : '함께 짜기';
+  sb.classList.toggle('on', !!s.shareId);
+  const sheet = document.getElementById('sheet');
+  const keepScroll = sheet.querySelector('.shbody') ? sheet.querySelector('.shbody').scrollTop : 0;
+  if(s.sh.open){ sheet.innerHTML = SHEET(s); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
+  else sheet.innerHTML = '';
+  document.body.classList.toggle('noscroll', !!s.sh.open);
   ensureWeather(false);
   ensureFx();
 }
@@ -238,9 +414,17 @@ function act(a, v){
       s.imports = s.imports.filter(r => !r.skip && !ready.includes(r));
       break;
     }
+    case 'shareopen': s.sh.open = true; startShare(); render(); return;
+    case 'shareclose': s.sh.open = false; render(); return;
+    case 'login': case 'logout': case 'sharestart': case 'joinok': case 'joincancel': case 'restore': case 'copylink': case 'sendlink':
+    case 'linkopen': case 'kick': case 'leave': case 'unlink': case 'sharedel': case 'vote': case 'cmopen': case 'cmdel':
+      shareAct(a, v); return;
     case 'reset':
       if(!resetArmed){ resetArmed = true; clearTimeout(resetTimer); resetTimer = setTimeout(() => { resetArmed = false; render(); }, 4000); render(); return; }
-      resetArmed = false; clearTimeout(resetTimer); state = clone(DEFAULT); state.rkOn = !!rkKeys(); scroll = true; break;
+      resetArmed = false; clearTimeout(resetTimer);
+      if(state.shareId) stopShare('');   // 처음부터 = 이 기기에서 공유도 끊음 (공유 여행 자체는 남음)
+      { const keepSh = state.sh; state = clone(DEFAULT); state.rkOn = !!rkKeys(); state.sh = keepSh; }
+      scroll = true; break;
   }
   save(); render(); if(scroll) window.scrollTo({ top:0 });
 }
@@ -304,6 +488,7 @@ function onSubmit(e){
     return;
   }
   if(e.target.id === 'hotelform'){ e.preventDefault(); addHotel(); return; }
+  if(e.target.classList.contains('cmform')){ e.preventDefault(); onShareSubmit(e.target); return; }
   if(e.target.id === 'rkform'){
     e.preventDefault();
     const appId = document.getElementById('rkapp').value.trim(), key = document.getElementById('rkkey').value.trim();
@@ -324,6 +509,14 @@ function onSubmit(e){
 document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if(!b || b.disabled) return; act(b.dataset.act, b.dataset.v); });
 document.addEventListener('change', onChange);
 document.addEventListener('submit', onSubmit);
+{
+  const j = parseJoin(location.hash);
+  if(j){
+    history.replaceState(null, '', location.pathname + location.search);
+    if(j !== state.shareId){ state.sh.pendingJoin = j; state.sh.open = true; }
+    startShare();
+  } else if(state.shareId) startShare();
+}
 render();
 
 // 오프라인 사용(홈 화면 앱). localhost 개발 중에는 캐시 때문에 헷갈리지 않게 등록하지 않음

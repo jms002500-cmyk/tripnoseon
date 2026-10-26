@@ -259,3 +259,20 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .toast{position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%) translateY(20px); opacity:0; pointer-events:none;
   background:var(--ink); color:var(--paper); padding:10px 14px; border-radius:10px; font-size:13.5px; max-width:calc(100% - 32px); transition:opacity .2s, transform .2s; z-index:60}
 .toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+
+/* 함께 짜기 */
+.topbtns{display:flex; gap:6px}
+#shareBtn.on{border-color:var(--good); color:var(--good)}
+.sheet{overflow:hidden}
+.shbody{flex:1; overflow:auto; display:flex; flex-direction:column; gap:12px; padding-bottom:16px}
+.shbody input[type="text"]{padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--surface); color:var(--ink); font:inherit; width:100%}
+.shlabel{display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted)}
+.ghost.armed{border-color:var(--warn); color:var(--warn)}
+.votes{display:flex; gap:6px; flex-wrap:wrap; margin-top:4px}
+.vbtn{border:1.5px solid var(--rule); background:var(--surface); border-radius:999px; padding:3px 10px; font-size:13px; min-height:30px}
+.vbtn[aria-pressed="true"], .vbtn[aria-expanded="true"]{border-color:var(--accent); background:var(--accent-soft); color:var(--accent-ink); font-weight:600}
+.cms{display:flex; flex-direction:column; gap:8px; margin-top:6px; padding:8px; border-radius:8px; background:var(--paper)}
+.cmlist, .loglist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:13.5px}
+.cmlist p{margin:2px 0 0}
+.cmform{display:flex; gap:6px; align-items:flex-end}
+.cmform textarea{flex:1; min-width:0; padding:8px; border:1.5px solid var(--rule); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; font-size:14px; resize:vertical}

@@ -5,6 +5,7 @@ import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAr
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { clothesTip } from './weather.js';
 import { SITES, siteUrl, priceOptions } from './prices.js';
+import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
 import { mapSVG } from './map.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
@@ -17,6 +18,77 @@ export function partyText(s){
     return `가족 ${n}명` + (s.kids.length ? ` (아이 ${s.kids.map(a => a + '살').join(', ')})` : '');
   }
   const w = WHO.find(x => x.key === s.who); return `${w.label} ${s.adults}명`;
+}
+
+/* 함께 짜기: 장소마다 투표·의견 (공유 여행일 때만) */
+function voteBar(s, p){
+  if(!s.shareId || !s.sh || !s.sh.user) return '';
+  const v = voteSummary(s.sh.votes, p.id, s.sh.user.uid);
+  const cms = (s.sh.comments || []).filter(c => c.placeId === p.id);
+  const open = s.sh.cmPlace === p.id;
+  return `<div class="votes">
+      <button type="button" class="vbtn" data-act="vote" data-v="${esc(p.id)}|1" aria-pressed="${v.mine === 1}" aria-label="좋아요">👍 ${v.up || ''}</button>
+      <button type="button" class="vbtn" data-act="vote" data-v="${esc(p.id)}|-1" aria-pressed="${v.mine === -1}" aria-label="글쎄요">🤔 ${v.down || ''}</button>
+      <button type="button" class="vbtn" data-act="cmopen" data-v="${esc(p.id)}" aria-expanded="${open}">의견 ${cms.length || ''}</button>
+    </div>
+    ${open ? commentList(s, cms, p.id) : ''}`;
+}
+
+function commentList(s, cms, placeId){
+  const me = s.sh.user;
+  return `<div class="cms">
+      ${cms.length ? `<ul class="cmlist">${cms.map(c => `<li><b>${esc(c.name)}</b> <span class="fine">${esc(c.at)}</span>${c.uid === me.uid ? ` <button type="button" class="link" data-act="cmdel" data-v="${esc(c.id)}">지우기</button>` : ''}<p>${esc(c.text)}</p></li>`).join('')}</ul>` : '<p class="fine">아직 의견이 없어요.</p>'}
+      <form class="cmform" data-place="${esc(placeId || '')}"><textarea id="cmtext-${placeId ? esc(placeId) : 'all'}" rows="2" maxlength="500" placeholder="${placeId ? '이 장소에 대한 의견' : '여행 전체에 대한 의견'}" aria-label="의견 쓰기"></textarea><button type="submit" class="ghost small">보내기</button></form>
+    </div>`;
+}
+
+// 함께 짜기 창
+export function SHEET(s){
+  const sh = s.sh; const me = sh.user; const t = sh.trip;
+  const head = `<div class="mshead"><b>함께 짜기</b><button type="button" class="ghost small" data-act="shareclose">닫기</button></div>`;
+  const note = `<p class="fine">공유를 시작한 여행만 서버(구글 Firebase, 서울)에 저장되고, 초대받은 사람만 보고 고칠 수 있어요. 참여자 이름(구글 이름)은 '누가 고쳤는지' 표시에 쓰여요. 라쿠텐 키·날씨·환율은 각자 기기에만 있어요.</p>`;
+  let body;
+  if(!sh.authReady) body = '<p class="fine">불러오는 중…</p>';
+  else if(!me) body = `<h2>가족·친구와 일정을 함께 짜요</h2>
+      <p class="pnote">${sh.pendingJoin ? '초대받은 여행에 참여하려면 구글로 로그인해 주세요.' : '구글로 로그인하고 이 여행을 공유하면, 초대 링크를 받은 사람이 함께 장소를 담고 숙소를 고르고 의견을 남길 수 있어요. 바꾼 내용은 서로의 화면에 바로 보여요.'}</p>
+      <div><button type="button" class="primary small" data-act="login">구글로 로그인</button></div>${note}`;
+  else if(sh.pendingJoin && sh.pendingJoin !== s.shareId) body = `<h2>초대받은 여행에 참여할까요?</h2>
+      <p class="pnote">참여하면 이 기기의 일정이 공유 여행 일정으로 바뀌어요. 지금 일정은 따로 보관해 두니, 나중에 되돌릴 수 있어요.</p>
+      <div class="pfoot"><button type="button" class="primary small" data-act="joinok"${sh.busy ? ' disabled' : ''}>${sh.busy ? '참여하는 중…' : `${esc(me.name)}(으)로 참여하기`}</button><button type="button" class="ghost small" data-act="joincancel">취소</button></div>${note}`;
+  else if(!s.shareId) body = `<h2>이 여행을 공유해요</h2>
+      <label for="sharetitle" class="shlabel">여행 이름<input id="sharetitle" type="text" maxlength="40" value="${esc(defaultTitle(s))}"></label>
+      <div><button type="button" class="primary small" data-act="sharestart"${sh.busy ? ' disabled' : ''}>${sh.busy ? '만드는 중…' : '공유 시작하고 초대 링크 받기'}</button></div>
+      ${sh.hasBackup ? '<p class="fine">공유 여행에 참여하기 전의 내 일정이 보관돼 있어요. <button type="button" class="link" data-act="restore">그 일정으로 되돌리기</button></p>' : ''}
+      ${note}<p class="fine">${esc(me.name)}(으)로 로그인됨 · <button type="button" class="link" data-act="logout">로그아웃</button></p>`;
+  else if(!t) body = '<p class="fine">공유 여행을 불러오는 중…</p>';
+  else {
+    const owner = me.uid === t.ownerUid;
+    const members = t.memberUids.map(uid => ({ uid, name:(t.members[uid] && t.members[uid].name) || '참여자' }));
+    const allCms = (sh.comments || []).filter(c => !c.placeId);
+    body = `<h2>${esc(t.title)}</h2>
+      <p class="fine">${t.updatedBy ? `마지막으로 ${esc(t.updatedBy.name)}님이 고쳤어요.` : ''}</p>
+      <div class="box">
+        <h2>초대 링크${owner ? `<small>${t.open ? '열려 있어요' : '닫혀 있어요 · 새로 참여할 수 없어요'}</small>` : ''}</h2>
+        <input type="text" readonly value="${esc(inviteLink(location.href, s.shareId))}" aria-label="초대 링크" onclick="this.select()">
+        <div class="pfoot"><button type="button" class="primary small" data-act="sendlink">링크 보내기</button><button type="button" class="ghost small" data-act="copylink">복사</button>
+          ${owner ? `<button type="button" class="link" data-act="linkopen">${t.open ? '초대 링크 닫기' : '초대 링크 다시 열기'}</button>` : ''}</div>
+        <p class="fine">이 링크를 받은 사람은 구글로 로그인해 참여할 수 있어요. 다 모이면 링크를 닫아 두세요.</p>
+      </div>
+      <div class="box"><h2>참여자 ${members.length}명</h2>
+        <ul class="implist">${members.map(m => `<li class="imp"><div class="sbody"><b>${esc(m.name)}${m.uid === me.uid ? ' (나)' : ''}</b><span>${m.uid === t.ownerUid ? '여행 주인' : '참여자'}</span></div>
+          ${owner && m.uid !== me.uid ? `<button type="button" class="link" data-act="kick" data-v="${esc(m.uid)}">빼기</button>` : ''}</li>`).join('')}</ul>
+      </div>
+      <div class="box"><h2>여행 전체 의견<small>장소별 의견은 장소 카드의 '의견'에서</small></h2>${commentList(s, allCms, null)}</div>
+      <div class="box"><h2>최근 바뀐 것</h2>
+        ${(sh.log || []).length ? `<ul class="loglist">${sh.log.map(l => `<li><b>${esc(l.name)}</b> ${esc(l.text)} <span class="fine">${esc(l.at)}</span></li>`).join('')}</ul>` : '<p class="fine">아직 기록이 없어요.</p>'}
+      </div>
+      <div class="pfoot">
+        ${owner ? `<button type="button" class="ghost small${sh.delArmed ? ' armed' : ''}" data-act="sharedel">${sh.delArmed ? '한 번 더 누르면 모두에게서 지워져요' : '공유 여행 지우기'}</button>` : '<button type="button" class="ghost small" data-act="leave">이 여행에서 나가기</button>'}
+        <button type="button" class="link" data-act="unlink">이 기기에서만 공유 끊기</button>
+        <button type="button" class="link" data-act="logout">로그아웃</button>
+      </div>${note}`;
+  }
+  return `<div class="mapsheet sheet" role="dialog" aria-label="함께 짜기">${head}<div class="shbody">${sh.msg ? `<p class="warnline">${esc(sh.msg)}</p>` : ''}${body}</div></div>`;
 }
 
 /* Step 1 · 동행 */
@@ -146,6 +218,7 @@ function placeCard(p, s){
     <p class="meta">${p.kind ? esc(p.kind) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
     ${(f.why.length || f.neg.length) ? `<div class="why">${f.why.map(w => `<span>${esc(w)}</span>`).join('')}${f.neg.map(w => `<span class="neg">${esc(w)}</span>`).join('')}</div>` : ''}
     ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
+    ${on ? voteBar(s, p) : ''}
     <div class="pfoot">
       <button type="button" class="link" data-act="must" data-v="${esc(p.id)}" aria-pressed="${must}">${must ? '★ 꼭 갈 곳' : '☆ 꼭 갈 곳으로'}</button>
       ${safeMapUrl(p.url) ? `<a class="link" href="${esc(safeMapUrl(p.url))}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}
@@ -453,7 +526,7 @@ export function vPlan(s){
         : d.items.length
           ? `<ol class="stops">${d.items.map((p, j) => { const cl = p.closed && p.closed.includes(d.wd);
               const prev = j ? d.items[j-1] : P.hotel;
-              return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a></div>${moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
+              return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a>${voteBar(s, p)}</div>${moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day" style="--day:${col}">
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}</p></div></header>

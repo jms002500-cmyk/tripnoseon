@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// 트립노선 공유 여행 접근 규칙.
+// Firebase 콘솔 → Firestore Database → 규칙 탭에 이 파일 내용을 통째로 붙여넣고 '게시'.
+// 원칙: 공유를 켠 여행만 서버에 있고, 그 여행의 참여자만 읽고 고칠 수 있음.
+//   trips/{tripId}            ownerUid, memberUids[], members{uid:{name}}, open, title, p{일정}, votes{장소:{uid:1|-1}}
+//   trips/{tripId}/comments   장소별·전체 의견 (쓴 사람만 지울 수 있음)
+//   trips/{tripId}/log        누가 무엇을 바꿨는지
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+
+    match /trips/{tripId} {
+      function isMember() { return signedIn() && uid() in resource.data.memberUids; }
+      function isOwner() { return signedIn() && uid() == resource.data.ownerUid; }
+      function untouched(keys) { return !request.resource.data.diff(resource.data).affectedKeys().hasAny(keys); }
+      function onlyTouches(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+      function onlyMyMemberEntry() { return request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([uid()]); }
+
+      allow get, list: if isMember();
+
+      // 만들기: 만든 사람이 주인이자 유일한 참여자
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == uid()
+        && request.resource.data.memberUids == [uid()]
+        && request.resource.data.members.keys().hasOnly([uid()])
+        && request.resource.data.open is bool;
+
+      // 참여자: 일정·투표·제목 고치기 (주인·참여자 목록·초대 링크 상태는 못 바꿈)
+      allow update: if isMember() && untouched(['ownerUid', 'memberUids', 'members', 'open', 'createdAt']);
+
+      // 주인: 참여자 빼기, 초대 링크 열고 닫기 (주인 자신은 빠질 수 없음)
+      allow update: if isOwner() && untouched(['ownerUid', 'createdAt']) && uid() in request.resource.data.memberUids;
+
+      // 참여하기: 초대 링크가 열려 있으면, 링크(여행 번호)를 가진 로그인 사용자가 자기 자신만 추가
+      allow update: if signedIn() && resource.data.open == true
+        && !(uid() in resource.data.memberUids)
+        && onlyTouches(['memberUids', 'members'])
+        && request.resource.data.memberUids == resource.data.memberUids.concat([uid()])
+        && onlyMyMemberEntry();
+
+      // 나가기: 주인이 아닌 참여자가 자기 자신만 빼기
+      allow update: if isMember() && !isOwner()
+        && onlyTouches(['memberUids', 'members'])
+        && request.resource.data.memberUids == resource.data.memberUids.removeAll([uid()])
+        && onlyMyMemberEntry();
+
+      allow delete: if isOwner();
+
+      function tripMember() {
+        return signedIn() && uid() in get(/databases/$(database)/documents/trips/$(tripId)).data.memberUids;
+      }
+
+      match /comments/{commentId} {
+        allow read: if tripMember();
+        allow create: if tripMember()
+          && request.resource.data.uid == uid()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500;
+        allow delete: if signedIn() && resource.data.uid == uid();
+      }
+
+      match /log/{logId} {
+        allow read: if tripMember();
+        allow create: if tripMember()
+          && request.resource.data.uid == uid()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 200;
+      }
+    }
+  }
+}

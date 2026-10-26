@@ -22,13 +22,17 @@
     <header class="top">
       <div class="brandrow">
         <div class="brand"><span class="logo">트립노선</span><span class="tag">가칭 · 시제품</span></div>
-        <button type="button" class="ghost small" id="resetBtn" data-act="reset">처음부터</button>
+        <div class="topbtns">
+          <button type="button" class="ghost small" id="shareBtn" data-act="shareopen">함께 짜기</button>
+          <button type="button" class="ghost small" id="resetBtn" data-act="reset">처음부터</button>
+        </div>
       </div>
       <nav aria-label="계획 단계"><ol class="line" id="line"></ol></nav>
     </header>
     <main id="view"></main>
   </div>
   <div class="bar"><div class="in" id="bar"></div></div>
+  <div id="sheet"></div>
   <noscript>이 앱은 자바스크립트가 켜져 있어야 동작해요.</noscript>
   <script type="module" src="js/app.js"></script>
 </body>
