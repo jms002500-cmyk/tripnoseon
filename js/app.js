@@ -166,6 +166,8 @@ function act(a, v){
     case 'pick': if(s.picked[v]) unpick(s, v); else s.picked[v] = true; break;
     case 'must': if(s.must[v]) delete s.must[v]; else { s.must[v] = true; s.picked[v] = true; } break;
     case 'filter': s.areaFilter = v; break;
+    case 'kfilter': s.kindFilter = v; break;
+    case 'akind': s.anchorKind = v; break;
     case 'autopick': autoPickIds(s).forEach(id => { s.picked[id] = true; }); break;
     case 'customdel': s.custom = s.custom.filter(c => c.id !== v); unpick(s, v); break;
     case 'hotel': s.hotelArea = s.hotelArea === v ? null : v; break;

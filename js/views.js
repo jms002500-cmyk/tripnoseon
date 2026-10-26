@@ -1,6 +1,6 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
-import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY } from './data.js';
+import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS } from './data.js';
 import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { clothesTip } from './weather.js';
@@ -96,6 +96,12 @@ function weatherBox(s){
 
 const CITY_NAME = { tokyo:'도쿄' };
 
+// 종류 거르기 칩. 목록에 있는 종류만, 개수와 함께
+function kindChips(act, cur, items){
+  const n = {}; items.forEach(p => { if(p.kind) n[p.kind] = (n[p.kind] || 0) + 1; });
+  return `<div class="scroller" role="group" aria-label="종류로 거르기">${chip(act, 'all', `전체 ${items.length}`, cur === 'all')}${KINDS.filter(k => n[k]).map(k => chip(act, k, `${k} ${n[k]}`, cur === k)).join('')}</div>`;
+}
+
 /* Step 3 · 꼭 갈 곳 */
 function daySelect(p, days, fa, s){
   const pool = days.filter(d => d.kind === 'full' || d.kind === 'single'); const opts = pool.length ? pool : days;
@@ -109,18 +115,20 @@ function daySelect(p, days, fa, s){
 
 export function vMust(s){
   const days = buildDays(s); const fa = fullAssign(s, days);
-  const anchors = PLACES.filter(p => p.anchor);
+  const allAnchors = PLACES.filter(p => p.anchor);
+  const anchors = allAnchors.filter(p => s.anchorKind === 'all' || p.kind === s.anchorKind || s.must[p.id]);
   const noDay = pickedPlaces(s).filter(p => p.full && fa[p.id] == null);
   return `<section class="step">
     <p class="eyebrow">Step 3 · 꼭 갈 곳</p>
     <h1>이번 여행에서 꼭 갈 곳이 있나요?</h1>
     <p class="lead">꼭 갈 곳을 먼저 박아두면 숙소와 나머지 일정이 그 주변으로 짜여요.</p>
+    ${kindChips('akind', s.anchorKind, allAnchors)}
     ${noDay.length ? `<p class="warnline">${days.length ? `${noDay.map(p => esc(p.name)).join(', ')}을(를) 넣을 온종일 날짜가 모자라요. 날짜를 늘리거나 하나를 빼 주세요.` : '여행 날짜를 정하면 하루 종일 쓰는 곳을 어느 날 갈지 정해 드려요.'}</p>` : ''}
     <div class="list">${anchors.map(p => { const on = !!s.must[p.id];
       return `<article class="pcard${on ? ' on' : ''}">
         <div class="ptop"><div><h3>${esc(p.name)}</h3><p class="ja">${esc(p.ja)}</p></div>
           <button type="button" class="mustbtn" data-act="anchor" data-v="${p.id}" aria-pressed="${on}">${on ? '꼭 갈 곳 ✓' : '꼭 갈 곳으로'}</button></div>
-        <p class="meta">${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
+        <p class="meta">${p.kind ? esc(p.kind) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
         ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
         ${on && p.full && fa[p.id] != null ? daySelect(p, days, fa, s) : ''}
       </article>`; }).join('')}</div>
@@ -134,7 +142,7 @@ function placeCard(p, s){
   return `<article class="pcard${on ? ' on' : ''}">
     <div class="ptop"><div><h3>${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
-    <p class="meta">${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
+    <p class="meta">${p.kind ? esc(p.kind) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
     ${(f.why.length || f.neg.length) ? `<div class="why">${f.why.map(w => `<span>${esc(w)}</span>`).join('')}${f.neg.map(w => `<span class="neg">${esc(w)}</span>`).join('')}</div>` : ''}
     ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
     <div class="pfoot">
@@ -209,6 +217,8 @@ export function vPick(s){
   const cap = capacity(s); const pct = cap.total ? Math.min(100, cap.used / cap.total * 100) : 0; const over = cap.used > cap.total;
   let list = allPlaces(s).map(p => ({ p, sc: fitScore(p, s).score + (s.must[p.id] ? 100 : 0) }));
   if(s.areaFilter !== 'all') list = list.filter(x => x.p.area === s.areaFilter);
+  const byArea = list.map(x => x.p);
+  if(s.kindFilter !== 'all') list = list.filter(x => x.p.kind === s.kindFilter);
   list.sort((a, b) => b.sc - a.sc);
   const counts = {}; allPlaces(s).forEach(p => { counts[p.area] = (counts[p.area] || 0) + 1; });
   return `<section class="step">
@@ -227,6 +237,8 @@ export function vPick(s){
       ${chip('filter', 'all', '추천순 전체', s.areaFilter === 'all')}
       ${Object.entries(AREAS).map(([k, a]) => chip('filter', k, `${a.name} ${counts[k] || 0}`, s.areaFilter === k)).join('')}
     </div>
+    ${kindChips('kfilter', s.kindFilter, byArea)}
+    ${list.length ? '' : '<p class="empty">이 조건에 맞는 곳이 없어요. 다른 동네나 종류를 골라 보세요.</p>'}
     <div class="list">${list.map(x => placeCard(x.p, s)).join('')}</div>
     <form class="box" id="customform">
       <h2>목록에 없는 곳 추가</h2>

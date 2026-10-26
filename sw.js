@@ -1,6 +1,6 @@
 // 오프라인 지원: 네트워크 우선, 실패하면 저장해 둔 사본으로.
 // 파일 목록을 바꾸면 CACHE 이름의 숫자를 올려 주세요.
-const CACHE = 'tripnoseon-v5';
+const CACHE = 'tripnoseon-v6';
 const SHELL = [
   './', './index.html', './css/styles.css', './manifest.webmanifest',
   './js/app.js', './js/data.js', './js/logic.js', './js/map.js', './js/ui.js', './js/views.js',
