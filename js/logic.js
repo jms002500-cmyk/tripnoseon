@@ -1,5 +1,6 @@
 // 계산만 하는 순수 함수 모음 (DOM을 건드리지 않음 → tests/에서 바로 테스트 가능)
 import { AREAS, PLACES, PACE, WD } from './data.js';
+import { bestPrice } from './prices.js';
 
 export function clone(o){ return JSON.parse(JSON.stringify(o)); }
 
@@ -125,6 +126,7 @@ export function partySize(s){ return !s.who ? 0 : s.who === 'solo' ? 1 : s.who =
 
 // 숙소 후보 비교. 위치 점수는 동네 순위와 같은 방식(담은 곳까지 평균 직선거리 + 디즈니 이동 시간 가중)
 //   sort: 'place' 위치 점수순 | 'price' 1박 가격순 (가격 없는 곳은 뒤로)
+//   가격은 카드 가격과 사이트별로 적은 가격 중 가장 싼 것(환율 s.fx로 s.hotelCur에 맞춤)
 //   위치를 아직 모르는 후보는 noLoc으로 따로 돌려줌
 export function compareHotels(s, sort){
   const picked = pickedPlaces(s); const dayPicks = picked.filter(p => !p.full);
@@ -139,11 +141,13 @@ export function compareHotels(s, sort){
     const near = ds.filter(x => x <= 2.5).length;
     const disneyMin = a.disneyMin != null ? a.disneyMin : 60;
     const score = avg + (hasDisney ? disneyMin/12 : 0);
-    const total = h.price > 0 && n ? h.price * n : null;
-    rows.push({ h, area, a, avg, near, score, total, per: total && ppl ? Math.round(total / ppl) : null });
+    const best = bestPrice(h, s.hotelCur, s.fx && s.fx.rate);
+    const price = best ? best.value : null;
+    const total = price && n ? price * n : null;
+    rows.push({ h, area, a, avg, near, score, best, price, total, per: total && ppl ? Math.round(total / ppl) : null });
   });
   const byPlace = (x, y) => x.score - y.score;
-  rows.sort(sort === 'price' ? (x, y) => ((x.h.price > 0 ? x.h.price : Infinity) - (y.h.price > 0 ? y.h.price : Infinity)) || byPlace(x, y) : byPlace);
+  rows.sort(sort === 'price' ? (x, y) => ((x.price || Infinity) - (y.price || Infinity)) || byPlace(x, y) : byPlace);
   return { rows, noLoc, hasDisney, nights:n, people:ppl, dayCount:dayPicks.length };
 }
 

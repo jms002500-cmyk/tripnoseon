@@ -7,6 +7,7 @@ import { geocode } from './geocode.js';
 import { openMap } from './livemap.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
+import { loadFx } from './prices.js';
 
 const S_KEY = 'tripnoseon-v1';
 const RK_KEY = 'tripnoseon-rakuten';   // 라쿠텐 키는 일정 상태와 따로 저장 (상태를 내보내거나 백업해도 키는 안 섞이게)
@@ -77,6 +78,34 @@ function ensureWeather(force){
   loadWeather(s.city, s.start, s.end).then(w => { if(state !== s) return; s.wxBusy = false; s.wx = w; save(); render(); });
 }
 
+// 숙소 동네 단계에서 환율을 하루 한 번 받아 둠 (원·엔 가격 비교용)
+let fxBusy = false;
+function ensureFx(){
+  const s = state; const today = ymd(new Date());
+  if(s.step !== 4 || fxBusy || (s.fx && s.fx.checked === today)) return;
+  fxBusy = true;
+  loadFx(today).then(fx => { fxBusy = false; if(fx && state === s){ s.fx = fx; save(); render(); } });
+}
+
+// 사이트 링크를 누르면 숙소 이름을 클립보드에 (그 사이트 검색창에 붙여넣기)
+function toast(msg){
+  let t = document.getElementById('toast');
+  if(!t){ t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2500);
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-copy]'); if(!a) return;
+  const name = a.dataset.copy;
+  const ok = () => toast(`'${name}' 이름을 복사했어요. 검색창에 붙여넣어 주세요.`);
+  const fail = () => toast(`숙소 이름: ${name} — 검색창에 이 이름을 넣어 주세요.`);
+  const legacy = () => {   // 클립보드 API가 막힌 브라우저용
+    const ta = document.createElement('textarea'); ta.value = name; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); let done = false; try{ done = document.execCommand('copy'); }catch(err){}
+    ta.remove(); (done ? ok : fail)();
+  };
+  if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(name).then(ok, legacy); else legacy();
+});
+
 function save(){ try{ localStorage.setItem(S_KEY, JSON.stringify(state)); }catch(e){} }
 
 function render(){
@@ -92,6 +121,7 @@ function render(){
   rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터';
   rb.classList.toggle('armed', resetArmed);
   ensureWeather(false);
+  ensureFx();
 }
 
 function unpick(s, id){ delete s.picked[id]; delete s.must[id]; delete s.assign[id]; delete s.fullDay[id]; }
@@ -236,6 +266,15 @@ function onChange(e){
     t.value = ''; return;
   }
   else if(t.dataset.hcur != null){ s.hotelCur = t.value; }
+  else if(t.dataset.hprice != null || t.dataset.hpcur != null){
+    // 사이트별 가격: 'hotelId|siteKey'
+    const [id, key] = (t.dataset.hprice || t.dataset.hpcur).split('|'); const h = hotelOfId(id); if(!h) return;
+    h.prices = h.prices || {}; const p = h.prices[key] || { v:0, cur:'KRW' };
+    if(t.dataset.hprice != null){ p.v = Math.max(0, Math.round(+t.value || 0)); const d = new Date(); p.at = `${d.getMonth()+1}/${d.getDate()}`; }
+    else p.cur = t.value;
+    if(!p.cur){ p.cur = 'KRW'; }
+    h.prices[key] = p;
+  }
   else if(t.dataset.harea != null){
     const h = hotelOfId(t.dataset.harea); if(!h || !t.value) return;
     Object.assign(h, roughPoint(t.value, s.hotels.indexOf(h) + 1), { area:t.value, st:'ok', src:'area', approx:true });

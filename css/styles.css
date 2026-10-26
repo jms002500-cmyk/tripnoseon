@@ -245,3 +245,17 @@ body.noscroll{overflow:hidden}
 .leaflet-popup-content{font:14px/1.5 var(--f-body)}
 .leaflet-popup-content .small{margin-top:6px}
 .sbody .link, .fullday .link{font-size:12.5px; align-self:flex-start}
+
+/* 사이트별 가격 비교 */
+details.pc{border-top:1px dashed var(--rule); padding-top:8px}
+details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--accent-ink)}
+.pclist{list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:6px}
+.pcrow{display:grid; grid-template-columns:1fr auto; align-items:center; gap:4px 8px; padding:6px 8px; border-radius:8px; background:var(--paper)}
+.pcrow.best{outline:2px solid var(--good)}
+.pcin{display:flex; gap:4px}
+.pcin select, .pcin input{padding:6px 6px; border:1.5px solid var(--rule); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; font-size:14px}
+.pcin input{width:96px}
+.pcbest{grid-column:1 / -1; font-size:12px; font-weight:700; color:var(--good)}
+.toast{position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%) translateY(20px); opacity:0; pointer-events:none;
+  background:var(--ink); color:var(--paper); padding:10px 14px; border-radius:10px; font-size:13.5px; max-width:calc(100% - 32px); transition:opacity .2s, transform .2s; z-index:60}
+.toast.on{opacity:1; transform:translateX(-50%) translateY(0)}

@@ -4,6 +4,7 @@ import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS } from '.
 import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { clothesTip } from './weather.js';
+import { SITES, siteUrl, priceOptions } from './prices.js';
 import { mapSVG } from './map.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
@@ -261,6 +262,26 @@ export function vPick(s){
 /* Step 5 · 숙소 후보 비교 */
 function money(s, v){ return CURRENCY[s.hotelCur].sign + Math.round(v).toLocaleString('ko-KR'); }
 
+// 숙소 카드 안 '사이트별 가격 비교': 사이트 열기(숙소 이름 복사) + 본 가격 적기 + 가장 싼 곳 표시
+function priceCompare(h, s, r){
+  const opts = priceOptions(h, s.hotelCur, s.fx && s.fx.rate);
+  const best = r.best; const filled = Object.values(h.prices || {}).filter(p => p.v > 0).length;
+  const curOpts = cur => Object.entries(CURRENCY).map(([k, v]) => `<option value="${k}"${cur === k ? ' selected' : ''}>${v.sign}</option>`).join('');
+  const base = opts.find(o => o.key === 'base');
+  const rows = SITES.map(site => { const p = (h.prices || {})[site.key] || {}; const isBest = best && best.key === site.key;
+    return `<li class="pcrow${isBest ? ' best' : ''}">
+      <a class="link" href="${esc(siteUrl(site, h, s))}" target="_blank" rel="noopener noreferrer" data-copy="${esc(h.name)}">${esc(site.label)} ↗</a>
+      <div class="pcin"><select data-hpcur="${esc(h.id)}|${site.key}" aria-label="${esc(site.label)} 통화">${curOpts(p.cur || site.cur)}</select><input type="number" min="0" step="1" inputmode="numeric" data-hprice="${esc(h.id)}|${site.key}" value="${p.v > 0 ? p.v : ''}" placeholder="1박" aria-label="${esc(site.label)} 1박 가격"></div>
+      ${isBest ? '<span class="pcbest">최저 ✓</span>' : ''}
+    </li>`; }).join('');
+  return `<details class="pc"${filled ? ' open' : ''}>
+    <summary>사이트별 가격 비교${filled ? ` · ${filled}곳 입력` : ''}${best ? ` · 최저 ${esc(best.label)}` : ''}</summary>
+    ${base ? `<p class="fine">${esc(base.label)}: ${money(s, base.value)}${best && best.key === 'base' ? ' · 최저 ✓' : ''}</p>` : ''}
+    <ul class="pclist">${rows}</ul>
+    <p class="fine">사이트 이름을 누르면 숙소 이름이 복사되고 그 사이트가 열려요. 검색창에 붙여넣어 같은 숙소를 찾은 뒤, 객실 1개·세금 포함 <b>1박</b> 가격을 적어 주세요. 날짜·인원은 ${SITES.filter(x => !x.home).map(x => x.label).join('·')}에 미리 채워져요(아이 인원은 사이트에서 한 번 더 확인).</p>
+  </details>`;
+}
+
 function hotelCard(r, i, s, c){
   const h = r.h; const on = s.hotelPick === h.id;
   const book = safeHttpsUrl(h.bookUrl); const map = safeMapUrl(h.mapUrl);
@@ -270,10 +291,11 @@ function hotelCard(r, i, s, c){
     <ul class="facts">
       ${c.dayCount ? `<li><span>담은 곳까지 평균</span><b>${r.avg.toFixed(1)}km</b></li><li><span>2.5km 안에 담은 곳</span><b>${r.near}곳</b></li>` : ''}
       ${c.hasDisney ? `<li class="wide"><span>디즈니까지 (동네 기준 대략)</span><b>${esc(r.a.disneyText || '알 수 없음')}</b></li>` : ''}
-      <li><span>1박${h.priceAt ? ` · 라쿠텐 ${esc(h.priceAt)}` : ''}</span><b>${h.price > 0 ? money(s, h.price) : '가격 미입력'}</b>${h.soldOut ? '<span class="closed">이 날짜엔 빈방 없음</span>' : ''}</li>
+      <li><span>1박${r.best ? ` · ${r.best.key === 'base' ? (h.src === 'rakuten' ? '라쿠텐' : '직접 입력') : esc(r.best.label)}${r.best.cur !== s.hotelCur ? ' 환산' : ''}` : ''}</span><b>${r.price ? (r.best.cur !== s.hotelCur ? '≈' : '') + money(s, r.price) : '가격 미입력'}</b>${h.soldOut ? '<span class="closed">이 날짜엔 라쿠텐 빈방 없음</span>' : ''}</li>
       <li><span>${c.nights ? `${c.nights}박 합계` : '합계'}</span><b>${r.total != null ? money(s, r.total) : '—'}</b>${r.per != null ? `<span>1인당 ${money(s, r.per)}</span>` : ''}</li>
     </ul>
     ${h.memo ? `<p class="pnote">${esc(h.memo)}</p>` : ''}
+    ${priceCompare(h, s, r)}
     <div class="pfoot">
       <button type="button" class="${on ? 'primary' : 'ghost'} small" data-act="hpick" data-v="${esc(h.id)}" aria-pressed="${on}">${on ? '이 숙소로 정함 ✓' : '이 숙소로 정하기'}</button>
       ${book ? `<a class="link" href="${esc(book)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
@@ -351,6 +373,7 @@ function hotelSection(s, areaKey){
     </div>
     ${rakutenBox(s, areaKey)}
     ${s.hotelMsg ? `<p class="warnline">${esc(s.hotelMsg)}</p>` : ''}
+    ${s.fx ? `<p class="fine">환율 1엔 ≈ ${s.fx.rate.toFixed(2)}원 (${esc(s.fx.date)}, ${esc(s.fx.src)}). 통화가 다른 가격은 이 환율로 바꿔 비교해요.</p>` : ''}
     ${c.rows.length > 1 ? `<div class="chips" role="group" aria-label="정렬">${chip('hsort', 'place', '위치 좋은 순', s.hotelSort !== 'price')}${chip('hsort', 'price', '1박 싼 순', s.hotelSort === 'price')}</div>` : ''}
     ${c.rows.length ? `<div class="list">${c.rows.map((r, i) => hotelCard(r, i, s, c)).join('')}</div>` : ''}
     ${c.noLoc.length ? `<div class="box"><h2>위치를 확인할 후보</h2><ul class="implist">${c.noLoc.map(h => hotelNoLoc(h, s)).join('')}</ul>
