@@ -4,15 +4,66 @@ import { clone, buildDays, fullAssign, autoPickIds, allPlaces } from './logic.js
 import { VIEWS } from './views.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
+import { vacantSearch, partyNote } from './rakuten.js';
 
 const S_KEY = 'tripnoseon-v1';
+const RK_KEY = 'tripnoseon-rakuten';   // 라쿠텐 키는 일정 상태와 따로 저장 (상태를 내보내거나 백업해도 키는 안 섞이게)
 let state = load();
+state.rkOn = !!rkKeys();
 let resetArmed = false; let resetTimer = null;
 
 function load(){
-  try{ const raw = localStorage.getItem(S_KEY); if(raw) return Object.assign(clone(DEFAULT), JSON.parse(raw), { geoBusy:false, hotelBusy:false }); }catch(e){}
+  try{ const raw = localStorage.getItem(S_KEY); if(raw) return Object.assign(clone(DEFAULT), JSON.parse(raw), { geoBusy:false, hotelBusy:false, rkBusy:false }); }catch(e){}
   return clone(DEFAULT);
 }
+function rkKeys(){ try{ const k = JSON.parse(localStorage.getItem(RK_KEY) || 'null'); return k && k.appId && k.key ? k : null; }catch(e){ return null; } }
+function stamp(){ const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+
+// 고른 동네 중심에서 반경 3km 빈방 검색
+async function rkSearch(areaKey){
+  const s = state; const keys = rkKeys(); if(!keys || s.rkBusy || !AREAS[areaKey]) return;
+  s.rkBusy = true; render();
+  const res = await vacantSearch(keys, s, { pt:AREAS[areaKey] });
+  if(state !== s) return;
+  s.rkBusy = false;
+  s.rk = { area:areaKey, start:s.start, end:s.end, party:partyNote(s), at:stamp(), items:res.items || [],
+    msg: res.error || res.text || (res.items && !res.items.length ? '선택한 날짜·인원으로 이 주변에 빈방이 없어요.' : '') };
+  save(); render();
+}
+
+// 담아 둔 라쿠텐 후보들의 가격을 지금 날짜·인원으로 다시 확인 (한 번에 15곳까지)
+async function rkRefresh(){
+  const s = state; const keys = rkKeys(); if(!keys || s.rkBusy) return;
+  const targets = s.hotels.filter(h => h.hotelNo); if(!targets.length) return;
+  s.rkBusy = true; render();
+  const res = await vacantSearch(keys, s, { hotelNos:targets.map(h => h.hotelNo) });
+  if(state !== s) return;
+  s.rkBusy = false;
+  if(res.error) s.hotelMsg = res.error;
+  else {
+    const by = new Map((res.items || []).map(it => [it.hotelNo, it])); const at = stamp();
+    targets.slice(0, 15).forEach(h => { const it = by.get(h.hotelNo);
+      if(it){ if(s.hotelCur === 'JPY') h.price = it.price; h.priceAt = at; h.soldOut = false; } else { h.soldOut = true; h.priceAt = at; } });
+    s.hotelMsg = targets.length > 15 ? '라쿠텐 후보는 한 번에 15곳까지만 확인해요.' : '';
+  }
+  save(); render();
+}
+
+function rkAdd(hotelNo){
+  const s = state; const it = s.rk && s.rk.items.find(x => x.hotelNo === hotelNo);
+  if(!it || s.hotels.some(h => h.hotelNo === hotelNo)) return;
+  // 라쿠텐 요금은 엔화. 이미 원화로 가격을 넣어 둔 후보가 있으면 통화를 바꾸지 않고 메모에 남김
+  const wonInUse = s.hotelCur === 'KRW' && s.hotels.some(h => h.price > 0);
+  if(!wonInUse) s.hotelCur = 'JPY';
+  const has = it.lat != null && nearTokyo(it);
+  const memo = [it.station ? `${it.station}역` : '', it.breakfast ? '조식 포함 플랜' : '', wonInUse ? `라쿠텐 1박 ¥${it.price.toLocaleString('ko-KR')}` : ''].filter(Boolean).join(', ');
+  s.hotels.push({ id:'h' + Date.now().toString(36), name:it.name, price:wonInUse ? 0 : it.price, mapUrl:'', bookUrl:safeHttpsUrl(it.url), memo,
+    lat:has ? it.lat : null, lng:has ? it.lng : null, area:has ? nearestArea(it).key : '', st:has ? 'ok' : 'need', src:'rakuten', approx:false, label:'',
+    hotelNo:it.hotelNo, priceAt:s.rk.at, soldOut:false });
+  s.hotelMsg = wonInUse ? '가격 통화가 원이라 라쿠텐 엔화 요금은 메모에 넣었어요.' : '';
+  if(!has) findHotelLocations();
+}
+
 function save(){ try{ localStorage.setItem(S_KEY, JSON.stringify(state)); }catch(e){} }
 
 function render(){
@@ -111,6 +162,10 @@ function act(a, v){
     case 'hpick': s.hotelPick = s.hotelPick === v ? null : v; break;
     case 'hdel': s.hotels = s.hotels.filter(h => h.id !== v); if(s.hotelPick === v) s.hotelPick = null; break;
     case 'hsort': s.hotelSort = v; break;
+    case 'rksearch': rkSearch(v); return;
+    case 'rkrefresh': rkRefresh(); return;
+    case 'rkadd': rkAdd(v); break;
+    case 'rkforget': try{ localStorage.removeItem(RK_KEY); }catch(e){} s.rkOn = false; s.rk = null; break;
     case 'impclear': s.imports = []; s.geoErr = false; s.impMsg = ''; break;
     case 'impskip': { const r = importRowOf(v); if(r) r.skip = !r.skip; break; }
     case 'impadd': {
@@ -122,7 +177,7 @@ function act(a, v){
     }
     case 'reset':
       if(!resetArmed){ resetArmed = true; clearTimeout(resetTimer); resetTimer = setTimeout(() => { resetArmed = false; render(); }, 4000); render(); return; }
-      resetArmed = false; clearTimeout(resetTimer); state = clone(DEFAULT); scroll = true; break;
+      resetArmed = false; clearTimeout(resetTimer); state = clone(DEFAULT); state.rkOn = !!rkKeys(); scroll = true; break;
   }
   save(); render(); if(scroll) window.scrollTo({ top:0 });
 }
@@ -177,6 +232,13 @@ function onSubmit(e){
     return;
   }
   if(e.target.id === 'hotelform'){ e.preventDefault(); addHotel(); return; }
+  if(e.target.id === 'rkform'){
+    e.preventDefault();
+    const appId = document.getElementById('rkapp').value.trim(), key = document.getElementById('rkkey').value.trim();
+    if(!appId || !key) return;
+    try{ localStorage.setItem(RK_KEY, JSON.stringify({ appId, key })); }catch(e){ return; }
+    state.rkOn = true; save(); render(); return;
+  }
   if(e.target.id !== 'customform') return;
   e.preventDefault();
   const s = state; const name = document.getElementById('cname').value.trim(); if(!name) return;

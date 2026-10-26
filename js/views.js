@@ -1,7 +1,8 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
 import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY } from './data.js';
-import { buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights } from './logic.js';
+import { buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
+import { partyNote, RK_RADIUS } from './rakuten.js';
 import { mapSVG } from './map.js';
 import { esc, chip, badge, gmap } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
@@ -224,7 +225,7 @@ function hotelCard(r, i, s, c){
     <ul class="facts">
       ${c.dayCount ? `<li><span>담은 곳까지 평균</span><b>${r.avg.toFixed(1)}km</b></li><li><span>2.5km 안에 담은 곳</span><b>${r.near}곳</b></li>` : ''}
       ${c.hasDisney ? `<li class="wide"><span>디즈니까지 (동네 기준 대략)</span><b>${esc(r.a.disneyText || '알 수 없음')}</b></li>` : ''}
-      <li><span>1박</span><b>${h.price > 0 ? money(s, h.price) : '가격 미입력'}</b></li>
+      <li><span>1박${h.priceAt ? ` · 라쿠텐 ${esc(h.priceAt)}` : ''}</span><b>${h.price > 0 ? money(s, h.price) : '가격 미입력'}</b>${h.soldOut ? '<span class="closed">이 날짜엔 빈방 없음</span>' : ''}</li>
       <li><span>${c.nights ? `${c.nights}박 합계` : '합계'}</span><b>${r.total != null ? money(s, r.total) : '—'}</b>${r.per != null ? `<span>1인당 ${money(s, r.per)}</span>` : ''}</li>
     </ul>
     ${h.memo ? `<p class="pnote">${esc(h.memo)}</p>` : ''}
@@ -263,6 +264,39 @@ function hotelSearchLinks(s, key){
   <p class="fine">Booking.com 링크를 누르면 여행 날짜와 인원${kids.length ? '(아이 나이 포함)' : ''}이 그 사이트로 전달돼요.</p>`;
 }
 
+const yen = v => '¥' + Math.round(v).toLocaleString('ko-KR');   // 라쿠텐 요금은 늘 엔화
+
+// 라쿠텐 트래블 빈방 검색: 키 입력 → 고른 동네 주변 3km 빈방을 싼 순으로 → 후보에 담기
+function rakutenBox(s, areaKey){
+  if(!s.rkOn) return `<form class="box" id="rkform" autocomplete="off">
+      <h2>라쿠텐 트래블에서 빈방·가격 찾기</h2>
+      <p class="fine">라쿠텐 개발자 페이지(Your Apps → More Details)의 두 값을 붙여넣어 주세요. 키는 이 기기에만 저장되고 코드나 GitHub에는 올라가지 않아요.</p>
+      <label for="rkapp">Application ID<input id="rkapp" type="password" required autocomplete="off" spellcheck="false"></label>
+      <label for="rkkey">Access Key<input id="rkkey" type="password" required autocomplete="off" spellcheck="false" placeholder="pk_로 시작해요"></label>
+      <div><button type="submit" class="primary small">이 기기에 저장</button></div>
+    </form>`;
+  const a = AREAS[areaKey]; const r = s.rk; const days = nights(s);
+  const taken = new Set((s.hotels || []).map(h => h.hotelNo).filter(Boolean));
+  const fresh = r && r.area === areaKey && r.start === s.start && r.end === s.end;
+  const list = r && r.items && r.items.length ? `<p class="fine">${esc(AREAS[r.area].name)} 주변 ${RK_RADIUS}km · ${esc(r.party)} · 1박 싼 순 · ${esc(r.at)} 기준${fresh ? '' : ' (지금 조건과 달라요. 다시 찾아 주세요)'}</p>
+      <ul class="implist rklist">${r.items.map(it => { const avg = it.lat != null ? avgToPicks(s, it) : null; const on = taken.has(it.hotelNo);
+        return `<li class="imp">
+          <div class="sbody"><b>${esc(it.name)}</b><span>${it.station ? esc(it.station) + '역 · ' : ''}${it.review ? `★${it.review.toFixed(1)} (${it.reviewCount}) · ` : ''}${avg != null ? `담은 곳까지 평균 ${avg.toFixed(1)}km` : ''}</span>
+            <span class="rkprice">1박 ${yen(it.price)}${it.priceIsPlan ? '' : ' (최저가 목안)'}${it.breakfast ? ' · 조식 포함' : ''}</span></div>
+          <button type="button" class="${on ? 'ghost' : 'primary'} small" data-act="rkadd" data-v="${esc(it.hotelNo)}"${on ? ' disabled' : ''}>${on ? '담음 ✓' : '후보에 담기'}</button>
+        </li>`; }).join('')}</ul>` : '';
+  return `<div class="box">
+      <div class="row"><h2>라쿠텐 트래블 빈방·가격</h2><button type="button" class="link" data-act="rkforget">키 지우기</button></div>
+      ${days ? `<div><button type="button" class="ghost small" data-act="rksearch" data-v="${areaKey}"${s.rkBusy ? ' disabled' : ''}>${s.rkBusy ? '라쿠텐에서 찾는 중…' : `${esc(a.name)} 주변 빈방 찾기`}</button></div>
+        <p class="fine">${esc(partyNote(s))} 기준, 객실 1개, 첫날 1박 요금이에요. 누르면 여행 날짜·인원·동네 위치가 라쿠텐으로 가요.</p>`
+        : '<p class="fine">여행 날짜를 정하면 그 날짜에 실제로 예약할 수 있는 숙소를 찾아 드려요.</p>'}
+      ${r && r.msg ? `<p class="warnline">${esc(r.msg)}</p>` : ''}
+      ${list}
+      ${(s.hotels || []).some(h => h.hotelNo) && days ? `<div><button type="button" class="ghost small" data-act="rkrefresh"${s.rkBusy ? ' disabled' : ''}>담은 라쿠텐 후보 가격 새로 확인</button></div>` : ''}
+      <p class="fine">숙소 이름은 라쿠텐에 나온 일본어 그대로예요. 실제 요금은 예약 페이지에서 꼭 다시 확인해 주세요.</p>
+    </div>`;
+}
+
 function hotelSection(s, areaKey){
   const c = compareHotels(s, s.hotelSort); const cur = CURRENCY[s.hotelCur];
   return `<h2>숙소 후보 비교<small>예약 사이트에서 본 숙소를 담아 나란히 비교해요</small></h2>
@@ -270,6 +304,7 @@ function hotelSection(s, areaKey){
       <p class="fine">${esc(AREAS[areaKey].name)}에서 찾아보기</p>
       ${hotelSearchLinks(s, areaKey)}
     </div>
+    ${rakutenBox(s, areaKey)}
     ${s.hotelMsg ? `<p class="warnline">${esc(s.hotelMsg)}</p>` : ''}
     ${c.rows.length > 1 ? `<div class="chips" role="group" aria-label="정렬">${chip('hsort', 'place', '위치 좋은 순', s.hotelSort !== 'price')}${chip('hsort', 'price', '1박 싼 순', s.hotelSort === 'price')}</div>` : ''}
     ${c.rows.length ? `<div class="list">${c.rows.map((r, i) => hotelCard(r, i, s, c)).join('')}</div>` : ''}

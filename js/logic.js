@@ -114,6 +114,12 @@ export function hotelOf(s){
   const k = s.hotelArea || rankAreas(s)[0].key; return { key:k, ...AREAS[k] };
 }
 
+// 담은 곳(하루 종일 쓰는 곳 제외)까지 평균 직선거리. 담은 곳이 없으면 null
+export function avgToPicks(s, pt){
+  const ds = pickedPlaces(s).filter(p => !p.full).map(p => dist(pt, p));
+  return ds.length ? ds.reduce((x,y) => x+y, 0)/ds.length : null;
+}
+
 export function nights(s){ const n = buildDays(s).length; return n > 1 ? n - 1 : 0; }
 export function partySize(s){ return !s.who ? 0 : s.who === 'solo' ? 1 : s.who === 'family' ? s.adults + s.kids.length : s.adults; }
 

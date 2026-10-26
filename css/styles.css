@@ -218,3 +218,6 @@ button[disabled]{opacity:.4; cursor:not-allowed}
 .m-cand.on{fill:var(--good); stroke:var(--surface)}
 .lg i.lg-cand{background:var(--surface); border:2px solid var(--good); border-radius:2px; transform:rotate(45deg) scale(.8)}
 .hcard .facts li span + span{font-size:11.5px}
+.rklist .imp{grid-template-columns:1fr auto; align-items:center}
+.rkprice{color:var(--ink) !important; font-weight:600}
+.facts li .closed{color:var(--warn); font-weight:600}
