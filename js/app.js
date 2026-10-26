@@ -2,7 +2,7 @@
 import { AREAS, STEPS, DEFAULT } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces } from './logic.js';
 import { VIEWS } from './views.js';
-import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea } from './gimport.js';
+import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
 
 const S_KEY = 'tripnoseon-v1';
@@ -10,7 +10,7 @@ let state = load();
 let resetArmed = false; let resetTimer = null;
 
 function load(){
-  try{ const raw = localStorage.getItem(S_KEY); if(raw) return Object.assign(clone(DEFAULT), JSON.parse(raw), { geoBusy:false }); }catch(e){}
+  try{ const raw = localStorage.getItem(S_KEY); if(raw) return Object.assign(clone(DEFAULT), JSON.parse(raw), { geoBusy:false, hotelBusy:false }); }catch(e){}
   return clone(DEFAULT);
 }
 function save(){ try{ localStorage.setItem(S_KEY, JSON.stringify(state)); }catch(e){} }
@@ -39,20 +39,47 @@ function addImports(list){
   save(); render(); findLocations();
 }
 
-async function findLocations(){
-  const s = state; if(s.geoBusy) return;
-  s.geoBusy = true; s.geoErr = false; render();
+// 위치가 없는 항목(st:'need')을 하나씩 이름으로 찾기. 가져온 장소와 숙소 후보가 같이 씀
+//   listKey: 'imports' | 'hotels', busy/err: 상태에 진행 중·오류 표시를 남길 키
+async function locate(listKey, busy, err){
+  const s = state; if(s[busy]) return;
+  s[busy] = true; s[err] = false; render();
   for(;;){
-    const r = s.imports.find(x => x.st === 'need' && !x.skip); if(!r) break;
+    const r = s[listKey].find(x => x.st === 'need' && !x.skip); if(!r) break;
     try{
       const hit = await geocode(r.name);
+      if(state !== s) return;   // 그사이 '처음부터'를 눌렀으면 그만
+      if(!s[listKey].includes(r)) continue;   // 그사이 지웠으면 다음으로
       if(hit){ Object.assign(r, { lat:hit.lat, lng:hit.lng, label:hit.label, st:'ok', src:'geo' }); if(!r.area) r.area = nearestArea(hit).key; }
       else r.st = 'fail';
-    }catch(e){ s.geoErr = true; break; }
-    if(state !== s) return;   // 그사이 '처음부터'를 눌렀으면 그만
+    }catch(e){ s[err] = true; break; }
     save(); render();
   }
-  s.geoBusy = false; save(); render();
+  s[busy] = false; save(); render();
+}
+const findLocations = () => locate('imports', 'geoBusy', 'geoErr');
+const findHotelLocations = () => locate('hotels', 'hotelBusy', 'hotelErr');
+
+// 동네만 고른 곳: 그 동네 중심 근처에 흩뿌려 대략 위치로 둠 (같은 동네끼리 겹치지 않게)
+function roughPoint(area, n){ const a = AREAS[area]; const ang = n * 2.4, r = 0.004; return { lat:a.lat + Math.sin(ang)*r, lng:a.lng + Math.cos(ang)*r }; }
+
+function hotelOfId(id){ return state.hotels.find(h => h.id === id); }
+
+// 숙소 후보 담기: 구글 지도 주소에 좌표가 있으면 그 위치, 없으면 이름으로 찾기
+function addHotel(){
+  const s = state; const val = id => document.getElementById(id).value.trim();
+  const name = val('hname'); if(!name) return;
+  const mapRaw = val('hmap'), bookRaw = val('hbook');
+  const pt = coordsFromUrl(mapRaw); const has = pt && nearTokyo(pt);
+  const msgs = [];
+  if(mapRaw && !has) msgs.push('구글 지도 주소에서 위치를 못 읽어서 이름으로 찾을게요.');
+  if(bookRaw && !safeHttpsUrl(bookRaw)) msgs.push('예약 페이지 주소는 https:// 로 시작하는 주소만 저장해요.');
+  s.hotelMsg = msgs.join(' ');
+  s.hotels.push({ id:'h' + Date.now().toString(36), name:name.slice(0, 60), price:Math.max(0, Math.round(+val('hprice') || 0)),
+    mapUrl:safeMapUrl(mapRaw), bookUrl:safeHttpsUrl(bookRaw), memo:val('hmemo').slice(0, 80),
+    lat:has ? pt.lat : null, lng:has ? pt.lng : null, area:has ? nearestArea(pt).key : '', st:has ? 'ok' : 'need', src:has ? 'link' : '', approx:false, label:'' });
+  save(); render();
+  if(!has) findHotelLocations();
 }
 
 function importRowOf(k){ return state.imports.find(r => r.k === k); }
@@ -80,6 +107,10 @@ function act(a, v){
     case 'hotel': s.hotelArea = s.hotelArea === v ? null : v; break;
     case 'replan': s.assign = {}; break;
     case 'impfind': findLocations(); return;
+    case 'hfind': findHotelLocations(); return;
+    case 'hpick': s.hotelPick = s.hotelPick === v ? null : v; break;
+    case 'hdel': s.hotels = s.hotels.filter(h => h.id !== v); if(s.hotelPick === v) s.hotelPick = null; break;
+    case 'hsort': s.hotelSort = v; break;
     case 'impclear': s.imports = []; s.geoErr = false; s.impMsg = ''; break;
     case 'impskip': { const r = importRowOf(v); if(r) r.skip = !r.skip; break; }
     case 'impadd': {
@@ -116,6 +147,16 @@ function onChange(e){
     });
     t.value = ''; return;
   }
+  else if(t.dataset.hcur != null){ s.hotelCur = t.value; }
+  else if(t.dataset.harea != null){
+    const h = hotelOfId(t.dataset.harea); if(!h || !t.value) return;
+    Object.assign(h, roughPoint(t.value, s.hotels.indexOf(h) + 1), { area:t.value, st:'ok', src:'area', approx:true });
+  }
+  else if(t.dataset.hlink != null){
+    const h = hotelOfId(t.dataset.hlink); const pt = coordsFromUrl(t.value); if(!h) return;
+    if(pt && nearTokyo(pt)){ s.hotelMsg = ''; Object.assign(h, pt, { mapUrl:safeMapUrl(t.value), area:nearestArea(pt).key, st:'ok', src:'link', approx:false }); }
+    else { s.hotelMsg = `'${h.name}' 주소에서 위치를 못 읽었어요. 구글 지도에서 숙소를 연 뒤 주소창의 긴 주소를 통째로 복사해 주세요.`; render(); return; }
+  }
   else if(t.dataset.imparea != null){ const r = importRowOf(t.dataset.imparea); if(r) r.area = t.value; }
   else if(t.dataset.imphours != null){ const r = importRowOf(t.dataset.imphours); if(r) r.hours = +t.value; }
   else if(t.dataset.implink != null){
@@ -135,6 +176,7 @@ function onSubmit(e){
     if(list.length) addImports(list);
     return;
   }
+  if(e.target.id === 'hotelform'){ e.preventDefault(); addHotel(); return; }
   if(e.target.id !== 'customform') return;
   e.preventDefault();
   const s = state; const name = document.getElementById('cname').value.trim(); if(!name) return;

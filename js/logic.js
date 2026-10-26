@@ -100,7 +100,46 @@ export function rankAreas(s){
   }).sort((x, y) => x.score - y.score);
 }
 
-export function hotelOf(s){ const k = s.hotelArea || rankAreas(s)[0].key; return { key:k, ...AREAS[k] }; }
+// 가장 가까운 동네
+export function nearestArea(pt){
+  let best = null, bd = Infinity;
+  Object.entries(AREAS).forEach(([k, a]) => { const d = dist(a, pt); if(d < bd){ bd = d; best = k; } });
+  return { key:best, km:bd };
+}
+
+// 일정의 출발점. 숙소 후보를 정했으면 그 호텔 위치, 아니면 정한 동네(없으면 1순위 동네) 중심
+export function hotelOf(s){
+  const h = (s.hotels || []).find(x => x.id === s.hotelPick && x.lat != null);
+  if(h){ const k = h.area || nearestArea(h).key; return { ...AREAS[k], key:k, name:h.name, lat:h.lat, lng:h.lng, cand:true }; }
+  const k = s.hotelArea || rankAreas(s)[0].key; return { key:k, ...AREAS[k] };
+}
+
+export function nights(s){ const n = buildDays(s).length; return n > 1 ? n - 1 : 0; }
+export function partySize(s){ return !s.who ? 0 : s.who === 'solo' ? 1 : s.who === 'family' ? s.adults + s.kids.length : s.adults; }
+
+// 숙소 후보 비교. 위치 점수는 동네 순위와 같은 방식(담은 곳까지 평균 직선거리 + 디즈니 이동 시간 가중)
+//   sort: 'place' 위치 점수순 | 'price' 1박 가격순 (가격 없는 곳은 뒤로)
+//   위치를 아직 모르는 후보는 noLoc으로 따로 돌려줌
+export function compareHotels(s, sort){
+  const picked = pickedPlaces(s); const dayPicks = picked.filter(p => !p.full);
+  const hasDisney = picked.some(p => p.full && p.area === 'maihama');
+  const n = nights(s); const ppl = partySize(s);
+  const rows = []; const noLoc = [];
+  (s.hotels || []).forEach(h => {
+    if(h.lat == null){ noLoc.push(h); return; }
+    const area = h.area || nearestArea(h).key; const a = AREAS[area];
+    const ds = dayPicks.map(p => dist(h, p));
+    const avg = ds.length ? ds.reduce((x,y) => x+y, 0)/ds.length : 0;
+    const near = ds.filter(x => x <= 2.5).length;
+    const disneyMin = a.disneyMin != null ? a.disneyMin : 60;
+    const score = avg + (hasDisney ? disneyMin/12 : 0);
+    const total = h.price > 0 && n ? h.price * n : null;
+    rows.push({ h, area, a, avg, near, score, total, per: total && ppl ? Math.round(total / ppl) : null });
+  });
+  const byPlace = (x, y) => x.score - y.score;
+  rows.sort(sort === 'price' ? (x, y) => ((x.h.price > 0 ? x.h.price : Infinity) - (y.h.price > 0 ? y.h.price : Infinity)) || byPlace(x, y) : byPlace);
+  return { rows, noLoc, hasDisney, nights:n, people:ppl, dayCount:dayPicks.length };
+}
 
 // 가장 가까운 곳부터 차례로 (간단한 동선 정렬)
 export function orderNN(items, start){

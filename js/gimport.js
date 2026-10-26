@@ -6,7 +6,8 @@
 //   3) 붙여넣은 글: 한 줄에 장소 이름 또는 구글 지도 링크 하나
 // 좌표가 없는 곳은 이름으로 위치 후보를 찾아(geocode.js) 사용자가 확인한 뒤 담음
 import { AREAS } from './data.js';
-import { dist } from './logic.js';
+import { dist, nearestArea } from './logic.js';
+export { nearestArea };
 
 const TOKYO = { lat:35.6812, lng:139.7671 };
 export const MAX_KM = 80;     // 도쿄역에서 이보다 멀면 잘못 찾은 위치로 봄 (가마쿠라·닛코 정도까지 허용)
@@ -57,6 +58,12 @@ export function nameFromUrl(url){
   const m = String(url || '').match(/\/maps\/place\/([^/@?]+)/);
   if(!m) return '';
   try{ return decodeURIComponent(m[1].replace(/\+/g, ' ')).trim(); }catch(e){ return m[1]; }
+}
+
+// 예약 페이지처럼 아무 사이트나 될 수 있는 링크: https 주소만 허용
+export function safeHttpsUrl(url){
+  const u = String(url || '').trim();
+  return /^https:\/\/[^\s"'<>]+$/i.test(u) && u.length <= 2000 ? u : '';
 }
 
 // 화면에 링크로 걸어도 되는 주소인지 (https 구글 지도 계열만)
@@ -131,13 +138,6 @@ export function queryVariants(name){
 
 // 도쿄 범위 안의 좌표인지 (이름 검색이 엉뚱한 지역을 찾았을 때 거르기)
 export function nearTokyo(pt){ return !!pt && okPt(pt.lat, pt.lng) && dist(TOKYO, pt) <= MAX_KM; }
-
-// 가장 가까운 동네
-export function nearestArea(pt){
-  let best = null, bd = Infinity;
-  Object.entries(AREAS).forEach(([k, a]) => { const d = dist(a, pt); if(d < bd){ bd = d; best = k; } });
-  return { key:best, km:bd };
-}
 
 // 가져오기 대기 목록의 한 줄 (상태 저장용). st: ok 위치 있음 | need 찾아야 함 | fail 못 찾음
 export function toRow(x, k){

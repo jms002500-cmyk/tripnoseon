@@ -1,10 +1,10 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
-import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS } from './data.js';
-import { buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText } from './logic.js';
+import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY } from './data.js';
+import { buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights } from './logic.js';
 import { mapSVG } from './map.js';
 import { esc, chip, badge, gmap } from './ui.js';
-import { safeMapUrl, nearestArea, FAR_KM } from './gimport.js';
+import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 
 export function partyText(s){
   if(!s.who) return '동행 미정';
@@ -212,6 +212,85 @@ export function vPick(s){
   </section>`;
 }
 
+/* Step 5 · 숙소 후보 비교 */
+function money(s, v){ return CURRENCY[s.hotelCur].sign + Math.round(v).toLocaleString('ko-KR'); }
+
+function hotelCard(r, i, s, c){
+  const h = r.h; const on = s.hotelPick === h.id;
+  const book = safeHttpsUrl(h.bookUrl); const map = safeMapUrl(h.mapUrl);
+  const where = h.approx ? ' 근처 · 위치 대략' : h.src === 'geo' ? ' · 이름으로 찾은 위치' : '';
+  return `<article class="acard hcard${i === 0 ? ' top' : ''}${on ? ' on' : ''}">
+    <div class="ahead"><span class="rank">${i+1}</span><div><h3>${esc(h.name)}</h3><p class="ja">${esc(r.a.name)}${where}</p></div></div>
+    <ul class="facts">
+      ${c.dayCount ? `<li><span>담은 곳까지 평균</span><b>${r.avg.toFixed(1)}km</b></li><li><span>2.5km 안에 담은 곳</span><b>${r.near}곳</b></li>` : ''}
+      ${c.hasDisney ? `<li class="wide"><span>디즈니까지 (동네 기준 대략)</span><b>${esc(r.a.disneyText || '알 수 없음')}</b></li>` : ''}
+      <li><span>1박</span><b>${h.price > 0 ? money(s, h.price) : '가격 미입력'}</b></li>
+      <li><span>${c.nights ? `${c.nights}박 합계` : '합계'}</span><b>${r.total != null ? money(s, r.total) : '—'}</b>${r.per != null ? `<span>1인당 ${money(s, r.per)}</span>` : ''}</li>
+    </ul>
+    ${h.memo ? `<p class="pnote">${esc(h.memo)}</p>` : ''}
+    <div class="pfoot">
+      <button type="button" class="${on ? 'primary' : 'ghost'} small" data-act="hpick" data-v="${esc(h.id)}" aria-pressed="${on}">${on ? '이 숙소로 정함 ✓' : '이 숙소로 정하기'}</button>
+      ${book ? `<a class="link" href="${esc(book)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
+      <a class="link" href="${map ? esc(map) : gmap(h.lat.toFixed(6) + ',' + h.lng.toFixed(6))}" target="_blank" rel="noopener">지도 ↗</a>
+      <button type="button" class="link" data-act="hdel" data-v="${esc(h.id)}">지우기</button>
+    </div>
+  </article>`;
+}
+
+function hotelNoLoc(h, s){
+  const areaOpts = `<option value="">동네 고르기</option>` + Object.entries(AREAS).map(([k, a]) => `<option value="${k}">${a.name}</option>`).join('');
+  const st = h.st === 'need' ? (s.hotelBusy ? '이름으로 위치를 찾고 있어요…' : '위치를 아직 안 찾았어요') : '위치를 못 찾았어요. 구글 지도 주소를 붙이거나 동네를 골라 주세요';
+  return `<li class="imp">
+    <div class="sbody"><b>${esc(h.name)}</b><span>${st}</span></div>
+    <button type="button" class="link" data-act="hdel" data-v="${esc(h.id)}">지우기</button>
+    ${h.st === 'fail' ? `<a class="link" href="${gmap(h.name)}" target="_blank" rel="noopener">구글 지도에서 찾기 ↗</a>` : ''}
+    ${h.st === 'fail' ? `<div class="row2"><select data-harea="${esc(h.id)}" aria-label="${esc(h.name)} 동네">${areaOpts}</select></div>
+    <input type="url" inputmode="url" data-hlink="${esc(h.id)}" placeholder="PC 구글 지도 주소창의 긴 주소" aria-label="${esc(h.name)} 구글 지도 주소">` : ''}
+  </li>`;
+}
+
+// 고른 동네에서 숙소를 찾아볼 수 있는 바로가기. 예약 사이트로 가는 링크는 날짜·인원이 넘어간다고 알림
+function hotelSearchLinks(s, key){
+  const a = AREAS[key]; const n = nights(s);
+  const p = new URLSearchParams({ ss:`${a.q.replace(/駅$/, '')} 東京`, no_rooms:'1', group_adults:String(Math.max(1, s.who ? s.adults : 2)) });
+  if(n){ p.set('checkin', s.start); p.set('checkout', s.end); }
+  const kids = s.who === 'family' ? s.kids : [];
+  p.set('group_children', String(kids.length)); kids.forEach(k => p.append('age', String(k)));
+  return `<div class="pfoot">
+    <a class="link" href="${gmap('ホテル ' + a.q)}" target="_blank" rel="noopener">구글 지도에서 ${esc(a.name)} 숙소 ↗</a>
+    <a class="link" href="https://www.booking.com/searchresults.ko.html?${p}" target="_blank" rel="noopener noreferrer">Booking.com에서 찾기 ↗</a>
+  </div>
+  <p class="fine">Booking.com 링크를 누르면 여행 날짜와 인원${kids.length ? '(아이 나이 포함)' : ''}이 그 사이트로 전달돼요.</p>`;
+}
+
+function hotelSection(s, areaKey){
+  const c = compareHotels(s, s.hotelSort); const cur = CURRENCY[s.hotelCur];
+  return `<h2>숙소 후보 비교<small>예약 사이트에서 본 숙소를 담아 나란히 비교해요</small></h2>
+    <div class="box">
+      <p class="fine">${esc(AREAS[areaKey].name)}에서 찾아보기</p>
+      ${hotelSearchLinks(s, areaKey)}
+    </div>
+    ${s.hotelMsg ? `<p class="warnline">${esc(s.hotelMsg)}</p>` : ''}
+    ${c.rows.length > 1 ? `<div class="chips" role="group" aria-label="정렬">${chip('hsort', 'place', '위치 좋은 순', s.hotelSort !== 'price')}${chip('hsort', 'price', '1박 싼 순', s.hotelSort === 'price')}</div>` : ''}
+    ${c.rows.length ? `<div class="list">${c.rows.map((r, i) => hotelCard(r, i, s, c)).join('')}</div>` : ''}
+    ${c.noLoc.length ? `<div class="box"><h2>위치를 확인할 후보</h2><ul class="implist">${c.noLoc.map(h => hotelNoLoc(h, s)).join('')}</ul>
+      ${s.hotelErr ? '<p class="warnline">위치 찾기가 멈췄어요. 인터넷 연결을 확인하고 다시 눌러 주세요.</p><div><button type="button" class="ghost small" data-act="hfind">다시 찾기</button></div>' : ''}</div>` : ''}
+    ${c.rows.length && !c.nights ? '<p class="fine">여행 날짜를 정하면 박 수에 맞춘 합계와 1인당 가격도 보여 드려요.</p>' : ''}
+    <form class="box" id="hotelform">
+      <h2>숙소 후보 담기</h2>
+      <label for="hname">숙소 이름<input id="hname" type="text" required maxlength="60" placeholder="예: 예약 사이트에 나온 호텔 이름"></label>
+      <div class="row2">
+        <label for="hprice">1박 가격 (${cur.label})<input id="hprice" type="number" min="0" step="1" inputmode="numeric" placeholder="세금 포함 객실 1개"></label>
+        <label for="hcur">통화<select id="hcur" data-hcur>${Object.entries(CURRENCY).map(([k, v]) => `<option value="${k}"${s.hotelCur === k ? ' selected' : ''}>${v.label} (${v.sign})</option>`).join('')}</select></label>
+      </div>
+      <label for="hmap">구글 지도 주소 (위치가 정확해져요)<input id="hmap" type="url" inputmode="url" placeholder="PC 구글 지도에서 숙소를 연 뒤 주소창의 긴 주소"></label>
+      <label for="hbook">예약 페이지 주소 (선택)<input id="hbook" type="url" inputmode="url" placeholder="https://"></label>
+      <label for="hmemo">메모 (선택)<input id="hmemo" type="text" maxlength="80" placeholder="예: 3명 한 방, 조식 포함, 역 출구 바로 앞"></label>
+      <div><button type="submit" class="primary small">후보에 담기</button></div>
+      <p class="fine">구글 지도 주소가 없으면 숙소 이름으로 OpenStreetMap에서 위치를 찾아요(숙소 이름만 보내요). 지점이 많은 체인 호텔은 잘 못 찾으니 구글 지도 주소를 넣어 주세요. 담은 후보는 이 기기에만 저장돼요. 통화를 바꿔도 이미 넣은 가격은 바뀌지 않아요.</p>
+    </form>`;
+}
+
 /* Step 5 · 숙소 동네 */
 export function vStay(s){
   const ranked = rankAreas(s); const picked = pickedPlaces(s); const dayPicks = picked.filter(p => !p.full);
@@ -240,6 +319,7 @@ export function vStay(s){
     <div class="list">${ranked.slice(0, 3).map(card).join('')}</div>
     ${ranked.length > 3 ? `<details class="more"><summary>다른 동네 ${ranked.length-3}곳 더 보기</summary><div class="list">${ranked.slice(3).map((r, i) => card(r, i + 3)).join('')}</div></details>` : ''}
     <p class="fine">거리는 직선거리 기준이에요. 이동 시간과 가격대는 시제품용 대략값이라 실제와 다를 수 있어요.</p>
+    ${hotelSection(s, chosen || best.key)}
   </section>`;
 }
 
@@ -262,7 +342,7 @@ export function vPlan(s){
   return `<section class="step">
     <p class="eyebrow">Step 6 · 일정</p>
     <h1>날짜별 일정 초안</h1>
-    <p class="lead">${esc(P.hotel.name)}에 묵는 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${s.hotelArea ? '' : ' 숙소 동네를 아직 안 정해서 1순위 동네로 계산했어요.'}</p>
+    <p class="lead">${esc(P.hotel.name)}에 묵는 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${s.hotelArea || P.hotel.cand ? '' : ' 숙소 동네를 아직 안 정해서 1순위 동네로 계산했어요.'}</p>
     ${mapSVG('plan', s, P)}
     ${P.days.map(d => { const col = DAY_COLORS[d.i % DAY_COLORS.length]; const pct = d.cap ? Math.min(100, d.used / d.cap * 100) : 0;
       const body = d.full

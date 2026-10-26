@@ -208,7 +208,13 @@ button[disabled]{opacity:.4; cursor:not-allowed}
 .howto{margin:6px 0 0; padding-left:20px; font-size:13.5px; color:var(--muted)}
 .implist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column}
 .imp{display:grid; grid-template-columns:1fr auto; align-items:start; gap:8px 10px; padding:10px 0; border-top:1px dashed var(--rule)}
-.imp > .row2, .imp > input{grid-column:1 / -1}
+.imp > .row2, .imp > input, .imp > a{grid-column:1 / -1}
 .imp .sbody b{overflow-wrap:anywhere}
 .imp.ok .sbody b::before{content:"● "; color:var(--good)}
 .imp.skip .sbody{opacity:.55}
+
+/* 숙소 후보 */
+.m-cand{fill:var(--surface); stroke:var(--good); stroke-width:4}
+.m-cand.on{fill:var(--good); stroke:var(--surface)}
+.lg i.lg-cand{background:var(--surface); border:2px solid var(--good); border-radius:2px; transform:rotate(45deg) scale(.8)}
+.hcard .facts li span + span{font-size:11.5px}

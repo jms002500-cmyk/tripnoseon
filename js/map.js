@@ -40,7 +40,14 @@ export function mapSVG(mode, s, P){
       const [x, y] = px(r.a); const hi = chosen ? r.key === chosen : i === 0;
       g += `<rect x="${x-19}" y="${y-19}" width="38" height="38" rx="8" class="m-hotel${hi ? ' best' : ''}"/><text x="${x}" y="${y+8}" text-anchor="middle" class="m-htext${hi ? ' best' : ''}">${i+1}</text>`;
     });
-    legend = `<span class="lg"><i style="background:var(--accent)"></i>담은 곳</span><span class="lg"><i style="background:var(--ink);border-radius:3px"></i>숙소 동네 순위</span>`;
+    // 숙소 후보: 마름모. 정한 숙소는 채워서 크게
+    const cands = (s.hotels || []).filter(h => h.lat != null);
+    cands.forEach(h => {
+      const [x, y] = px(h); const on = s.hotelPick === h.id; const r = on ? 15 : 11;
+      g += `<path d="M${x} ${y-r} L${x+r} ${y} L${x} ${y+r} L${x-r} ${y} Z" class="m-cand${on ? ' on' : ''}"/>`;
+    });
+    legend = `<span class="lg"><i style="background:var(--accent)"></i>담은 곳</span><span class="lg"><i style="background:var(--ink);border-radius:3px"></i>숙소 동네 순위</span>`
+      + (cands.length ? `<span class="lg"><i class="lg-cand"></i>숙소 후보</span>` : '');
   }
 
   if(mode === 'plan' && P){
@@ -64,7 +71,7 @@ export function mapSVG(mode, s, P){
         g += `<circle cx="${x}" cy="${y}" r="15" fill="${col}" stroke="#FFFFFF" stroke-width="3"/><text x="${x}" y="${y+6}" text-anchor="middle" class="m-num">${j+1}</text>`;
       });
     });
-    g += `<rect x="${hx-20}" y="${hy-20}" width="40" height="40" rx="8" class="m-hotel best"/><text x="${hx}" y="${hy+8}" text-anchor="middle" class="m-htext best">숙</text>`;
+    g += `<rect x="${hx-20}" y="${hy-20}" width="40" height="40" rx="8" class="m-hotel best"/><text x="${hx}" y="${hy+8}" text-anchor="middle" class="m-htext best">숙</text>`;   // 숙소 후보를 정했으면 그 호텔 위치
     legend = P.days.map(d => `<span class="lg"><i style="background:${DAY_COLORS[d.i % DAY_COLORS.length]}"></i>${d.i+1}일차</span>`).join('')
       + `<span class="lg"><i style="background:var(--ink);border-radius:3px"></i>숙소</span>`;
   }
