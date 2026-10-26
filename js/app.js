@@ -5,6 +5,7 @@ import { VIEWS } from './views.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
 import { vacantSearch, partyNote } from './rakuten.js';
+import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 
 const S_KEY = 'tripnoseon-v1';
 const RK_KEY = 'tripnoseon-rakuten';   // 라쿠텐 키는 일정 상태와 따로 저장 (상태를 내보내거나 백업해도 키는 안 섞이게)
@@ -13,7 +14,7 @@ state.rkOn = !!rkKeys();
 let resetArmed = false; let resetTimer = null;
 
 function load(){
-  try{ const raw = localStorage.getItem(S_KEY); if(raw) return Object.assign(clone(DEFAULT), JSON.parse(raw), { geoBusy:false, hotelBusy:false, rkBusy:false }); }catch(e){}
+  try{ const raw = localStorage.getItem(S_KEY); if(raw) return Object.assign(clone(DEFAULT), JSON.parse(raw), { geoBusy:false, hotelBusy:false, rkBusy:false, wxBusy:false }); }catch(e){}
   return clone(DEFAULT);
 }
 function rkKeys(){ try{ const k = JSON.parse(localStorage.getItem(RK_KEY) || 'null'); return k && k.appId && k.key ? k : null; }catch(e){ return null; } }
@@ -64,6 +65,17 @@ function rkAdd(hotelNo){
   if(!has) findHotelLocations();
 }
 
+// 여행지 단계에서 날짜가 있으면 날씨를 불러옴. 날짜가 바뀌었거나 예보가 하루 지났으면 다시
+function ensureWeather(force){
+  const s = state; if(s.step !== 1 || !s.start || !s.end || s.wxBusy) return;
+  const key = `${s.city}|${tripMonthDays(s.start, s.end).join(',')}`;
+  const today = ymd(new Date());
+  const stale = !s.wx || s.wx.key !== key || (canForecast(s.start, new Date()) && s.wx.forecastAt !== today) || (s.wx.error && force);
+  if(!stale) return;
+  s.wxBusy = true;
+  loadWeather(s.city, s.start, s.end).then(w => { if(state !== s) return; s.wxBusy = false; s.wx = w; save(); render(); });
+}
+
 function save(){ try{ localStorage.setItem(S_KEY, JSON.stringify(state)); }catch(e){} }
 
 function render(){
@@ -78,6 +90,7 @@ function render(){
   const rb = document.getElementById('resetBtn');
   rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터';
   rb.classList.toggle('armed', resetArmed);
+  ensureWeather(false);
 }
 
 function unpick(s, id){ delete s.picked[id]; delete s.must[id]; delete s.assign[id]; delete s.fullDay[id]; }
@@ -159,6 +172,7 @@ function act(a, v){
     case 'replan': s.assign = {}; break;
     case 'impfind': findLocations(); return;
     case 'hfind': findHotelLocations(); return;
+    case 'wxretry': ensureWeather(true); return;
     case 'hpick': s.hotelPick = s.hotelPick === v ? null : v; break;
     case 'hdel': s.hotels = s.hotels.filter(h => h.id !== v); if(s.hotelPick === v) s.hotelPick = null; break;
     case 'hsort': s.hotelSort = v; break;

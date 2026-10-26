@@ -1,8 +1,9 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
 import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY } from './data.js';
-import { buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
+import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
+import { clothesTip } from './weather.js';
 import { mapSVG } from './map.js';
 import { esc, chip, badge, gmap } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
@@ -65,8 +66,35 @@ export function vWhere(s){
       <ol class="daystrip">${days.map(d => `<li>${badge(d.i)}<div><b>${d.label}</b><span>${kindLabel(d.kind)} · 쓸 수 있는 시간 약 ${d.cap}시간</span></div></li>`).join('')}</ol>
       ${days.length >= 10 ? '<p class="fine">시제품은 최대 10일까지만 계산해요.</p>' : ''}
     </div>` : '<p class="fine">가는 날과 오는 날을 고르면 하루씩 나눠서 쓸 수 있는 시간을 보여 드려요.</p>'}
+    ${days.length ? weatherBox(s) : ''}
   </section>`;
 }
+
+// 여행 날짜 날씨: 지난 10년 같은 날짜 평균 + (16일 안이면) 예보
+function weatherBox(s){
+  const w = s.wx;
+  if(s.wxBusy && !w) return '<div class="box"><p class="fine">이맘때 날씨를 불러오고 있어요…</p></div>';
+  if(!w) return '';
+  if(w.error && !w.climate) return `<div class="box"><p class="warnline">${esc(w.error)}</p><div><button type="button" class="ghost small" data-act="wxretry">다시 불러오기</button></div></div>`;
+  const c = w.climate;
+  const fc = w.forecast && w.forecast.length ? `<h2>일기 예보<small>${esc(w.forecastAt)} 기준</small></h2>
+    <ol class="daystrip">${w.forecast.map(f => { const d = parseDate(f.date);
+      return `<li><span class="wxd">${d.getMonth()+1}/${d.getDate()}</span><div><b>${esc(f.text || '—')} · ${f.lo}° / ${f.hi}°</b><span>비 올 확률 ${f.rain != null ? f.rain + '%' : '—'}</span></div></li>`; }).join('')}</ol>` : '';
+  return `<div class="box wx">
+    <div class="row"><h2>이맘때 ${esc(CITY_NAME[s.city] || '')} 날씨</h2><span class="fine">지난 ${c ? c.years : 10}년 같은 날짜 평균</span></div>
+    ${c ? `<ul class="facts">
+      <li><span>낮 최고 / 아침 최저</span><b>${c.hi}° / ${c.lo}°</b></li>
+      <li><span>평균 습도</span><b>${c.hum}%</b></li>
+      <li><span>비 온 날</span><b>${c.rainPct != null ? `10일 중 ${Math.round(c.rainPct / 10)}일꼴` : '—'}</b></li>
+      <li><span>낮 길이</span><b>약 ${c.daylight}시간</b></li>
+    </ul>
+    <p class="pnote">${esc(clothesTip(c.mean))}${c.wind >= 25 ? ' 바람이 센 편이라 체감 온도가 더 낮아요.' : ''}</p>` : '<p class="fine">이 날짜의 지난 기록을 찾지 못했어요.</p>'}
+    ${fc}
+    <p class="fine">Open-Meteo의 관측·예보 자료예요. 보내는 정보는 도시 위치와 날짜뿐이에요.${fc ? '' : ' 출발 16일 전부터는 실제 예보도 보여 드려요.'}</p>
+  </div>`;
+}
+
+const CITY_NAME = { tokyo:'도쿄' };
 
 /* Step 3 · 꼭 갈 곳 */
 function daySelect(p, days, fa, s){

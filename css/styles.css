@@ -221,3 +221,7 @@ button[disabled]{opacity:.4; cursor:not-allowed}
 .rklist .imp{grid-template-columns:1fr auto; align-items:center}
 .rkprice{color:var(--ink) !important; font-weight:600}
 .facts li .closed{color:var(--warn); font-weight:600}
+
+/* 날씨 */
+.wxd{flex:none; min-width:42px; font:600 13px var(--f-mono); color:var(--muted)}
+.wx .daystrip li + li::before{display:none}
