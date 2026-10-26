@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>트립노선</title>
+  <meta name="description" content="누구와, 어디로 가는지에 맞춰 갈 곳·숙소 동네·날짜별 일정을 정해 주는 여행 계획 앱 (시제품)">
+  <meta name="theme-color" content="#F2F5F6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0D141B" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="트립노선">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brandrow">
+        <div class="brand"><span class="logo">트립노선</span><span class="tag">가칭 · 시제품</span></div>
+        <button type="button" class="ghost small" id="resetBtn" data-act="reset">처음부터</button>
+      </div>
+      <nav aria-label="계획 단계"><ol class="line" id="line"></ol></nav>
+    </header>
+    <main id="view"></main>
+  </div>
+  <div class="bar"><div class="in" id="bar"></div></div>
+  <noscript>이 앱은 자바스크립트가 켜져 있어야 동작해요.</noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

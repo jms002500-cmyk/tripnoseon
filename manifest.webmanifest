@@ -1,0 +1,16 @@
+{
+  "name": "트립노선",
+  "short_name": "트립노선",
+  "description": "누구와, 어디로 가는지에 맞춰 갈 곳·숙소 동네·날짜별 일정을 정해 주는 여행 계획 앱",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F5F6",
+  "theme_color": "#142030",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

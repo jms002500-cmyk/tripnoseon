@@ -1,0 +1,14 @@
+{
+  "name": "tripnoseon",
+  "version": "0.2.0",
+  "private": true,
+  "description": "여행 계획 앱 시제품 (동행 → 여행지 → 꼭 갈 곳 → 장소 담기 → 숙소 동네 → 일정)",
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 5173",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
