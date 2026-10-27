@@ -1,7 +1,8 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces } from './logic.js';
-import { VIEWS, SHEET } from './views.js';
+import { VIEWS, SHEET, vToday } from './views.js';
+import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
 import { openMap } from './livemap.js';
@@ -81,7 +82,7 @@ function rkAdd(hotelNo){
 
 // 여행지 단계에서 날짜가 있으면 날씨를 불러옴. 날짜가 바뀌었거나 예보가 하루 지났으면 다시
 function ensureWeather(force){
-  const s = state; if(s.step !== 1 || !s.start || !s.end || s.wxBusy) return;
+  const s = state; if((s.step !== 1 && s.mode !== 'today') || !s.start || !s.end || s.wxBusy) return;
   const key = `${s.city}|${tripMonthDays(s.start, s.end).join(',')}`;
   const today = ymd(new Date());
   const stale = !s.wx || s.wx.key !== key || (canForecast(s.start, new Date()) && s.wx.forecastAt !== today) || (s.wx.error && force);
@@ -291,14 +292,21 @@ function render(){
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
   s.sh.today = ymd(new Date());
-  document.getElementById('view').innerHTML = VIEWS[s.step](s);
+  const todayMode = s.mode === 'today';
+  if(todayMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
+  document.getElementById('view').innerHTML = todayMode ? vToday(s) : VIEWS[s.step](s);
   document.getElementById('line').style.setProperty('--n', STEPS.length);
-  document.getElementById('bar').innerHTML = s.step < STEPS.length-1
+  document.getElementById('bar').innerHTML = todayMode
+    ? `<button type="button" class="ghost" data-act="tclose">계획으로</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`
+    : s.step < STEPS.length-1
     ? `<button type="button" class="ghost" data-act="prev"${s.step === 0 ? ' disabled' : ''}>이전</button><button type="button" class="primary" data-act="next">다음 · ${STEPS[s.step+1]}</button>`
     : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`;
   const rb = document.getElementById('resetBtn');
   rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터';
   rb.classList.toggle('armed', resetArmed);
+  const tb = document.getElementById('todayBtn');
+  tb.hidden = phaseOf(s, s.sh.today).phase === 'none';
+  tb.classList.toggle('on', todayMode); tb.setAttribute('aria-pressed', String(todayMode));
   const sb = document.getElementById('shareBtn');
   sb.textContent = s.shareId && s.sh.trip ? `함께 · ${s.sh.trip.memberUids.length}명` : '함께 짜기';
   sb.classList.toggle('on', !!s.shareId);
@@ -470,7 +478,11 @@ function undoRestore(){
 }
 
 /* ---------- 가계부 (함께 짜기 여행이면 참여자 모두와 공유) ---------- */
-function ledgerCtx(){ const s = state; return { today:ymd(new Date()), cur:s.country === 'jp' ? 'JPY' : 'KRW', by:defaultPayer(s) }; }
+// 오늘 하루 화면에서 적으면 그 화면에서 보고 있는 날짜가 기준(날짜를 안 쓰면 그날, '어제'는 그 전날)
+function ledgerCtx(){
+  const s = state; const real = ymd(new Date());
+  return { today:s.mode === 'today' ? (shownDate(s, real) || real) : real, cur:s.country === 'jp' ? 'JPY' : 'KRW', by:defaultPayer(s) };
+}
 function spentText(e){
   const w = e.cur === 'JPY' ? convert(e.amt, 'JPY', 'KRW', rateOf(state)) : null;
   return `${e.what} ${money(e.amt, e.cur)}${w ? ` (≈ ${money(w, 'KRW')})` : ''} · ${dayLabel(state, e.d)}`;
@@ -623,9 +635,16 @@ function importRowOf(k){ return state.imports.find(r => r.k === k); }
 function act(a, v){
   const s = state; let scroll = false;
   switch(a){
-    case 'go': s.step = +v; scroll = true; break;
+    case 'go': s.step = +v; s.mode = null; scroll = true; break;
     case 'prev': s.step = Math.max(0, s.step-1); scroll = true; break;
     case 'next': s.step = Math.min(STEPS.length-1, s.step+1); scroll = true; break;
+    case 'topen': s.mode = s.mode === 'today' ? null : 'today'; s.tday = null; scroll = true; break;
+    case 'tclose': s.mode = null; scroll = true; break;
+    case 'tday': s.tday = +v; break;
+    case 'tdone': {   // 다녀옴 표시: 오늘 화면에서 보고 있는 날짜 기준
+      const k = doneKey(shownDate(s, ymd(new Date())), v); s.tdone = Object.assign({}, s.tdone);
+      if(s.tdone[k]) delete s.tdone[k]; else s.tdone[k] = true; break;
+    }
     case 'who': s.who = v; if(v === 'solo') s.adults = 1; else if(v === 'couple') s.adults = 2; break;
     case 'adults': s.adults = Math.min(10, Math.max(1, s.adults + (+v))); break;
     case 'kidadd': if(s.kids.length < 5) s.kids.push(8); break;
@@ -793,6 +812,8 @@ document.addEventListener('submit', onSubmit);
     startShare();
   } else if(state.shareId) startShare();
 }
+// 여행 중 그날 처음 열면 오늘 하루 화면부터 (계획으로 돌아가면 그날은 다시 안 띄움)
+{ const td = ymd(new Date()); if(shouldAutoOpen(state, td)){ state.mode = 'today'; state.tday = null; state.todayOpened = td; saveLocal(); } }
 render();
 if(state.step === VAULT_STEP) refreshUsage();
 

@@ -8,6 +8,7 @@ import { SITES, siteUrl, priceOptions } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
 import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText } from './vault.js';
 import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDates, ledgerSummary, ledgerHint, money as lmoney, personUsed } from './ledger.js';
+import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
@@ -748,6 +749,91 @@ export function vLedger(s){
       <ul class="llist">${g.items.map(e => ledgerRow(s, e, L, sh.ldel)).join('')}</ul>`).join('')
       : '<p class="empty">아직 적은 지출이 없어요. 위 칸에 "라멘 1200엔"처럼 적어 보세요.</p>'}
     ${ledgerImportBox(s)}
+  </section>`;
+}
+
+/* 오늘 하루 (여행 중 앱을 열면 먼저 보이는 화면. 단계 밖) */
+function todayVaultCard(it){
+  const k = kindOf(it.kind); const link = safeHttpsUrl(it.link);
+  return `<article class="vcard">
+    <div class="vhead"><span class="vicon" aria-hidden="true">${k.icon}</span><div><h3>${esc(it.title)}</h3><p class="meta">${esc(k.label)}${it.time ? ' · ' + esc(it.time) : ''}</p></div></div>
+    ${it.code ? `<div class="vcode"><span>예약번호</span><b>${esc(it.code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(it.id)}">복사</button></div>` : ''}
+    ${(it.files || []).length ? `<div class="vfiles">${it.files.map(f => /^image\//.test(f.type)
+      ? `<button type="button" class="vthumb" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}" aria-label="${esc(f.name)} 크게 보기"><img data-fid="${esc(f.fid)}" alt=""></button>`
+      : `<button type="button" class="vpdf" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}">📄 ${esc(f.name)}</button>`).join('')}</div>` : ''}
+    ${link ? `<a class="link" href="${esc(link)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
+  </article>`;
+}
+
+function todayWeatherLine(w){
+  if(!w) return '';
+  const t = w.kind === 'forecast'
+    ? [w.text, w.hi != null ? `낮 ${Math.round(w.hi)}° / 아침 ${Math.round(w.lo)}°` : '', w.rain != null ? `비 올 확률 ${w.rain}%` : ''].filter(Boolean).join(' · ')
+    : [`이맘때 평균 낮 ${Math.round(w.hi)}° / 아침 ${Math.round(w.lo)}°`, w.rainPct != null ? `비 온 날 ${w.rainPct}%` : ''].filter(Boolean).join(' · ');
+  return `<p class="twx">${w.kind === 'forecast' ? '예보' : '평년'} · ${esc(t)}${w.kind === 'climate' && w.mean != null ? `<span class="fine">${esc(clothesTip(w.mean))}</span>` : ''}</p>`;
+}
+
+export function vToday(s){
+  const sh = s.sh || {}; const today = sh.today || '';
+  const ph = phaseOf(s, today);
+  if(ph.phase === 'none') return `<section class="step">
+    <p class="eyebrow">오늘 하루</p><h1>오늘 하루</h1>
+    <div class="box tip"><p>여행 날짜를 정하면 그날의 일정·다음 장소·꺼낼 예약·쓴 돈을 한 화면에 모아 보여 줘요. 여행 중에는 앱을 열면 이 화면이 먼저 떠요.</p><div><button type="button" class="ghost small" data-act="go" data-v="1">날짜 정하러 가기</button></div></div>
+  </section>`;
+  const P = plan(s); const n = P.days.length;
+  const i = dayToShow(s, today, s.tday, n); const d = P.days[i]; const date = shownDate(s, today);
+  const col = DAY_COLORS[i % DAY_COLORS.length]; const hotel = P.hotel;
+  const stops = d.items; const nx = nextStopIndex(stops, date, s.tdone);
+  const isDone = p => !!(s.tdone || {})[doneKey(date, p.id)];
+  const vault = dayVault(s.vault, date, stops.map(p => p.id).concat(d.full ? [d.full.id] : []));
+  const L = ledgerSummary(s); const g = L.groups.find(x => x.d === date);
+  const closed = p => p.closed && p.closed.includes(d.wd);
+
+  let next;
+  if(d.full) next = `<div class="tnext" style="--day:${col}">
+      <span class="fine">하루 종일</span><b>${esc(d.full.name)}</b><span class="meta">${esc(d.full.note || '')}</span>
+      ${(d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 문 여는 시간보다 일찍 가면 좋아요.</p>' : ''}
+      <a class="primary tgo" href="${esc(gdir(hotel, d.full))}" target="_blank" rel="noopener">숙소에서 길찾기 ↗</a>
+    </div>`;
+  else if(stops.length && nx >= 0){ const p = stops[nx];
+    next = `<div class="tnext" style="--day:${col}">
+      <span class="fine">다음 장소 · ${nx + 1}/${stops.length}</span><b>${esc(p.name)}</b>
+      <span class="meta">${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
+      ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
+      <a class="primary tgo" href="${esc(gdir(fromFor(stops, nx, hotel), p))}" target="_blank" rel="noopener">${nx ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a>
+      <button type="button" class="ghost small" data-act="tdone" data-v="${esc(p.id)}">다녀왔어요</button>
+    </div>`; }
+  else if(stops.length) next = `<div class="tnext" style="--day:${col}">
+      <span class="fine">이날 일정 끝</span><b>숙소로 돌아가요</b><span class="meta">${esc(hotel.name)}</span>
+      <a class="primary tgo" href="${esc(gdir(stops[stops.length - 1], hotel))}" target="_blank" rel="noopener">숙소로 길찾기 ↗</a>
+    </div>`;
+  else next = `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '이날은 정한 곳이 없어요. 쉬어 가거나 일정 단계에서 장소를 옮겨 보세요.'}</p>`;
+
+  return `<section class="step today">
+    <p class="eyebrow">오늘 하루</p>
+    <header class="thead">${badge(i)}<div><h1>${i + 1}일차 · ${esc(d.label)}</h1><p class="lead">${esc(phaseText(ph, i))}</p></div></header>
+    <div class="scroller" role="group" aria-label="날짜 고르기">${P.days.map(x => `<button type="button" class="chip" data-act="tday" data-v="${x.i}" aria-pressed="${x.i === i}">${x.i + 1}일차${x.i === ph.index ? ' · 오늘' : ''}</button>`).join('')}</div>
+    ${todayWeatherLine(dayWeather(s.wx, date))}
+    ${next}
+    ${stops.length ? `<div class="box"><h2>이날 동선<small>${stops.filter(isDone).length}/${stops.length}곳 다녀옴</small></h2>
+      <ol class="stops tstops" style="--day:${col}">
+        <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${esc(hotel.name)}</b><span>숙소에서 출발</span></div></li>
+        ${stops.map((p, j) => `<li class="${isDone(p) ? 'done' : ''}${j === nx ? ' nx' : ''}"><span class="num">${j + 1}</span>
+          <div class="sbody"><b>${esc(p.name)}</b><span>약 ${p.hours}시간${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
+            <a class="link" href="${esc(gdir(fromFor(stops, j, hotel), p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a></div>
+          <button type="button" class="tchk" data-act="tdone" data-v="${esc(p.id)}" aria-pressed="${isDone(p)}" aria-label="${esc(p.name)} 다녀옴">✓</button></li>`).join('')}
+        <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>숙소로 돌아가기</b><a class="link" href="${esc(gdir(stops[stops.length - 1], hotel))}" target="_blank" rel="noopener">마지막 장소에서 길찾기 ↗</a></div></li>
+      </ol></div>` : ''}
+    ${vault.length ? `<h2 class="vday">이날 꺼낼 예약<small>${vault.length}건</small></h2><div class="list">${vault.map(todayVaultCard).join('')}</div>`
+      : `<p class="fine">이날 날짜로 넣은 예약이 없어요. 입장권·QR은 <button type="button" class="link" data-act="go" data-v="6">보관함</button>에 날짜를 넣어 두면 여기에 떠요.</p>`}
+    <form class="box" id="ledgerform" autocomplete="off">
+      <h2>이날 쓴 돈<small>${g ? lmoney(g.total, L.base) : '아직 없음'}</small></h2>
+      ${g ? `<ul class="tspend">${g.items.map(e => `<li><span>${catOf(e.cat).icon} ${esc(e.what || catOf(e.cat).label)}</span><b>${lmoney(e.amt, e.cur)}</b></li>`).join('')}</ul>` : ''}
+      <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="예: 라멘 1200엔" aria-label="이날 쓴 돈 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
+      <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:s.country === 'jp' ? 'JPY' : 'KRW' }))}</p>
+      ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
+    </form>
+    <div class="pfoot"><button type="button" class="ghost small" data-act="go" data-v="5">전체 일정</button><button type="button" class="ghost small" data-act="go" data-v="6">보관함</button><button type="button" class="ghost small" data-act="go" data-v="7">가계부·정산</button></div>
   </section>`;
 }
 

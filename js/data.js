@@ -135,7 +135,8 @@ export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'no
   rkOn:false, rk:null, rkBusy:false,   // rkOn: 라쿠텐 키가 이 기기에 있는지(키 자체는 상태에 넣지 않음), rk: 마지막 빈방 검색 결과
   wx:null, wxBusy:false, fx:null,      // wx: 여행 날짜 날씨(이맘때 평균·예보), fx: 환율 { rate: 1엔당 원, date, src }
   vault:[], vedit:null, vdraft:null, lastBackup:'',   // vault: 예약 보관함(이 기기에만, 공유 안 함), vedit: 고치는 항목 id, vdraft: 제안에서 채운 새 항목
-  spend:{}, party:[], lrate:0, lby:null,   // 가계부(js/ledger.js): spend 지출 {id: 지출}, party 나누는 사람 [{id,name}], lrate 정산 환율(1엔당 원, 0이면 받아 온 환율), lby 이 기기에서 마지막으로 낸 사람
+  spend:{}, party:[], lrate:0, lby:null,
+  mode:null, tday:null, tdone:{}, todayOpened:'',   // 오늘 하루 화면(js/today.js): mode 'today'면 그 화면, tday 고른 날(없으면 오늘), tdone 다녀옴 표시(기기마다), todayOpened 자동으로 연 날   // 가계부(js/ledger.js): spend 지출 {id: 지출}, party 나누는 사람 [{id,name}], lrate 정산 환율(1엔당 원, 0이면 받아 온 환율), lby 이 기기에서 마지막으로 낸 사람
   shareId:null};                       // shareId: 함께 짜는 공유 여행 번호(없으면 이 기기에만 있는 여행)
 
 // 숙소 가격 통화. 후보끼리 비교해야 해서 여행 하나에 통화 하나만 씀
