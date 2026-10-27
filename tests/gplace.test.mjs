@@ -32,8 +32,13 @@ test('영업시간: 그 시간 영업·쉬는 요일·자정 넘김·24시간', 
 });
 
 test('이미 있는 도쿄 장소와 같은 곳이면 그 장소', () => {
-  assert.equal(matchKnown({ lat:35.71475, lng:139.79670 }).id, 'sensoji');   // 센소지 바로 옆
-  assert.equal(matchKnown({ lat:35.60, lng:139.60 }), null);
+  assert.equal(matchKnown({ name:'센소지', lat:35.71475, lng:139.79670 }).id, 'sensoji');   // 센소지 바로 옆
+  assert.equal(matchKnown({ name:'팀랩 플래닛 도쿄', lat:35.6493, lng:139.7900 }).id, 'teamlab');
+  assert.equal(matchKnown({ name:'チームラボプラネッツ TOKYO DMM', lat:35.6493, lng:139.7900 }).id, 'teamlab');
+  assert.equal(matchKnown({ name:'쓰키지 장외시장', lat:35.6655, lng:139.7708 }).id, 'tsukiji');
+  assert.equal(matchKnown({ name:'와일드매직', lat:35.6497, lng:139.7900 }), null);       // 팀랩 바로 옆 다른 가게
+  assert.equal(matchKnown({ name:'센소지', lat:35.60, lng:139.60 }), null);              // 이름이 같아도 먼 곳
+  assert.equal(matchKnown({ lat:35.71475, lng:139.79670 }), null);                      // 이름 없음
 });
 
 test('구글 장소 → 직접 담은 장소: 동네·종류·쉬는 요일·장소 ID·받은 날', () => {

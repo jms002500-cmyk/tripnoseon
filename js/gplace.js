@@ -57,10 +57,17 @@ export function closedDays(periods){
   return [0, 1, 2, 3, 4, 5, 6].filter(d => !open.has(d));
 }
 
-// 구글 장소와 같은 곳인 도쿄 장소(65곳 목록): 120m 안에서 가장 가까운 곳
+// 구글 장소와 같은 곳인 도쿄 장소(65곳 목록): 이름이 겹치고 400m 안에서 가장 가까운 곳
+//   거리만 보면 바로 옆 가게(팀랩 옆 바비큐집)까지 같은 곳으로 잡힘. 이름이 안 맞으면 새 장소로 담는 편이 덜 틀림
+//   '츠/쓰'처럼 표기가 갈리는 글자는 맞춰서 비교 (츠키지 = 쓰키지)
+const normName = t => String(t || '').toLowerCase().replace(/츠/g, '쓰').replace(/[\s·・\-–_.,()（）'"&]/g, '');
+function sameName(a, p){
+  const g = normName(a); if(g.length < 2) return false;
+  return [p.name, p.ja].some(n => { const k = normName(n); return k.length >= 2 && (g.includes(k) || k.includes(g)); });
+}
 export function matchKnown(pt){
-  let best = null, bd = 0.12;
-  PLACES.forEach(p => { const d = dist(p, pt); if(d < bd){ bd = d; best = p; } });
+  let best = null, bd = 0.4;
+  PLACES.forEach(p => { const d = dist(p, pt); if(d < bd && sameName(pt.name, p)){ bd = d; best = p; } });
   return best;
 }
 

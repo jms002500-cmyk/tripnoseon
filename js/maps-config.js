@@ -3,4 +3,4 @@
 //   API 제한: Maps JavaScript API, Places API (New)만
 // Firebase(함께 짜기)와는 다른 구글 클라우드 프로젝트에 둠 (결제를 붙이면 Firebase가 유료 요금제로 바뀌어서)
 // mapId: 구글 클라우드 '지도 관리'에서 만든 지도 ID(무료). 비어 있으면 구글 시험용 DEMO_MAP_ID
-export const mapsConfig = { apiKey:'', mapId:'' };
+export const mapsConfig = { apiKey:'AIzaSyD27eSG0RtF0a0SVjgLn7YhWqrE_1kT1Mg', mapId:'' };

@@ -704,7 +704,7 @@ function act(a, v){
       const [di, k] = v.split('|').map(Number); const P = plan(s); const d = P.days[di]; const m = d && mealSlots(d, P.hotel)[k]; if(!m) return;
       const key = foodKey(m.at); s.sh.food = Object.assign({}, s.sh.food, { [key]:{ busy:true } }); render();
       nearbyFood(m.at).then(items => { state.sh.food[key] = { items }; render(); })
-        .catch(e => { state.sh.food[key] = { err:e && e.message === 'nokey' ? '구글 지도 키를 넣으면 근처 식당을 찾을 수 있어요. 지금은 아래 \'구글 지도에서 더 보기\'를 써 주세요.' : '식당을 못 불러왔어요. 인터넷 연결을 확인하고 다시 눌러 주세요.' }; render(); });
+        .catch(e => { console.warn('식당 찾기 실패', e); state.sh.food[key] = { err:e && e.message === 'nokey' ? '구글 지도 키를 넣으면 근처 식당을 찾을 수 있어요. 지금은 아래 \'구글 지도에서 더 보기\'를 써 주세요.' : '식당을 못 불러왔어요. 인터넷 연결을 확인하고 다시 눌러 주세요.' }; render(); });
       return;
     }
     case 'fadd': {   // 찾은 식당을 그날 일정에
