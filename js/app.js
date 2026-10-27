@@ -7,7 +7,8 @@ import { geocode } from './geocode.js';
 import { openMap } from './livemap.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
-import { loadFx } from './prices.js';
+import { loadFx, convert } from './prices.js';
+import { parseLine, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, personUsed, catOf } from './ledger.js';
 import { missingBookings } from './vault.js';
 import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } from './vaultdb.js';
 import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blobToB64, b64ToBlob } from './backup.js';
@@ -19,6 +20,7 @@ const S_KEY = 'tripnoseon-v1';
 const RK_KEY = 'tripnoseon-rakuten';   // 라쿠텐 키는 일정 상태와 따로 저장 (상태를 내보내거나 백업해도 키는 안 섞이게)
 const BK_KEY = 'tripnoseon-before-join';
 const RS_KEY = 'tripnoseon-before-restore';   // 백업으로 바꾸기 직전 상태 (되돌리기 취소용)   // 공유 여행에 참여하기 직전 내 일정 (되돌리기용)
+const VAULT_STEP = STEPS.indexOf('보관함'), LEDGER_STEP = STEPS.indexOf('가계부');
 let state = load();
 state.rkOn = !!rkKeys();
 state.sh = freshSh();
@@ -87,11 +89,11 @@ function ensureWeather(force){
   loadWeather(s.city, s.start, s.end).then(w => { if(state !== s) return; s.wxBusy = false; s.wx = w; save(); render(); });
 }
 
-// 숙소 동네 단계에서 환율을 하루 한 번 받아 둠 (원·엔 가격 비교용)
+// 숙소 동네·가계부 단계에서 환율을 하루 한 번 받아 둠 (원·엔 가격 비교, 지출 합계)
 let fxBusy = false;
 function ensureFx(){
   const s = state; const today = ymd(new Date());
-  if(s.step !== 4 || fxBusy || (s.fx && s.fx.checked === today)) return;
+  if((s.step !== 4 && s.step !== LEDGER_STEP) || fxBusy || (s.fx && s.fx.checked === today)) return;
   fxBusy = true;
   loadFx(today).then(fx => { fxBusy = false; if(fx && state === s){ s.fx = fx; save(); render(); } });
 }
@@ -287,11 +289,12 @@ function render(){
   document.getElementById('line').innerHTML =
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
+  s.sh.today = ymd(new Date());
   document.getElementById('view').innerHTML = VIEWS[s.step](s);
   document.getElementById('line').style.setProperty('--n', STEPS.length);
   document.getElementById('bar').innerHTML = s.step < STEPS.length-1
     ? `<button type="button" class="ghost" data-act="prev"${s.step === 0 ? ' disabled' : ''}>이전</button><button type="button" class="primary" data-act="next">다음 · ${STEPS[s.step+1]}</button>`
-    : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="vnew">예약 넣기</button>`;
+    : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`;
   const rb = document.getElementById('resetBtn');
   rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터';
   rb.classList.toggle('armed', resetArmed);
@@ -318,7 +321,7 @@ async function fileUrl(fid){
 function hydrateThumbs(){
   document.querySelectorAll('img[data-fid]:not([src])').forEach(img => { fileUrl(img.dataset.fid).then(u => { if(u) img.src = u; }); });
 }
-async function refreshUsage(){ const u = await usage(); if(state.sh.vusage !== u){ state.sh.vusage = u; if(state.step === STEPS.length-1) render(); } }
+async function refreshUsage(){ const u = await usage(); if(state.sh.vusage !== u){ state.sh.vusage = u; if(state.step === VAULT_STEP) render(); } }
 
 async function saveVault(){
   const s = state, g = id => document.getElementById(id);
@@ -465,6 +468,77 @@ function undoRestore(){
   render(); refreshUsage();
 }
 
+/* ---------- 가계부 (함께 짜기 여행이면 참여자 모두와 공유) ---------- */
+function ledgerCtx(){ const s = state; return { today:ymd(new Date()), cur:s.country === 'jp' ? 'JPY' : 'KRW', by:defaultPayer(s) }; }
+function spentText(e){
+  const w = e.cur === 'JPY' ? convert(e.amt, 'JPY', 'KRW', rateOf(state)) : null;
+  return `${e.what} ${money(e.amt, e.cur)}${w ? ` (≈ ${money(w, 'KRW')})` : ''} · ${dayLabel(state, e.d)}`;
+}
+function focusLine(){ const i = document.getElementById('lline'); if(i) i.focus(); }
+
+// 한 줄 칸 아래에 '이렇게 적혀요' 미리보기 (다시 그리지 않고 글자만 바꿈)
+function updatePreview(){
+  const i = document.getElementById('lline'), p = document.getElementById('lprev'); if(!i || !p) return;
+  const s = state; const ctx = ledgerCtx();
+  if(!i.value.trim()){ p.textContent = ledgerHint(s, ctx); p.classList.remove('bad'); return; }
+  const r = parseLine(i.value, s, ctx);
+  p.textContent = r.ok ? `→ ${previewText(s, r.e)}` : r.error; p.classList.toggle('bad', !r.ok);
+}
+document.addEventListener('input', e => { if(e.target.id === 'lline') updatePreview(); });
+
+function addFromLine(){
+  const s = state, sh = s.sh; const inp = document.getElementById('lline');
+  const r = parseLine(inp ? inp.value : '', s, ledgerCtx());
+  if(!r.ok){ updatePreview(); focusLine(); return; }
+  const id = newSpendId(); s.spend[id] = Object.assign(r.e, { at:Date.now() });   // 한 줄에 쓴 이름은 그 지출에만 (기본 낸 사람은 자세히 적기에서 고를 때만 바뀜)
+  sh.lmsg = `적었어요 · ${spentText(r.e)}`; sh.lerr = false; sh.lundo = id;
+  save(); render(); focusLine();   // 이어서 다음 지출을 적을 수 있게
+}
+
+function saveDetail(){
+  const s = state, sh = s.sh, g = id => document.getElementById(id);
+  const amt = Math.round(+g('lamt').value || 0); if(!(amt > 0) || amt >= 1e9) return;
+  const ids = partyOf(s).map(p => p.id); const cat = g('lcat').value;
+  const boxes = Array.from(document.querySelectorAll('input[name="lsplit"]'));
+  const on = boxes.filter(b => b.checked).map(b => b.value).filter(id => ids.includes(id));
+  const editing = sh.ledit && s.spend[sh.ledit] ? s.spend[sh.ledit] : null;
+  const e = { d:g('ldate').value, amt, cur:g('lcur').value === 'KRW' ? 'KRW' : 'JPY', what:g('lwhat').value.trim().slice(0, 40) || catOf(cat).label, cat,
+    pay:g('lpay').value, by:ids.includes(g('lby').value) ? g('lby').value : ids[0],
+    split:on.length && on.length < ids.length ? on : null, at:editing ? (editing.at || Date.now()) : Date.now() };
+  const id = editing ? sh.ledit : newSpendId();
+  s.spend[id] = e; s.lby = e.by;
+  sh.lmsg = `${editing ? '고쳤어요' : '적었어요'} · ${spentText(e)}`; sh.lerr = false; sh.lundo = editing ? null : id; sh.ledit = null; sh.lmore = false;
+  save(); render();
+}
+
+function ledgerAct(a, v){
+  const s = state, sh = s.sh;
+  switch(a){
+    case 'lfocus': focusLine(); return;
+    case 'lex': { const i = document.getElementById('lline'); if(i){ i.value = v; updatePreview(); i.focus(); } return; }
+    case 'lmore': sh.lmore = true; sh.ledit = null; render(); { const f = document.getElementById('ledgerdetail'); if(f){ f.scrollIntoView({ block:'start' }); document.getElementById('lamt').focus({ preventScroll:true }); } } return;
+    case 'ledit': sh.ledit = v; sh.lmore = false; render(); { const f = document.getElementById('ledgerdetail'); if(f) f.scrollIntoView({ block:'start' }); } return;
+    case 'lcancel': sh.ledit = null; sh.lmore = false; render(); return;
+    case 'lundo': if(sh.lundo && s.spend[sh.lundo]){ delete s.spend[sh.lundo]; sh.lmsg = '방금 적은 지출을 지웠어요.'; } sh.lundo = null; break;
+    case 'ldel':
+      if(sh.ldel !== v){ sh.ldel = v; render(); setTimeout(() => { if(state.sh.ldel === v){ state.sh.ldel = null; render(); } }, 4000); return; }
+      sh.ldel = null; delete s.spend[v]; if(sh.ledit === v) sh.ledit = null; if(sh.lundo === v) sh.lundo = null; break;
+    case 'lpadd': { const p = partyOf(s).map(x => Object.assign({}, x)); if(p.length >= 12) return;
+      p.push({ id:newPersonId(), name:`사람 ${p.length + 1}` }); s.party = p; break; }
+    case 'lpdel': if(personUsed(s, v) || partyOf(s).length < 2) return; s.party = partyOf(s).filter(p => p.id !== v); if(s.lby === v) s.lby = null; break;
+    case 'lpmembers': {
+      // 기본 '나'만 있고 아직 쓰인 데가 없으면 '나' 대신 참여자 이름으로
+      let p = partyOf(s).map(x => Object.assign({}, x));
+      if(!s.party.length && !personUsed(s, 'me')) p = [];
+      Object.values((sh.trip && sh.trip.members) || {}).forEach((m, i) => {
+        const n = String(m.name || '').slice(0, 12); if(n && !p.some(x => x.name === n) && p.length < 12) p.push({ id:newPersonId(), name:n });
+      });
+      if(p.length) s.party = p; break;
+    }
+  }
+  save(); render();
+}
+
 function focusVaultForm(){ const f = document.getElementById('vaultform'); if(f){ f.scrollIntoView({ block:'start' }); document.getElementById('vtitle').focus({ preventScroll:true }); } }
 
 function unpick(s, id){ delete s.picked[id]; delete s.must[id]; delete s.assign[id]; delete s.fullDay[id]; }
@@ -582,6 +656,8 @@ function act(a, v){
       break;
     }
     case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
+    case 'lfocus': case 'lex': case 'lmore': case 'ledit': case 'lcancel': case 'lundo': case 'ldel': case 'lpadd': case 'lpdel': case 'lpmembers':
+      ledgerAct(a, v); return;
     case 'bkexport': exportBackup(); return;
     case 'bkrestore': doRestore(); return;
     case 'bkcancel': s.sh.restore = null; render(); return;
@@ -622,6 +698,11 @@ function onChange(e){
     t.value = ''; return;
   }
   else if(t.dataset.bkimport != null){ const f = t.files && t.files[0]; t.value = ''; if(f) readBackupFile(f); return; }
+  else if(t.dataset.lname != null){
+    const p = partyOf(s).map(x => Object.assign({}, x)); const it = p.find(x => x.id === t.dataset.lname); if(!it) return;
+    it.name = t.value.trim().slice(0, 12) || it.name; s.party = p;
+  }
+  else if(t.dataset.lrate != null){ s.lrate = Math.max(0, Math.round((+t.value || 0) * 100) / 100); }
   else if(t.dataset.hcur != null){ s.hotelCur = t.value; }
   else if(t.dataset.hprice != null || t.dataset.hpcur != null){
     // 사이트별 가격: 'hotelId|siteKey'
@@ -663,6 +744,8 @@ function onSubmit(e){
   if(e.target.id === 'hotelform'){ e.preventDefault(); addHotel(); return; }
   if(e.target.classList.contains('cmform')){ e.preventDefault(); onShareSubmit(e.target); return; }
   if(e.target.id === 'vaultform'){ e.preventDefault(); saveVault(); return; }
+  if(e.target.id === 'ledgerform'){ e.preventDefault(); addFromLine(); return; }
+  if(e.target.id === 'ledgerdetail'){ e.preventDefault(); saveDetail(); return; }
   if(e.target.id === 'rkform'){
     e.preventDefault();
     const appId = document.getElementById('rkapp').value.trim(), key = document.getElementById('rkkey').value.trim();
@@ -692,7 +775,7 @@ document.addEventListener('submit', onSubmit);
   } else if(state.shareId) startShare();
 }
 render();
-if(state.step === STEPS.length-1) refreshUsage();
+if(state.step === VAULT_STEP) refreshUsage();
 
 // 오프라인 사용(홈 화면 앱). localhost 개발 중에는 캐시 때문에 헷갈리지 않게 등록하지 않음
 if('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)){

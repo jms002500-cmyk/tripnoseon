@@ -45,7 +45,7 @@ export function summarizeBackup(d){
   return {
     at:d.at || '', dates:s.start && s.end ? `${s.start} ~ ${s.end}` : '',
     places:Object.keys(s.picked || {}).length, custom:(s.custom || []).length, hotels:(s.hotels || []).length,
-    vault:(s.vault || []).length, files:(d.files || []).length,
+    vault:(s.vault || []).length, spend:Object.keys(s.spend || {}).length, files:(d.files || []).length,
     bytes:(d.files || []).reduce((n, f) => n + (f.size || 0), 0),
     shared:!!s.shareId, keys:!!(d.rakuten && d.rakuten.key)
   };

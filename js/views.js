@@ -7,6 +7,7 @@ import { clothesTip } from './weather.js';
 import { SITES, siteUrl, priceOptions } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
 import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText } from './vault.js';
+import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDates, ledgerSummary, ledgerHint, money as lmoney, personUsed } from './ledger.js';
 import { mapSVG } from './map.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
@@ -47,7 +48,7 @@ function commentList(s, cms, placeId){
 export function SHEET(s){
   const sh = s.sh; const me = sh.user; const t = sh.trip;
   const head = `<div class="mshead"><b>함께 짜기</b><button type="button" class="ghost small" data-act="shareclose">닫기</button></div>`;
-  const note = `<p class="fine">공유를 시작한 여행만 서버(구글 Firebase, 서울)에 저장되고, 초대받은 사람만 보고 고칠 수 있어요. 참여자 이름(구글 이름)은 '누가 고쳤는지' 표시에 쓰여요. 라쿠텐 키·날씨·환율은 각자 기기에만 있어요.</p>`;
+  const note = `<p class="fine">공유를 시작한 여행만 서버(구글 Firebase, 서울)에 저장되고, 초대받은 사람만 보고 고칠 수 있어요. 일정과 가계부가 함께 보이고, 보관함(예약번호·티켓)은 공유하지 않아요. 참여자 이름(구글 이름)은 '누가 고쳤는지' 표시에 쓰여요. 라쿠텐 키·날씨·환율은 각자 기기에만 있어요.</p>`;
   let body;
   if(!sh.authReady) body = '<p class="fine">불러오는 중…</p>';
   else if(!me) body = `<h2>가족·친구와 일정을 함께 짜요</h2>
@@ -574,7 +575,7 @@ function backupBox(s){
   const bad = sh.bkmsg && /못|아니에요|알 수 없|새 버전/.test(sh.bkmsg);
   return `<div class="box" id="backupbox">
     <h2>백업 · 되돌리기<small>${s.lastBackup ? `마지막 백업 ${esc(s.lastBackup)}` : '아직 백업하지 않았어요'}</small></h2>
-    <p class="fine">일정·숙소 후보·가져온 장소·보관함(첨부 사진·PDF 포함)을 파일 하나로 저장해요. 폰을 바꾸거나 데이터가 지워져도 이 파일로 되돌릴 수 있어요. 파일은 '파일' 앱이나 메일·카톡 '나에게 보내기'로 보관하세요.</p>
+    <p class="fine">일정·숙소 후보·가져온 장소·가계부·보관함(첨부 사진·PDF 포함)을 파일 하나로 저장해요. 폰을 바꾸거나 데이터가 지워져도 이 파일로 되돌릴 수 있어요. 파일은 '파일' 앱이나 메일·카톡 '나에게 보내기'로 보관하세요.</p>
     ${s.rkOn ? '<label class="chk"><input type="checkbox" id="bkkeys"> 라쿠텐 키도 넣기 <span class="fine">(키가 든 파일은 남에게 보내지 마세요)</span></label>' : ''}
     <div class="pfoot"><button type="button" class="primary small" data-act="bkexport"${sh.bkbusy ? ' disabled' : ''}>${sh.bkbusy ? '만드는 중…' : '백업 파일 만들기'}</button>
       <label class="ghost small filebtn">백업 파일로 되돌리기<input type="file" accept=".json,application/json" data-bkimport hidden></label></div>
@@ -584,7 +585,7 @@ function backupBox(s){
         <li>만든 때: ${esc(when(r.sum.at))}</li>
         ${r.sum.dates ? `<li>여행 날짜: ${esc(r.sum.dates)}</li>` : ''}
         <li>담은 곳 ${r.sum.places}곳${r.sum.custom ? ` (직접 담은 곳 ${r.sum.custom}곳)` : ''} · 숙소 후보 ${r.sum.hotels}곳</li>
-        <li>보관함 ${r.sum.vault}건 · 첨부 ${r.sum.files}개${r.sum.bytes ? ` (${sizeText(r.sum.bytes)})` : ''}</li>
+        <li>보관함 ${r.sum.vault}건 · 첨부 ${r.sum.files}개${r.sum.bytes ? ` (${sizeText(r.sum.bytes)})` : ''}${r.sum.spend ? ` · 가계부 ${r.sum.spend}건` : ''}</li>
         ${r.sum.shared ? '<li>공유 여행이 연결된 백업이에요. 일정은 공유 여행의 최신 내용으로 맞춰지고, 보관함 등 이 기기 것만 백업에서 돌아와요.</li>' : ''}
         ${r.sum.keys ? '<li>라쿠텐 키가 들어 있어요.</li>' : ''}
       </ul>
@@ -634,4 +635,97 @@ export function vVault(s){
   </section>`;
 }
 
-export const VIEWS = [vWho, vWhere, vMust, vPick, vStay, vPlan, vVault];
+/* Step 8 · 가계부 (함께 짜기 여행이면 참여자 모두와 공유) */
+const LEX = ['어제 택시 2800엔 카드', '아빠가 디즈니 입장권 4장 39600엔', '여행 전 유심 25000원'];
+
+function ledgerRow(s, e, L, armed){
+  const c = catOf(e.cat); const p = partyOf(s).find(x => x.id === e.by);
+  const conv = e.cur !== L.base ? L.val(e) : null;
+  const pay = e.pay ? (PAYS.find(x => x.key === e.pay) || {}).label : '';
+  const sp = e.split && e.split.length ? (e.split.length === 1 && e.split[0] === e.by ? '혼자 부담' : `${e.split.map(id => (partyOf(s).find(x => x.id === id) || {}).name).filter(Boolean).join('·')} 몫`) : '';
+  const meta = [p ? `${p.name} 냄` : '', pay, sp].filter(Boolean).join(' · ');
+  return `<li class="lrow">
+    <span class="licon" aria-hidden="true">${c.icon}</span>
+    <div class="sbody"><b>${esc(e.what || c.label)}</b><span>${esc(c.label)}${meta ? ' · ' + esc(meta) : ''}</span>
+      <span class="lacts"><button type="button" class="link" data-act="ledit" data-v="${esc(e.id)}">고치기</button>
+      <button type="button" class="link${armed === e.id ? ' warnlink' : ''}" data-act="ldel" data-v="${esc(e.id)}">${armed === e.id ? '한 번 더 누르면 지워져요' : '지우기'}</button></span></div>
+    <div class="lamt"><b>${lmoney(e.amt, e.cur)}</b>${conv != null ? `<span>≈ ${lmoney(conv, L.base)}</span>` : ''}</div>
+  </li>`;
+}
+
+function ledgerDetail(s, editing, today){
+  const party = partyOf(s); const ds = tripDates(s);
+  const e = editing || { d:defaultDay(s, today, 'food'), amt:'', cur:s.country === 'jp' ? 'JPY' : 'KRW', what:'', cat:'food', pay:'', by:defaultPayer(s), split:null };
+  const dopts = [['before', '여행 전']].concat(ds.map(d => [d, dayLabel(s, d)]), [['after', '여행 후']]);
+  if(e.d && !dopts.some(o => o[0] === e.d)) dopts.push([e.d, dayLabel(s, e.d)]);
+  const split = e.split && e.split.length ? e.split : party.map(p => p.id);
+  return `<form class="box" id="ledgerdetail" autocomplete="off">
+    <h2>${editing ? '지출 고치기' : '자세히 적기'}</h2>
+    <div class="row2">
+      <label for="ldate">날짜<select id="ldate">${dopts.map(([v, l]) => `<option value="${esc(v)}"${e.d === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <label for="lcat">분류<select id="lcat">${CATS.map(c => `<option value="${c.key}"${e.cat === c.key ? ' selected' : ''}>${c.icon} ${c.label}</option>`).join('')}</select></label>
+    </div>
+    <div class="row2">
+      <label for="lamt">금액<input id="lamt" type="number" inputmode="decimal" min="1" step="any" required value="${esc(String(e.amt))}"></label>
+      <label for="lcur">통화<select id="lcur">${Object.entries(CURRENCY).map(([k, v]) => `<option value="${k}"${e.cur === k ? ' selected' : ''}>${v.label} (${k})</option>`).join('')}</select></label>
+    </div>
+    <label for="lwhat">내용<input id="lwhat" type="text" maxlength="40" value="${esc(e.what || '')}" placeholder="예: 라멘"></label>
+    <div class="row2">
+      <label for="lby">낸 사람<select id="lby">${party.map(p => `<option value="${esc(p.id)}"${e.by === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+      <label for="lpay">결제<select id="lpay">${PAYS.map(p => `<option value="${p.key}"${(e.pay || '') === p.key ? ' selected' : ''}>${p.label}</option>`).join('')}</select></label>
+    </div>
+    ${party.length > 1 ? `<fieldset class="lsplit"><legend>누구 몫인가요</legend>${party.map(p => `<label class="chk"><input type="checkbox" name="lsplit" value="${esc(p.id)}"${split.includes(p.id) ? ' checked' : ''}> ${esc(p.name)}</label>`).join('')}</fieldset>` : ''}
+    <div class="pfoot"><button type="submit" class="primary small">${editing ? '고친 내용 저장' : '적기'}</button><button type="button" class="ghost small" data-act="lcancel">닫기</button></div>
+  </form>`;
+}
+
+export function vLedger(s){
+  const sh = s.sh || {}; const today = sh.today || ''; const L = ledgerSummary(s); const party = partyOf(s);
+  const shared = !!(s.shareId && sh.trip);
+  const editing = sh.ledit && (s.spend || {})[sh.ledit] ? Object.assign({ id:sh.ledit }, s.spend[sh.ledit]) : null;
+  const name = id => esc((party.find(p => p.id === id) || {}).name || '?');
+  const members = shared ? Object.values(sh.trip.members || {}).map(m => m.name).filter(n => n && !party.some(p => p.name === n)) : [];
+  const fx = L.rate > 0 ? `1엔 = ${L.rate.toFixed(2)}원${s.lrate > 0 ? ' (직접 넣은 환율)' : s.fx && s.fx.src ? ` (${esc(s.fx.src)} ${esc(s.fx.date || '')})` : ''}` : '';
+  return `<section class="step">
+    <p class="eyebrow">Step 8 · 가계부</p>
+    <h1>함께 쓰는 가계부</h1>
+    <p class="lead">쓴 돈을 한 줄로 적으면 원화로 바꿔 합치고, 누가 누구에게 얼마를 보내면 되는지 계산해요.</p>
+    <div class="box tip"><p>${shared ? '함께 짜는 여행이라 <b>가계부도 참여자 모두와 공유</b>돼요. 누가 적어도 모두의 화면에 바로 보여요.' : '지금은 <b>이 기기에만</b> 저장돼요. 가족과 같이 적으려면 오른쪽 위 \'함께 짜기\'로 여행을 공유해 주세요. 공유하면 가계부도 함께 보여요.'}</p></div>
+    <form class="box" id="ledgerform" autocomplete="off">
+      <h2>한 줄로 적기</h2>
+      <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="예: 라멘 1200엔" aria-label="지출을 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
+      <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today, cur:s.country === 'jp' ? 'JPY' : 'KRW' }))}</p>
+      ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
+      <p class="fine lex">이렇게도 돼요: ${LEX.map(x => `<button type="button" class="link" data-act="lex" data-v="${esc(x)}">${esc(x)}</button>`).join(' · ')}</p>
+      <p class="fine">어제·그제, '2일차', '3/8', '여행 전', 사람 이름, 카드·현금, '따로'(혼자 부담), '3그릇 980엔씩'을 알아들어요.${sh.lmore || editing ? '' : ' <button type="button" class="link" data-act="lmore">자세히 적기</button>'}</p>
+    </form>
+    ${sh.lmore || editing ? ledgerDetail(s, editing, today) : ''}
+    ${L.count ? `<div class="box">
+      <h2>지금까지 쓴 돈<small>${L.count}건</small></h2>
+      <p class="ltotal">${lmoney(L.total, L.base)}</p>
+      <p class="fine">${[L.byCur.JPY ? lmoney(L.byCur.JPY, 'JPY') : '', L.byCur.KRW ? lmoney(L.byCur.KRW, 'KRW') : ''].filter(Boolean).join(' + ')}${party.length > 1 ? ` · ${party.length}명이면 1인당 ${lmoney(L.total / party.length, L.base)}` : ''}</p>
+      ${L.missing ? `<p class="warnline">환율을 아직 못 받아서 엔화 지출 ${L.missing}건은 합계에 넣지 못했어요. 아래에 정산 환율을 넣어 주세요.</p>` : ''}
+      <ul class="lcats">${L.byCat.map(c => `<li><span>${c.icon} ${esc(c.label)}</span><span class="meter"><span style="width:${Math.max(3, c.value / L.total * 100)}%"></span></span><b>${lmoney(c.value, L.base)}</b></li>`).join('')}</ul>
+      ${L.byPay.cash || L.byPay.card || L.byPay.ic ? `<p class="fine">${[['cash', '현금'], ['card', '카드'], ['ic', '교통카드']].filter(([k]) => L.byPay[k]).map(([k, l]) => `${l} ${lmoney(L.byPay[k], L.base)}`).join(' · ')}</p>` : ''}
+    </div>` : ''}
+    <div class="box">
+      <h2>정산<small>누가 누구에게</small></h2>
+      <ul class="lppl">${L.people.map(p => `<li>
+        <input type="text" maxlength="12" value="${esc(p.name)}" data-lname="${esc(p.id)}" aria-label="정산할 사람 이름">
+        <span class="fine">낸 돈 ${lmoney(p.paid, L.base)} · 몫 ${lmoney(p.owe, L.base)}</span>
+        ${party.length > 1 && !personUsed(s, p.id) ? `<button type="button" class="link" data-act="lpdel" data-v="${esc(p.id)}" aria-label="${esc(p.name)} 빼기">빼기</button>` : ''}
+      </li>`).join('')}</ul>
+      <div class="pfoot"><button type="button" class="ghost small" data-act="lpadd">사람 더하기</button>${members.length ? `<button type="button" class="ghost small" data-act="lpmembers">함께 짜는 사람 ${members.length}명 넣기</button>` : ''}</div>
+      ${party.length < 2 ? '<p class="fine">두 명 이상이면 1인당 금액과 \'누가 누구에게 얼마\'를 계산해요. 아이처럼 돈을 안 내는 사람은 넣지 않아도 돼요.</p>'
+        : L.transfers.length ? `<ul class="ltx">${L.transfers.map(t => `<li><b>${name(t.from)}</b> → <b>${name(t.to)}</b><span>${lmoney(t.amt, L.base)}</span></li>`).join('')}</ul>`
+        : L.count ? '<p class="fine">모두 자기 몫만큼 냈어요. 보낼 돈이 없어요.</p>' : ''}
+      <label class="lrate">정산 환율 (1엔 = ?원)<input type="number" inputmode="decimal" min="0" step="0.01" data-lrate value="${s.lrate > 0 ? esc(String(s.lrate)) : ''}" placeholder="${L.rate > 0 && !(s.lrate > 0) ? esc(L.rate.toFixed(2)) : '예: 9.35'}"></label>
+      <p class="fine">${fx ? `지금 ${fx}로 계산해요. ` : ''}실제로 환전한 환율로 나누려면 숫자를 넣고, 비우면 받아 온 환율을 써요.</p>
+    </div>
+    ${L.groups.length ? L.groups.map(g => `<h2 class="vday">${esc(g.d ? dayLabel(s, g.d) : '날짜 없음')}<small>${lmoney(g.total, L.base)}</small></h2>
+      <ul class="llist">${g.items.map(e => ledgerRow(s, e, L, sh.ldel)).join('')}</ul>`).join('')
+      : '<p class="empty">아직 적은 지출이 없어요. 위 칸에 "라멘 1200엔"처럼 적어 보세요.</p>'}
+  </section>`;
+}
+
+export const VIEWS = [vWho, vWhere, vMust, vPick, vStay, vPlan, vVault, vLedger];

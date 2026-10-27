@@ -63,6 +63,7 @@ p{margin:0}
 .stn.done .dot{border-color:var(--ink)}
 .stn.now .dot{border-color:var(--accent); background:var(--accent); box-shadow:0 0 0 4px var(--accent-soft)}
 .stn.now .lbl{color:var(--ink); font-weight:700}
+.stn .lbl{word-break:keep-all}   /* 8단계라 좁음: '장소 담기'가 '장소 담/기'로 꺾이지 않게 띄어쓰기에서만 */
 
 /* step body */
 .step{display:flex; flex-direction:column; gap:16px; padding-top:10px}
@@ -305,6 +306,39 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .brand{min-width:0}
 .topbtns .ghost{white-space:nowrap}
 @media (max-width:420px){ .tag{display:none} .topbtns{gap:4px} .topbtns .small{padding:7px 10px} }
+
+/* 가계부 */
+.lline{display:flex; gap:8px}
+.lline input{flex:1; min-width:0; padding:11px 12px; border:1.5px solid var(--rule); border-radius:10px; background:var(--paper); color:var(--ink); font:inherit; font-size:16px}
+#lprev.bad, .lmsg.bad{color:var(--warn)}
+.lmsg{font-size:13.5px; font-weight:600; color:var(--good)}
+.lex .link{font-size:12.5px; text-align:left}
+.ltotal{font:600 28px/1.2 var(--f-mono); letter-spacing:-.01em}
+.lcats{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; font-size:13.5px}
+.lcats li{display:grid; grid-template-columns:6.5em 1fr auto; align-items:center; gap:10px}
+.lcats b{font:600 13px var(--f-mono)}
+.lppl{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+.lppl li{display:grid; grid-template-columns:7em 1fr auto; align-items:center; gap:4px 10px}
+.lppl input{padding:7px 9px; border:1.5px solid var(--rule); border-radius:8px; background:var(--paper); color:var(--ink); font:inherit; width:100%; min-width:0}
+.ltx{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
+.ltx li{display:flex; align-items:center; gap:6px; flex-wrap:wrap; background:var(--accent-soft); border-radius:8px; padding:8px 10px}
+.ltx li span{margin-left:auto; font:600 15px var(--f-mono); color:var(--accent-ink)}
+.lrate{display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted)}
+.lrate input{padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--paper); color:var(--ink); font:inherit; width:100%; max-width:200px}
+.llist{list-style:none; margin:0; padding:0 14px; background:var(--surface); border:1px solid var(--rule); border-radius:14px}
+.lrow{display:grid; grid-template-columns:28px 1fr auto; align-items:start; gap:10px; padding:10px 0}
+.lrow + .lrow{border-top:1px dashed var(--rule)}
+.licon{font-size:20px; line-height:1.3}
+.lrow .sbody b{overflow-wrap:anywhere}
+.lacts{display:flex; gap:12px; margin-top:2px}
+.lamt{display:flex; flex-direction:column; align-items:flex-end; text-align:right}
+.lamt b{font:600 15px var(--f-mono); white-space:nowrap}
+.lamt span{font-size:12px; color:var(--muted); white-space:nowrap}
+#ledgerdetail{scroll-margin-top:150px}   /* 위에 고정된 단계 줄에 가리지 않게 */
+#ledgerdetail input{padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--paper); color:var(--ink); font:inherit; width:100%; min-width:0}
+#ledgerdetail input[type="checkbox"]{width:18px; height:18px; padding:0}
+.lsplit{border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:6px 16px}
+.lsplit legend{font-size:13px; color:var(--muted); margin-bottom:6px; padding:0}
 
 /* 백업 */
 .chk{display:flex; align-items:center; gap:8px; font-size:14px}
