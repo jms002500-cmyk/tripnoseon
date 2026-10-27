@@ -15,6 +15,12 @@ test('장소 데이터: id 중복 없음, 동네·종류·취향 값이 목록 �
   });
 });
 
+test('장소 데이터: 비 오는 날 기준 실내 표시가 모두 있음', () => {
+  PLACES.forEach(p => assert.ok([true, false, 'part'].includes(p.indoor), `${p.id} indoor`));
+  assert.equal(PLACES.find(p => p.id === 'shibuyasky').indoor, false);   // 옥상 전망대
+  assert.equal(PLACES.find(p => p.id === 'kahaku').indoor, true);
+});
+
 test('모든 장소가 도쿄 약도 안에 그려짐', () => {
   PLACES.forEach(p => { const [x, y] = px(p); assert.ok(x >= 0 && x <= MW && y >= 0 && y <= MH, `${p.id} (${x}, ${y})`); });
 });

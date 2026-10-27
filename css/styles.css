@@ -359,6 +359,12 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .tspend li{display:flex; justify-content:space-between; gap:10px}
 .tspend b{font:600 13.5px var(--f-mono); white-space:nowrap}
 
+/* 비 오는 날 실내 대안 */
+.rainbox{border-radius:12px; background:var(--paper); border:1.5px dashed var(--rule); padding:12px; display:flex; flex-direction:column; gap:8px}
+.rainbox h3{font-size:15px}
+.ralt{display:flex; flex-direction:column; gap:2px}
+.ralt .implist .imp:first-child{border-top:0}
+
 /* 준비물 */
 .pkprev{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:14px}
 .pkprev li{display:flex; flex-direction:column; gap:2px}

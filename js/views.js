@@ -2,6 +2,7 @@
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
 import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS } from './data.js';
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } from './packing.js';
+import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
 import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
@@ -504,6 +505,31 @@ export function vStay(s){
   </section>`;
 }
 
+/* 비 오는 날 실내 대안 (일정 단계의 날짜마다, 오늘 하루 화면) */
+const ymdStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function rainBox(s, P, d){
+  const sh = s.sh || {}; const date = ymdStr(d.date); const r = dayRain(s.wx, date);
+  const open = (r && r.rainy) || sh.ropen === d.i;
+  const undo = sh.rundo && sh.rundo.day === d.i ? `<p class="lmsg" role="status">'${esc(sh.rundo.outName)}' 대신 '${esc(sh.rundo.inName)}'(으)로 바꿨어요. <button type="button" class="link" data-act="rundo">되돌리기</button></p>` : '';
+  if(!open) return `${undo}<div><button type="button" class="link" data-act="ropen" data-v="${d.i}">☔ 비 오면?</button></div>`;
+  const outs = outdoorStops(d);
+  const head = r && r.rainy ? `☔ 비 예보 ${r.prob != null ? r.prob + '%' : ''}${r.text ? ' · ' + esc(r.text) : ''}` : '☔ 비 오면 이렇게 바꿔요';
+  let body;
+  if(d.full){
+    const b = r && r.rainy ? betterFullDay(P, s.wx, d.i) : null;
+    body = `<p class="pnote">${esc(d.full.name)}은(는) 비가 와도 대부분 운영해요. 우비·방수 신발을 챙기고 실내 어트랙션 위주로 다니세요.</p>
+      ${b ? `<p class="pnote">예보로는 <b>${esc(b.label)}</b>이 비 올 확률 ${b.prob != null ? b.prob + '%' : '낮음'}이에요. <button type="button" class="ghost small" data-act="rfull" data-v="${esc(d.full.id)}|${b.i}">그날로 옮기기</button></p>` : ''}`;
+  } else if(!outs.length) body = '<p class="pnote">이날 장소는 모두 실내라 비가 와도 그대로 다닐 수 있어요.</p>';
+  else body = outs.map(p => { const alts = indoorAlternatives(s, P, d.i, p, 3);
+    return `<div class="ralt"><p><b>${esc(p.name)}</b> <span class="fine">${p.indoor === 'part' ? '반쯤 실외' : '실외'}</span></p>
+      ${alts.length ? `<ul class="implist">${alts.map(a => `<li class="imp"><div class="sbody"><b>${esc(a.p.name)}</b><span>${a.km < 0.95 ? '걸어서 가까워요' : `약 ${a.km.toFixed(1)}km`} · 약 ${a.p.hours}시간${a.why.length ? ' · ' + esc(a.why.join(' · ')) : ''}</span></div>
+        <button type="button" class="ghost small" data-act="rswap" data-v="${esc(p.id)}|${esc(a.p.id)}|${d.i}">바꾸기</button></li>`).join('')}</ul>` : '<p class="fine">근처에 대신 갈 실내 장소를 못 찾았어요.</p>'}
+    </div>`; }).join('');
+  return `${undo}<div class="rainbox"><h3>${head}</h3>${body}
+    ${r && r.rainy ? '' : `<p class="fine">${r ? '예보로는 비 소식이 없어요. 미리 보기예요.' : '출발 16일 안이 되면 예보로 비 오는 날을 알려 줘요.'} <button type="button" class="link" data-act="ropen" data-v="${d.i}">닫기</button></p>`}
+  </div>`;
+}
+
 /* Step 6 · 일정 */
 function moveSelect(p, days, cur){
   const opts = [`<option value="">자동</option>`]
@@ -526,6 +552,7 @@ export function vPlan(s){
     <p class="lead">${esc(P.hotel.name)}에 묵는 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${s.hotelArea || P.hotel.cand ? '' : ' 숙소 동네를 아직 안 정해서 1순위 동네로 계산했어요.'}</p>
     <div><button type="button" class="ghost small" data-act="replan">손으로 옮긴 것 지우고 다시 짜기</button></div>
     ${mapSVG('plan', s, P)}
+    ${(sh => sh.total ? `<p class="fine">담은 곳 ${sh.total}곳 중 실내는 ${sh.indoor}곳이에요. 날짜마다 '☔ 비 오면?'을 누르면 가까운 실내 장소로 바꿀 수 있어요.</p>` : '')(indoorShare(s))}
     ${P.days.map(d => { const col = DAY_COLORS[d.i % DAY_COLORS.length]; const pct = d.cap ? Math.min(100, d.used / d.cap * 100) : 0;
       const body = d.full
         ? `<div class="fullday"><b>${esc(d.full.name)}</b><span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(P.hotel, d.full))}" target="_blank" rel="noopener">숙소에서 길찾기 ↗</a>${(d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
@@ -535,8 +562,9 @@ export function vPlan(s){
               return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a>${voteBar(s, p)}</div>${moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day" style="--day:${col}">
-        <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}</p></div></header>
+        <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${(r => r ? ` · 예보 ${esc(r.text || '')}${r.prob != null ? ` ${r.prob}%` : ''}` : '')(dayRain(s.wx, ymdStr(d.date)))}</p></div></header>
         ${body}
+        ${rainBox(s, P, d)}
         ${d.full ? '' : `<div class="meter${d.used > d.cap ? ' over' : ''}"><span style="width:${pct}%"></span></div>`}
       </article>`; }).join('')}
     ${P.unassigned.length ? `<div class="box"><h2>아직 일정에 못 넣은 곳</h2><ol class="stops">${P.unassigned.map(u => `<li><span class="num" style="--day:var(--muted)">·</span><div class="sbody"><b>${esc(u.p.name)}</b><span>${esc(u.why)}</span></div>${u.p.full ? '' : moveSelect(u.p, P.days, s.assign[u.p.id])}</li>`).join('')}</ol></div>` : ''}
@@ -865,6 +893,7 @@ export function vToday(s){
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
     ${next}
+    ${rainBox(s, P, d)}
     ${stops.length ? `<div class="box"><h2>이날 동선<small>${stops.filter(isDone).length}/${stops.length}곳 다녀옴</small></h2>
       <ol class="stops tstops" style="--day:${col}">
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${esc(hotel.name)}</b><span>숙소에서 출발</span></div></li>
