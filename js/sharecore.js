@@ -6,9 +6,9 @@ import { money } from './ledger.js';
 
 export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'start', 'end',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
-  'spend', 'party', 'lrate'];
-// id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출을 동시에 적어도 서로 덮어쓰지 않게
-export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend'];
+  'spend', 'party', 'lrate', 'pack'];
+// id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
+export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack'];
 export const DELETE = { __delete:true };   // Firebase deleteField()로 바꿔 보낼 표시
 
 const clone = o => JSON.parse(JSON.stringify(o === undefined ? null : o));
@@ -71,6 +71,13 @@ export function describeChange(prev, next){
   if(sAdd.length){ const e = ns[sAdd[0]]; parts.push(`지출 적음: ${[e.what, money(e.amt, e.cur)].filter(Boolean).join(' ')}${sAdd.length > 1 ? ` 외 ${sAdd.length - 1}건` : ''}`); }
   if(sEdit.length) parts.push(`지출 ${sEdit.length}건 고침`);
   if(sDel.length) parts.push(`지출 ${sDel.length}건 지움`);
+  const pp = prev.pack || {}, np = next.pack || {};
+  const pAdd = Object.keys(np).filter(id => !pp[id] && !np[id].hide);
+  const pDone = Object.keys(np).filter(id => pp[id] && np[id].done && !pp[id].done).length;
+  const pUndo = Object.keys(np).filter(id => pp[id] && !np[id].done && pp[id].done).length;
+  if(pAdd.length) parts.push(pAdd.length > 3 ? `준비물 ${pAdd.length}개 추가` : `준비물 추가: ${pAdd.map(id => np[id].t).join(', ')}`);
+  if(pDone) parts.push(`준비물 ${pDone}개 챙김`);
+  if(pUndo) parts.push(`준비물 ${pUndo}개 체크 풂`);
   if(!same(prev.party, next.party)) parts.push('정산할 사람 바꿈');
   if(prev.lrate !== next.lrate) parts.push('정산 환율 바꿈');
   if(!parts.length && !same(prev, next)) parts.push('일정 수정');

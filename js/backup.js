@@ -8,7 +8,7 @@ export const BACKUP_V = 1;
 
 // 다시 받을 수 있거나 화면에서만 쓰는 칸은 백업에서 뺌
 const DROP = ['sh', 'geoBusy', 'hotelBusy', 'rkBusy', 'wxBusy', 'wx', 'fx', 'rk', 'rkOn',
-  'impMsg', 'hotelMsg', 'geoErr', 'hotelErr', 'vedit', 'vdraft', 'mode', 'tday', 'todayOpened'];
+  'impMsg', 'hotelMsg', 'geoErr', 'hotelErr', 'vedit', 'vdraft', 'mode', 'tday', 'todayOpened', 'pfilter'];
 
 export function stateForBackup(s){
   const o = JSON.parse(JSON.stringify(s, (k, v) => k === 'sh' ? undefined : v));
@@ -45,7 +45,7 @@ export function summarizeBackup(d){
   return {
     at:d.at || '', dates:s.start && s.end ? `${s.start} ~ ${s.end}` : '',
     places:Object.keys(s.picked || {}).length, custom:(s.custom || []).length, hotels:(s.hotels || []).length,
-    vault:(s.vault || []).length, spend:Object.keys(s.spend || {}).length, files:(d.files || []).length,
+    vault:(s.vault || []).length, spend:Object.keys(s.spend || {}).length, pack:Object.values(s.pack || {}).filter(x => x && !x.hide).length, files:(d.files || []).length,
     bytes:(d.files || []).reduce((n, f) => n + (f.size || 0), 0),
     shared:!!s.shareId, keys:!!(d.rakuten && d.rakuten.key)
   };

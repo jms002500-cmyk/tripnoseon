@@ -1,6 +1,8 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
-import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS } from './data.js';
+import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS } from './data.js';
+import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } from './packing.js';
+const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
 import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { clothesTip } from './weather.js';
@@ -543,7 +545,53 @@ export function vPlan(s){
   </section>`;
 }
 
-/* Step 7 · 보관함 (예약·티켓, 이 기기에만) */
+/* Step 7 · 준비물 (함께 짜기 여행이면 가족이 같이 체크) */
+export function vPack(s){
+  const sh = s.sh || {}; const shared = !!(s.shareId && sh.trip);
+  const sugg = suggestPacking(s, s.wx); const miss = missingSuggestions(s.pack, sugg);
+  const whyOf = it => (it.src && (sugg.find(x => x.key === it.src) || {}).why) || '';
+  const v = packView(s.pack, s.pfilter); const party = partyOf(s);
+  const m = s.start ? +s.start.slice(5, 7) : null;
+  const ctx = [m ? `${m}월` : '', CITY_NAME[s.city] || '', s.who ? partyText(s) : ''].filter(Boolean).join(' · ');
+  const pct = v.total ? Math.round(v.done / v.total * 100) : 0;
+  const filters = [['all', '전체'], ['left', '남은 것'], ['common', '공용']].concat(party.length > 1 ? party.map(p => [p.id, `${p.name} 짐`]) : []);
+  const preview = PACK_CATS.map(c => ({ c, xs:miss.filter(x => x.c === c.key) })).filter(g => g.xs.length);
+  return `<section class="step">
+    <p class="eyebrow">Step 7 · 준비물</p>
+    <h1>준비물 체크리스트</h1>
+    <p class="lead">${ctx ? `${esc(ctx)}에 맞춰 골랐어요. ` : ''}누구 짐인지 나누고 챙긴 것을 체크해요.</p>
+    <div class="box tip"><p>${shared ? '함께 짜는 여행이라 <b>준비물도 참여자 모두와 공유</b>돼요. 누가 체크해도 모두의 화면에 바로 보여요.' : '지금은 <b>이 기기에만</b> 저장돼요. 가족과 같이 체크하려면 오른쪽 위 \'함께 짜기\'로 여행을 공유해 주세요.'}${s.wx && s.wx.climate ? '' : ' 여행지 단계에서 날씨를 받으면 옷차림 추천이 더 정확해져요.'}</p></div>
+    ${!v.total ? `<div class="box">
+      <h2>추천 준비물<small>${miss.length}개</small></h2>
+      <ul class="pkprev">${preview.map(g => `<li><b>${g.c.icon} ${esc(g.c.label)}</b><span>${g.xs.map(x => esc(x.t)).join(' · ')}</span></li>`).join('')}</ul>
+      <div class="pfoot"><button type="button" class="primary small" data-act="pkseed"${miss.length ? '' : ' disabled'}>추천 ${miss.length}개 한 번에 담기</button></div>
+      <p class="fine">담은 뒤에 필요 없는 건 빼고, 빠진 건 아래에서 직접 더할 수 있어요.</p>
+    </div>` : `<div class="box">
+      <h2>챙긴 것<small>${v.done}/${v.total}</small></h2>
+      <div class="meter"><span style="width:${pct}%"></span></div>
+      <div class="chips" role="group" aria-label="준비물 거르기">${filters.map(([k, l]) => chip('pkfilter', k, esc(l), (s.pfilter || 'all') === k)).join('')}</div>
+    </div>
+    ${v.groups.length ? v.groups.map(g => `<h2 class="vday">${g.cat.icon} ${esc(g.cat.label)}<small>${g.items.filter(x => x.done).length}/${g.items.length}</small></h2>
+      <ul class="plist">${g.items.map(it => `<li class="${it.done ? 'done' : ''}">
+        <button type="button" class="tchk" data-act="pkchk" data-v="${esc(it.id)}" aria-pressed="${!!it.done}" aria-label="${esc(it.t)} 챙김">✓</button>
+        <div class="sbody"><b>${esc(it.t)}</b>${whyOf(it) ? `<span>${esc(whyOf(it))}</span>` : ''}${it.done && it.doneBy ? `<span class="pkby">${esc(it.doneBy)} 챙김</span>` : ''}
+          <span class="pkrow"><select data-pkwho="${esc(it.id)}" aria-label="${esc(it.t)} 누구 짐">${[['', '공용']].concat(party.map(p => [p.id, p.name])).map(([k, l]) => `<option value="${esc(k)}"${(it.who || '') === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+          <button type="button" class="link" data-act="pkdel" data-v="${esc(it.id)}">빼기</button></span></div>
+      </li>`).join('')}</ul>`).join('') : '<p class="empty">이 조건에 맞는 준비물이 없어요.</p>'}`}
+    <form class="box" id="packform" autocomplete="off">
+      <h2>직접 더하기</h2>
+      <div class="lline"><input id="pkin" type="text" maxlength="200" enterkeyhint="done" placeholder="예: 수영복, 머리끈 (쉼표로 여러 개)" aria-label="준비물 직접 더하기"><button type="submit" class="primary small">더하기</button></div>
+      <p class="fine">이름을 보고 분류를 알아서 정해요.</p>
+    </form>
+    ${v.total && miss.length ? `<div class="box">
+      <h2>더 챙길 만한 것<small>${miss.length}개</small></h2>
+      <ul class="implist">${miss.map(x => `<li class="imp"><div class="sbody"><b>${packCatOf(x.c).icon} ${esc(x.t)}</b>${x.why ? `<span>${esc(x.why)}</span>` : ''}</div><button type="button" class="ghost small" data-act="pkone" data-v="${esc(x.key)}">담기</button></li>`).join('')}</ul>
+      <div class="pfoot"><button type="button" class="ghost small" data-act="pkseed">모두 담기</button></div>
+    </div>` : ''}
+  </section>`;
+}
+
+/* Step 8 · 보관함 (예약·티켓, 이 기기에만) */
 function vaultDay(s, date){
   if(!date) return '날짜 없음';
   const d = parseDate(date); const i = buildDays(s).findIndex(x => x.date.getTime() === d.getTime());
@@ -586,7 +634,7 @@ function backupBox(s){
         <li>만든 때: ${esc(when(r.sum.at))}</li>
         ${r.sum.dates ? `<li>여행 날짜: ${esc(r.sum.dates)}</li>` : ''}
         <li>담은 곳 ${r.sum.places}곳${r.sum.custom ? ` (직접 담은 곳 ${r.sum.custom}곳)` : ''} · 숙소 후보 ${r.sum.hotels}곳</li>
-        <li>보관함 ${r.sum.vault}건 · 첨부 ${r.sum.files}개${r.sum.bytes ? ` (${sizeText(r.sum.bytes)})` : ''}${r.sum.spend ? ` · 가계부 ${r.sum.spend}건` : ''}</li>
+        <li>보관함 ${r.sum.vault}건 · 첨부 ${r.sum.files}개${r.sum.bytes ? ` (${sizeText(r.sum.bytes)})` : ''}${r.sum.spend ? ` · 가계부 ${r.sum.spend}건` : ''}${r.sum.pack ? ` · 준비물 ${r.sum.pack}개` : ''}</li>
         ${r.sum.shared ? '<li>공유 여행이 연결된 백업이에요. 일정은 공유 여행의 최신 내용으로 맞춰지고, 보관함 등 이 기기 것만 백업에서 돌아와요.</li>' : ''}
         ${r.sum.keys ? '<li>라쿠텐 키가 들어 있어요.</li>' : ''}
       </ul>
@@ -603,7 +651,7 @@ export function vVault(s){
   const d = editing || s.vdraft || {};
   const groups = groupVault(items);
   return `<section class="step">
-    <p class="eyebrow">Step 7 · 보관함</p>
+    <p class="eyebrow">Step 8 · 보관함</p>
     <h1>예약과 티켓을 한곳에</h1>
     <p class="lead">항공권·숙소·입장권·입국 QR을 모아 두면 공항·호텔·입구에서 인터넷 없이 바로 꺼내 보여 줄 수 있어요.</p>
     <div class="box tip"><p>보관함은 <b>이 기기에만</b> 저장돼요. 예약번호·QR은 민감한 정보라 함께 짜기로 공유하지 않아요. 가족에게 줄 티켓은 사진을 열어 '보내기'로 전해 주세요.${s.sh && s.sh.vusage ? ` 이 앱이 기기에서 쓰는 저장 공간은 약 ${sizeText(s.sh.vusage)}이에요.` : ''}</p></div>
@@ -636,7 +684,7 @@ export function vVault(s){
   </section>`;
 }
 
-/* Step 8 · 가계부 (함께 짜기 여행이면 참여자 모두와 공유) */
+/* Step 9 · 가계부 (함께 짜기 여행이면 참여자 모두와 공유) */
 const LEX = ['어제 택시 2800엔 카드', '아빠가 디즈니 입장권 4장 39600엔', '여행 전 유심 25000원'];
 
 function ledgerRow(s, e, L, armed){
@@ -710,7 +758,7 @@ export function vLedger(s){
   const members = shared ? Object.values(sh.trip.members || {}).map(m => m.name).filter(n => n && !party.some(p => p.name === n)) : [];
   const fx = L.rate > 0 ? `1엔 = ${L.rate.toFixed(2)}원${s.lrate > 0 ? ' (직접 넣은 환율)' : s.fx && s.fx.src ? ` (${esc(s.fx.src)} ${esc(s.fx.date || '')})` : ''}` : '';
   return `<section class="step">
-    <p class="eyebrow">Step 8 · 가계부</p>
+    <p class="eyebrow">Step 9 · 가계부</p>
     <h1>함께 쓰는 가계부</h1>
     <p class="lead">쓴 돈을 한 줄로 적으면 원화로 바꿔 합치고, 누가 누구에게 얼마를 보내면 되는지 계산해요.</p>
     <div class="box tip"><p>${shared ? '함께 짜는 여행이라 <b>가계부도 참여자 모두와 공유</b>돼요. 누가 적어도 모두의 화면에 바로 보여요.' : '지금은 <b>이 기기에만</b> 저장돼요. 가족과 같이 적으려면 오른쪽 위 \'함께 짜기\'로 여행을 공유해 주세요. 공유하면 가계부도 함께 보여요.'}</p></div>
@@ -814,6 +862,8 @@ export function vToday(s){
     <header class="thead">${badge(i)}<div><h1>${i + 1}일차 · ${esc(d.label)}</h1><p class="lead">${esc(phaseText(ph, i))}</p></div></header>
     <div class="scroller" role="group" aria-label="날짜 고르기">${P.days.map(x => `<button type="button" class="chip" data-act="tday" data-v="${x.i}" aria-pressed="${x.i === i}">${x.i + 1}일차${x.i === ph.index ? ' · 오늘' : ''}</button>`).join('')}</div>
     ${todayWeatherLine(dayWeather(s.wx, date))}
+    ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
+      : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
     ${next}
     ${stops.length ? `<div class="box"><h2>이날 동선<small>${stops.filter(isDone).length}/${stops.length}곳 다녀옴</small></h2>
       <ol class="stops tstops" style="--day:${col}">
@@ -825,7 +875,7 @@ export function vToday(s){
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>숙소로 돌아가기</b><a class="link" href="${esc(gdir(stops[stops.length - 1], hotel))}" target="_blank" rel="noopener">마지막 장소에서 길찾기 ↗</a></div></li>
       </ol></div>` : ''}
     ${vault.length ? `<h2 class="vday">이날 꺼낼 예약<small>${vault.length}건</small></h2><div class="list">${vault.map(todayVaultCard).join('')}</div>`
-      : `<p class="fine">이날 날짜로 넣은 예약이 없어요. 입장권·QR은 <button type="button" class="link" data-act="go" data-v="6">보관함</button>에 날짜를 넣어 두면 여기에 떠요.</p>`}
+      : `<p class="fine">이날 날짜로 넣은 예약이 없어요. 입장권·QR은 <button type="button" class="link" data-act="go" data-v="${STEP('보관함')}">보관함</button>에 날짜를 넣어 두면 여기에 떠요.</p>`}
     <form class="box" id="ledgerform" autocomplete="off">
       <h2>이날 쓴 돈<small>${g ? lmoney(g.total, L.base) : '아직 없음'}</small></h2>
       ${g ? `<ul class="tspend">${g.items.map(e => `<li><span>${catOf(e.cat).icon} ${esc(e.what || catOf(e.cat).label)}</span><b>${lmoney(e.amt, e.cur)}</b></li>`).join('')}</ul>` : ''}
@@ -833,8 +883,8 @@ export function vToday(s){
       <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:s.country === 'jp' ? 'JPY' : 'KRW' }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
     </form>
-    <div class="pfoot"><button type="button" class="ghost small" data-act="go" data-v="5">전체 일정</button><button type="button" class="ghost small" data-act="go" data-v="6">보관함</button><button type="button" class="ghost small" data-act="go" data-v="7">가계부·정산</button></div>
+    <div class="pfoot"><button type="button" class="ghost small" data-act="go" data-v="${STEP('일정')}">전체 일정</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('준비물')}">준비물</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('보관함')}">보관함</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('가계부')}">가계부·정산</button></div>
   </section>`;
 }
 
-export const VIEWS = [vWho, vWhere, vMust, vPick, vStay, vPlan, vVault, vLedger];
+export const VIEWS = [vWho, vWhere, vMust, vPick, vStay, vPlan, vPack, vVault, vLedger];

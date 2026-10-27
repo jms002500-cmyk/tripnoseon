@@ -3,6 +3,7 @@ import { AREAS, STEPS, DEFAULT } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces } from './logic.js';
 import { VIEWS, SHEET, vToday } from './views.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
+import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
 import { openMap } from './livemap.js';
@@ -22,7 +23,7 @@ const S_KEY = 'tripnoseon-v1';
 const RK_KEY = 'tripnoseon-rakuten';   // 라쿠텐 키는 일정 상태와 따로 저장 (상태를 내보내거나 백업해도 키는 안 섞이게)
 const BK_KEY = 'tripnoseon-before-join';
 const RS_KEY = 'tripnoseon-before-restore';   // 백업으로 바꾸기 직전 상태 (되돌리기 취소용)   // 공유 여행에 참여하기 직전 내 일정 (되돌리기용)
-const VAULT_STEP = STEPS.indexOf('보관함'), LEDGER_STEP = STEPS.indexOf('가계부');
+const VAULT_STEP = STEPS.indexOf('보관함'), LEDGER_STEP = STEPS.indexOf('가계부'), PACK_STEP = STEPS.indexOf('준비물');
 let state = load();
 state.rkOn = !!rkKeys();
 state.sh = freshSh();
@@ -82,7 +83,7 @@ function rkAdd(hotelNo){
 
 // 여행지 단계에서 날짜가 있으면 날씨를 불러옴. 날짜가 바뀌었거나 예보가 하루 지났으면 다시
 function ensureWeather(force){
-  const s = state; if((s.step !== 1 && s.mode !== 'today') || !s.start || !s.end || s.wxBusy) return;
+  const s = state; if((s.step !== 1 && s.step !== PACK_STEP && s.mode !== 'today') || !s.start || !s.end || s.wxBusy) return;
   const key = `${s.city}|${tripMonthDays(s.start, s.end).join(',')}`;
   const today = ymd(new Date());
   const stale = !s.wx || s.wx.key !== key || (canForecast(s.start, new Date()) && s.wx.forecastAt !== today) || (s.wx.error && force);
@@ -684,6 +685,11 @@ function act(a, v){
       break;
     }
     case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
+    case 'pkseed': Object.assign(s.pack, seedItems(missingSuggestions(s.pack, suggestPacking(s, s.wx)), Date.now())); break;
+    case 'pkone': { const x = suggestPacking(s, s.wx).find(y => y.key === v); if(x) Object.assign(s.pack, seedItems([x], Date.now())); break; }
+    case 'pkchk': { const it = s.pack[v]; if(!it) return; it.done = !it.done; it.doneBy = it.done && s.shareId && s.sh.user ? s.sh.user.name : ''; break; }
+    case 'pkdel': { const it = s.pack[v]; if(!it) return; if(it.src){ it.hide = true; it.done = false; } else delete s.pack[v]; break; }   // 추천에서 온 건 숨겨서 다시 추천하지 않음
+    case 'pkfilter': s.pfilter = v; break;
     case 'lfocus': case 'lex': case 'lmore': case 'ledit': case 'lcancel': case 'lundo': case 'ldel': case 'lpadd': case 'lpdel': case 'lpmembers': case 'limpok': case 'limpcancel':
       ledgerAct(a, v); return;
     case 'bkexport': exportBackup(); return;
@@ -730,6 +736,7 @@ function onChange(e){
     const p = partyOf(s).map(x => Object.assign({}, x)); const it = p.find(x => x.id === t.dataset.lname); if(!it) return;
     it.name = t.value.trim().slice(0, 12) || it.name; s.party = p;
   }
+  else if(t.dataset.pkwho != null){ const it = s.pack[t.dataset.pkwho]; if(!it) return; it.who = t.value; }
   else if(t.dataset.lrate != null){ s.lrate = Math.max(0, Math.round((+t.value || 0) * 100) / 100); }
   else if(t.dataset.limport != null){
     const f = t.files && t.files[0]; t.value = ''; if(!f) return;
@@ -783,6 +790,12 @@ function onSubmit(e){
   if(e.target.classList.contains('cmform')){ e.preventDefault(); onShareSubmit(e.target); return; }
   if(e.target.id === 'vaultform'){ e.preventDefault(); saveVault(); return; }
   if(e.target.id === 'ledgerform'){ e.preventDefault(); addFromLine(); return; }
+  if(e.target.id === 'packform'){
+    e.preventDefault(); const inp = document.getElementById('pkin');
+    const add = customItems(inp.value, () => 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), Date.now());
+    if(!Object.keys(add).length) return;
+    Object.assign(state.pack, add); save(); render(); const i = document.getElementById('pkin'); if(i) i.focus(); return;
+  }
   if(e.target.id === 'ledgerdetail'){ e.preventDefault(); saveDetail(); return; }
   if(e.target.id === 'rkform'){
     e.preventDefault();

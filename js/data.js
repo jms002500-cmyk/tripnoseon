@@ -122,7 +122,7 @@ export const WHO = [{key:'solo',label:'혼자'},{key:'couple',label:'연인·부
 export const KINDS = ['테마파크','전망대','박물관·미술관','수족관·동물원','체험·캐릭터','공원·정원','신사·절','거리·시장','쇼핑','먹거리','야경·일루미네이션'];
 export const STYLES = ['관광명소','맛집','쇼핑','체험','테마파크','자연·산책','문화·역사'];
 export const PACE = {relaxed:{label:'여유롭게',hours:5,desc:'하루 2~3곳'}, normal:{label:'적당히',hours:7,desc:'하루 3~4곳'}, packed:{label:'알차게',hours:9,desc:'하루 4곳 이상'}};
-export const STEPS = ['동행','여행지','꼭 갈 곳','장소 담기','숙소 동네','일정','보관함','가계부'];
+export const STEPS = ['동행','여행지','꼭 갈 곳','장소 담기','숙소 동네','일정','준비물','보관함','가계부'];
 export const WD = ['일','월','화','수','목','금','토'];
 export const DAY_COLORS = ['#F39700','#E60012','#00A7DB','#009944','#9B7CB6','#BB641D','#00ADA9','#C1A470','#6C7A89','#D7006A'];
 
@@ -136,6 +136,7 @@ export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'no
   wx:null, wxBusy:false, fx:null,      // wx: 여행 날짜 날씨(이맘때 평균·예보), fx: 환율 { rate: 1엔당 원, date, src }
   vault:[], vedit:null, vdraft:null, lastBackup:'',   // vault: 예약 보관함(이 기기에만, 공유 안 함), vedit: 고치는 항목 id, vdraft: 제안에서 채운 새 항목
   spend:{}, party:[], lrate:0, lby:null,
+  pack:{}, pfilter:'all',   // 준비물(js/packing.js): pack {id: 준비물}(함께 짜기로 공유), pfilter 화면 거르기
   mode:null, tday:null, tdone:{}, todayOpened:'',   // 오늘 하루 화면(js/today.js): mode 'today'면 그 화면, tday 고른 날(없으면 오늘), tdone 다녀옴 표시(기기마다), todayOpened 자동으로 연 날   // 가계부(js/ledger.js): spend 지출 {id: 지출}, party 나누는 사람 [{id,name}], lrate 정산 환율(1엔당 원, 0이면 받아 온 환율), lby 이 기기에서 마지막으로 낸 사람
   shareId:null};                       // shareId: 함께 짜는 공유 여행 번호(없으면 이 기기에만 있는 여행)
 

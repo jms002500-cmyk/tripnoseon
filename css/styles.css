@@ -359,6 +359,19 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .tspend li{display:flex; justify-content:space-between; gap:10px}
 .tspend b{font:600 13.5px var(--f-mono); white-space:nowrap}
 
+/* 준비물 */
+.pkprev{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:14px}
+.pkprev li{display:flex; flex-direction:column; gap:2px}
+.pkprev span{color:var(--muted); font-size:13px}
+.plist{list-style:none; margin:0; padding:0 14px; background:var(--surface); border:1px solid var(--rule); border-radius:14px}
+.plist li{display:grid; grid-template-columns:36px 1fr; gap:10px; align-items:start; padding:10px 0}
+.plist li + li{border-top:1px dashed var(--rule)}
+.plist li.done .sbody > b{text-decoration:line-through; color:var(--muted)}
+.plist .sbody > b{overflow-wrap:anywhere}
+.pkrow{display:flex; align-items:center; gap:12px; margin-top:4px}
+.pkrow select{padding:5px 8px; border:1.5px solid var(--rule); border-radius:8px; background:var(--paper); color:var(--ink); font-size:13px; max-width:150px}
+.pkby{color:var(--good) !important; font-weight:600}
+
 /* 백업 */
 .chk{display:flex; align-items:center; gap:8px; font-size:14px}
 .chk input{width:18px; height:18px}
