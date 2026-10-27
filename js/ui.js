@@ -14,7 +14,11 @@ export function gmap(q){ return `https://www.google.com/maps/search/?api=1&query
 // 구글 지도 길찾기(대중교통). 폰에서는 구글 지도 앱이 열림. 길찾기는 직접 만들지 않고 연결만 함
 //   이름이 확실한 기본 장소는 일본어 이름으로, 나머지(직접 담은 곳·숙소)는 좌표로
 export function gdirPoint(p){ return p.ja && !p.custom ? p.ja : `${(+p.lat).toFixed(6)},${(+p.lng).toFixed(6)}`; }
+//   구글 지도에서 고른 곳(gid 있음)은 이름 + 장소 ID로 보내 정확히 그 장소가 열리게
 export function gdir(from, to){
-  const q = new URLSearchParams({ api:'1', origin:gdirPoint(from), destination:gdirPoint(to), travelmode:'transit' });
+  const pt = p => p.gid ? p.name : gdirPoint(p);
+  const q = new URLSearchParams({ api:'1', origin:pt(from), destination:pt(to), travelmode:'transit' });
+  if(from.gid) q.set('origin_place_id', from.gid);
+  if(to.gid) q.set('destination_place_id', to.gid);
   return `https://www.google.com/maps/dir/?${q}`;
 }

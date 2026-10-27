@@ -4,6 +4,7 @@ import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS } 
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as sosHotel, kidCardJa } from './safety.js';
+import { mealSlots, rankFood, moreFoodUrl, foodKey, walkMin } from './food.js';
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
 import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
@@ -314,9 +315,9 @@ export function vPick(s){
       <div><button type="button" class="ghost small" data-act="autopick">추천 순서대로 빈 시간 채우기</button></div>
     </div>
     <div class="box">
-      <h2>지도에서 찾아 담기</h2>
-      <p class="fine">지도에서 이름으로 찾거나 원하는 자리를 눌러 바로 담아요. 목록에 없는 식당·가게도 담을 수 있어요.</p>
-      <div><button type="button" class="primary small" data-act="mapopen">지도 열기</button></div>
+      <h2>구글 지도에서 찾아 담기</h2>
+      <p class="fine">한국어 구글 지도에서 이름으로 찾거나 장소 아이콘을 눌러, 평점·영업시간을 보고 몇 일차에 갈지 골라 바로 담아요. 쉬는 요일은 일정 짜기가 알아서 피해요.</p>
+      <div><button type="button" class="primary small" data-act="mapopen">구글 지도 열기</button></div>
     </div>
     ${importBox(s)}
     <div class="scroller" role="group" aria-label="동네로 거르기">
@@ -566,6 +567,7 @@ export function vPlan(s){
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${(r => r ? ` · 예보 ${esc(r.text || '')}${r.prob != null ? ` ${r.prob}%` : ''}` : '')(dayRain(s.wx, ymdStr(d.date)))}</p></div></header>
         ${body}
         ${rainBox(s, P, d)}
+        <div><button type="button" class="link" data-act="tfood" data-v="${d.i}">🍜 이날 점심·저녁 식당 찾기</button></div>
         ${d.full ? '' : `<div class="meter${d.used > d.cap ? ' over' : ''}"><span style="width:${pct}%"></span></div>`}
       </article>`; }).join('')}
     ${P.unassigned.length ? `<div class="box"><h2>아직 일정에 못 넣은 곳</h2><ol class="stops">${P.unassigned.map(u => `<li><span class="num" style="--day:var(--muted)">·</span><div class="sbody"><b>${esc(u.p.name)}</b><span>${esc(u.why)}</span></div>${u.p.full ? '' : moveSelect(u.p, P.days, s.assign[u.p.id])}</li>`).join('')}</ol></div>` : ''}
@@ -829,6 +831,32 @@ export function vLedger(s){
   </section>`;
 }
 
+/* 동선 위 식당 찾기 (오늘 하루 화면): 점심·저녁 때 있을 곳 근처 식당을 구글에서 (평점·그 시간 영업·걸어서 몇 분) */
+const foodOpenText = o => o === true ? '<span class="fopen">이 시간 영업</span>' : o === false ? '<span class="closed">이 시간엔 안 열어요</span>' : '<span>영업시간 정보 없음</span>';
+function foodRow(d, k, r){
+  return `<li class="imp"><div class="sbody"><b>${esc(r.name)}</b>
+      <span>${esc(r.cuisine)}${r.rating ? ` · ★ ${r.rating.toFixed(1)}${r.ratingN ? ` (${r.ratingN.toLocaleString('ko-KR')})` : ''}` : ''} · 걸어서 ${walkMin(r.km)}분 · ${foodOpenText(r.open)}</span>
+      ${r.mapsUrl ? `<span class="lacts"><a class="link" href="${esc(r.mapsUrl)}" target="_blank" rel="noopener">구글 지도 ↗</a></span>` : ''}</div>
+    <button type="button" class="ghost small" data-act="fadd" data-v="${d.i}|${k}|${esc(r.id)}">일정에 넣기</button></li>`;
+}
+function foodSlot(sh, d, m, k){
+  const st = (sh.food || {})[foodKey(m.at)]; const ml = m.meal === 'lunch' ? '점심' : '저녁';
+  const list = st && st.items ? rankFood(st.items, d.wd, m.time, 8) : null;
+  return `<div class="fslot"><p><b>${ml} ${m.time}</b> · ${esc(m.why)}</p>
+    ${list ? (list.length ? `<ul class="implist flist">${list.map(r => foodRow(d, k, r)).join('')}</ul>` : '<p class="fine">이 근처 500m 안에서 식당을 못 찾았어요.</p>')
+      : `<div class="pfoot"><button type="button" class="primary small" data-act="ffind" data-v="${d.i}|${k}"${st && st.busy ? ' disabled' : ''}>${st && st.busy ? '찾는 중…' : `근처 ${ml} 식당 찾기`}</button></div>`}
+    ${st && st.err ? `<p class="warnline">${esc(st.err)}</p>` : ''}
+    <a class="link" href="${esc(moreFoodUrl(m.at, m.meal))}" target="_blank" rel="noopener">구글 지도에서 더 보기 ↗</a>
+  </div>`;
+}
+function foodBox(s, d, hotel){
+  const slots = mealSlots(d, hotel); if(!slots.length) return '';
+  return `<div class="box" id="foodbox"><h2>이날 식당<small>${slots.map(m => m.meal === 'lunch' ? '점심' : '저녁').join('·')}</small></h2>
+    ${slots.map((m, k) => foodSlot(s.sh || {}, d, m, k)).join('')}
+    <p class="fine">버튼을 누르면 그 장소 좌표를 구글로 보내 근처 식당을 찾아요. 일본은 정기휴무·예약제·현금만 받는 곳이 많으니 가기 전에 구글 지도에서 한 번 더 확인하세요.</p>
+  </div>`;
+}
+
 /* 안전·긴급 정보 한 장 (단계 밖, 위 '긴급' 버튼). 인터넷 없이 열림 */
 function sosBig(s){
   const b = (s.sh || {}).sbig; if(!b) return '';
@@ -964,6 +992,7 @@ export function vToday(s){
           <button type="button" class="tchk" data-act="tdone" data-v="${esc(p.id)}" aria-pressed="${isDone(p)}" aria-label="${esc(p.name)} 다녀옴">✓</button></li>`).join('')}
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>숙소로 돌아가기</b><a class="link" href="${esc(gdir(stops[stops.length - 1], hotel))}" target="_blank" rel="noopener">마지막 장소에서 길찾기 ↗</a></div></li>
       </ol></div>` : ''}
+    ${foodBox(s, d, hotel)}
     ${vault.length ? `<h2 class="vday">이날 꺼낼 예약<small>${vault.length}건</small></h2><div class="list">${vault.map(todayVaultCard).join('')}</div>`
       : `<p class="fine">이날 날짜로 넣은 예약이 없어요. 입장권·QR은 <button type="button" class="link" data-act="go" data-v="${STEP('보관함')}">보관함</button>에 날짜를 넣어 두면 여기에 떠요.</p>`}
     <form class="box" id="ledgerform" autocomplete="off">

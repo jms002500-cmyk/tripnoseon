@@ -1,13 +1,15 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT } from './data.js';
-import { clone, buildDays, fullAssign, autoPickIds, allPlaces } from './logic.js';
+import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan } from './logic.js';
 import { VIEWS, SHEET, vToday, vSafety } from './views.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
-import { openMap } from './livemap.js';
+import { openMap, nearbyFood } from './gmap.js';
+import { mealSlots, foodKey } from './food.js';
+import { matchKnown, toCustom } from './gplace.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx, convert } from './prices.js';
@@ -621,16 +623,21 @@ function addHotel(){
   if(!has) findHotelLocations();
 }
 
-// 지도 시트: 담은 곳 표시, 점 눌러 담기/빼기, 새 자리 담기
+// 구글 지도 시트: 담은 곳 핀, 장소 카드에서 '몇 일차에 담기'로 바로 일정에
+//   g: 구글 장소(gplace.toCustom이 받는 모양) | null(이미 담은 곳 날짜만 옮길 때, knownId)
+//   이미 있는 도쿄 장소(65곳)와 같은 곳이면 그 장소를, 전에 담은 구글 장소면 그것을 다시 씀
 function openLiveMap(){
   openMap({
     getState: () => state,
+    getDays: () => buildDays(state).map(d => ({ i:d.i, label:`${d.i + 1}일차 · ${d.label}` })),
     onToggle: id => { const s = state; if(s.picked[id]) unpick(s, id); else s.picked[id] = true; save(); render(); },
-    onAdd: ({ name, lat, lng, hours }) => {
-      const s = state; const id = 'm' + Date.now().toString(36);
-      s.custom.push({ id, name:(name || '지도에서 고른 곳').slice(0, 60), ja:'', area:nearestArea({ lat, lng }).key, lat, lng, hours:hours || 1.5,
-        tags:[], kid:'all', custom:true, src:'map' });
-      s.picked[id] = true; save(); render();
+    onPick: (g, day, knownId) => {
+      const s = state; let p = knownId ? allPlaces(s).find(x => x.id === knownId) : g && (matchKnown(g) || (s.custom || []).find(c => c.gid && c.gid === g.id));
+      if(!p && g){ p = toCustom(g, 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), Date.now()); s.custom.push(p); }
+      if(!p) return '';
+      s.picked[p.id] = true;
+      if(day != null){ if(p.full) s.fullDay[p.id] = day; else s.assign[p.id] = day; }
+      save(); render(); return p.name;
     },
     onClose: () => render()
   });
@@ -692,6 +699,21 @@ function act(a, v){
       break;
     }
     case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
+    case 'tfood': s.mode = 'today'; s.tday = +v; save(); render(); { const b = document.getElementById('foodbox'); if(b) b.scrollIntoView({ block:'start' }); } return;
+    case 'ffind': {   // 끼니 자리 근처 식당 (구글)
+      const [di, k] = v.split('|').map(Number); const P = plan(s); const d = P.days[di]; const m = d && mealSlots(d, P.hotel)[k]; if(!m) return;
+      const key = foodKey(m.at); s.sh.food = Object.assign({}, s.sh.food, { [key]:{ busy:true } }); render();
+      nearbyFood(m.at).then(items => { state.sh.food[key] = { items }; render(); })
+        .catch(e => { state.sh.food[key] = { err:e && e.message === 'nokey' ? '구글 지도 키를 넣으면 근처 식당을 찾을 수 있어요. 지금은 아래 \'구글 지도에서 더 보기\'를 써 주세요.' : '식당을 못 불러왔어요. 인터넷 연결을 확인하고 다시 눌러 주세요.' }; render(); });
+      return;
+    }
+    case 'fadd': {   // 찾은 식당을 그날 일정에
+      const [di, k, rid] = v.split('|'); const P = plan(s); const d = P.days[+di]; const m = d && mealSlots(d, P.hotel)[+k];
+      const r = m && ((s.sh.food || {})[foodKey(m.at)] || {}).items; const g = r && r.find(x => x.id === rid); if(!g) return;
+      let p = (s.custom || []).find(c => c.gid === g.id);
+      if(!p){ p = toCustom({ id:g.id, name:g.name, lat:g.lat, lng:g.lng, types:['restaurant'], periods:g.periods }, 'g' + Date.now().toString(36), Date.now()); s.custom.push(p); }
+      s.picked[p.id] = true; s.assign[p.id] = +di; toast(`'${p.name}'을(를) ${+di + 1}일차에 넣었어요.`); break;
+    }
     case 'ropen': s.sh.ropen = s.sh.ropen === +v ? null : +v; break;
     case 'rswap': {   // 비 오는 날: 실외 장소는 빼두고 실내 장소를 그날에 (함께 짜기 여행이면 가족 일정도 바뀜)
       const [outId, inId, di] = v.split('|'); const all = allPlaces(s); const name = id => (all.find(p => p.id === id) || {}).name || '';
