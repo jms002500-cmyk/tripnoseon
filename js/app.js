@@ -8,6 +8,7 @@ import { openMap } from './livemap.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx, convert } from './prices.js';
+import { planTripleImport, applyTripleImport } from './ledgerimport.js';
 import { parseLine, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, personUsed, catOf } from './ledger.js';
 import { missingBookings } from './vault.js';
 import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } from './vaultdb.js';
@@ -526,6 +527,14 @@ function ledgerAct(a, v){
     case 'lpadd': { const p = partyOf(s).map(x => Object.assign({}, x)); if(p.length >= 12) return;
       p.push({ id:newPersonId(), name:`사람 ${p.length + 1}` }); s.party = p; break; }
     case 'lpdel': if(personUsed(s, v) || partyOf(s).length < 2) return; s.party = partyOf(s).filter(p => p.id !== v); if(s.lby === v) s.lby = null; break;
+    case 'limpok': {
+      const p = sh.limp; if(!p || !p.items.length) return;
+      const out = applyTripleImport(s, p, k => k === 'x' ? newSpendId() : newPersonId(), Date.now());
+      s.party = out.party; Object.assign(s.spend, out.spend);
+      sh.limp = null; sh.limpBad = false; sh.limpMsg = `트리플 가계부에서 지출 ${p.items.length}건을 가져왔어요.`;
+      break;
+    }
+    case 'limpcancel': sh.limp = null; sh.limpMsg = ''; break;
     case 'lpmembers': {
       // 기본 '나'만 있고 아직 쓰인 데가 없으면 '나' 대신 참여자 이름으로
       let p = partyOf(s).map(x => Object.assign({}, x));
@@ -656,7 +665,7 @@ function act(a, v){
       break;
     }
     case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
-    case 'lfocus': case 'lex': case 'lmore': case 'ledit': case 'lcancel': case 'lundo': case 'ldel': case 'lpadd': case 'lpdel': case 'lpmembers':
+    case 'lfocus': case 'lex': case 'lmore': case 'ledit': case 'lcancel': case 'lundo': case 'ldel': case 'lpadd': case 'lpdel': case 'lpmembers': case 'limpok': case 'limpcancel':
       ledgerAct(a, v); return;
     case 'bkexport': exportBackup(); return;
     case 'bkrestore': doRestore(); return;
@@ -703,6 +712,16 @@ function onChange(e){
     it.name = t.value.trim().slice(0, 12) || it.name; s.party = p;
   }
   else if(t.dataset.lrate != null){ s.lrate = Math.max(0, Math.round((+t.value || 0) * 100) / 100); }
+  else if(t.dataset.limport != null){
+    const f = t.files && t.files[0]; t.value = ''; if(!f) return;
+    f.text().then(text => {
+      const sh = state.sh; const p = planTripleImport(text, state);
+      sh.limp = p.ok && p.items.length ? p : null; sh.limpName = f.name; sh.limpMsg = p.ok ? '' : p.error; sh.limpBad = !p.ok;
+      if(p.ok && !p.items.length) sh.limpMsg = p.dup ? '이 파일의 지출은 이미 모두 가져왔어요.' : '';
+      render(); const b = document.getElementById('limpbox'); if(b) b.scrollIntoView({ block:'start' });
+    });
+    return;
+  }
   else if(t.dataset.hcur != null){ s.hotelCur = t.value; }
   else if(t.dataset.hprice != null || t.dataset.hpcur != null){
     // 사이트별 가격: 'hotelId|siteKey'

@@ -643,7 +643,7 @@ function ledgerRow(s, e, L, armed){
   const conv = e.cur !== L.base ? L.val(e) : null;
   const pay = e.pay ? (PAYS.find(x => x.key === e.pay) || {}).label : '';
   const sp = e.split && e.split.length ? (e.split.length === 1 && e.split[0] === e.by ? '혼자 부담' : `${e.split.map(id => (partyOf(s).find(x => x.id === id) || {}).name).filter(Boolean).join('·')} 몫`) : '';
-  const meta = [p ? `${p.name} 냄` : '', pay, sp].filter(Boolean).join(' · ');
+  const meta = [p ? `${p.name} 냄` : '', pay, sp, e.src === 'triple' ? '트리플에서 가져옴' : ''].filter(Boolean).join(' · ');
   return `<li class="lrow">
     <span class="licon" aria-hidden="true">${c.icon}</span>
     <div class="sbody"><b>${esc(e.what || c.label)}</b><span>${esc(c.label)}${meta ? ' · ' + esc(meta) : ''}</span>
@@ -677,6 +677,28 @@ function ledgerDetail(s, editing, today){
     ${party.length > 1 ? `<fieldset class="lsplit"><legend>누구 몫인가요</legend>${party.map(p => `<label class="chk"><input type="checkbox" name="lsplit" value="${esc(p.id)}"${split.includes(p.id) ? ' checked' : ''}> ${esc(p.name)}</label>`).join('')}</fieldset>` : ''}
     <div class="pfoot"><button type="submit" class="primary small">${editing ? '고친 내용 저장' : '적기'}</button><button type="button" class="ghost small" data-act="lcancel">닫기</button></div>
   </form>`;
+}
+
+// 트리플 가계부 CSV 가져오기 (트리플은 2026-11-03 종료, 가계부는 CSV로만 남음)
+function ledgerImportBox(s){
+  const sh = s.sh || {}; const p = sh.limp;
+  return `<div class="box" id="limpbox">
+    <h2>트리플 가계부 가져오기<small>CSV 파일</small></h2>
+    <p class="fine">트리플은 11월 3일에 끝나고 가계부는 CSV 파일로만 남아요. 트리플 가계부 화면 오른쪽 위 ··· → '가계부 내보내기(CSV)'로 만든 파일을 고르면, '1 일차'를 이 여행 날짜에 맞춰 넣고 낸 사람·나눠 낼 사람도 옮겨요. 파일은 이 기기에서만 읽어요.</p>
+    <div><label class="ghost small filebtn">CSV 파일 고르기<input type="file" accept=".csv,text/csv" data-limport hidden></label></div>
+    ${sh.limpMsg ? `<p class="${sh.limpBad ? 'warnline' : 'lmsg'}" role="status">${esc(sh.limpMsg)}</p>` : ''}
+    ${p ? `<div class="box tip"><h2>이대로 가져올까요?</h2>
+      <ul class="bklist">
+        <li>${esc(sh.limpName || '')} · 지출 ${p.items.length}건${p.items.length ? ` (${[p.sum.JPY ? lmoney(p.sum.JPY, 'JPY') : '', p.sum.KRW ? lmoney(p.sum.KRW, 'KRW') : ''].filter(Boolean).join(' + ')})` : ''}</li>
+        <li>트리플의 1 일차 = ${esc(dayLabel(s, p.firstDay))}</li>
+        ${p.people.length ? `<li>사람: ${esc(p.people.join(', '))} — 이름은 가져온 뒤 정산 칸에서 고칠 수 있어요</li>` : ''}
+        ${p.dup ? `<li>이미 가져온 ${p.dup}건은 건너뛰어요</li>` : ''}
+        ${p.late ? `<li>이 여행보다 긴 일차의 ${p.late}건은 '여행 후'로 넣어요</li>` : ''}
+        ${p.other ? `<li>엔·원이 아닌 통화 ${p.other}건은 트리플이 바꿔 둔 원화 금액으로 넣어요</li>` : ''}
+      </ul>
+      <div class="pfoot"><button type="button" class="primary small" data-act="limpok"${p.items.length ? '' : ' disabled'}>가져오기</button><button type="button" class="ghost small" data-act="limpcancel">취소</button></div>
+    </div>` : ''}
+  </div>`;
 }
 
 export function vLedger(s){
@@ -725,6 +747,7 @@ export function vLedger(s){
     ${L.groups.length ? L.groups.map(g => `<h2 class="vday">${esc(g.d ? dayLabel(s, g.d) : '날짜 없음')}<small>${lmoney(g.total, L.base)}</small></h2>
       <ul class="llist">${g.items.map(e => ledgerRow(s, e, L, sh.ldel)).join('')}</ul>`).join('')
       : '<p class="empty">아직 적은 지출이 없어요. 위 칸에 "라멘 1200엔"처럼 적어 보세요.</p>'}
+    ${ledgerImportBox(s)}
   </section>`;
 }
 
