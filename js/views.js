@@ -3,6 +3,7 @@
 import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS } from './data.js';
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
+import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as sosHotel, kidCardJa } from './safety.js';
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
 import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
@@ -828,6 +829,66 @@ export function vLedger(s){
   </section>`;
 }
 
+/* 안전·긴급 정보 한 장 (단계 밖, 위 '긴급' 버튼). 인터넷 없이 열림 */
+function sosBig(s){
+  const b = (s.sh || {}).sbig; if(!b) return '';
+  const hc = sosHotel(s); const ph = b.startsWith('p') ? PHRASES[+b.slice(1)] : null;
+  const ja = b === 'hotel' ? ['この住所に行きたいです', hc.name, hc.addr, hc.tel ? `TEL ${hc.tel}` : ''].filter(Boolean).join('\n')
+    : b === 'kid' ? kidCardJa(s.sphone, hc.name) : ph ? ph.ja : '';
+  const ko = b === 'hotel' ? '이 주소로 가고 싶어요' : b === 'kid' ? '길을 잃었어요. 이 번호로 전화해 주세요' : ph ? `${ph.ko} · ${ph.read}` : '';
+  return `<div class="sosover" role="dialog" aria-label="크게 보기"><p class="sosja">${esc(ja).replace(/\n/g, '<br>')}</p><p class="fine">${esc(ko)}</p>
+    <button type="button" class="ghost" data-act="sbig" data-v="">닫기</button></div>`;
+}
+
+export function vSafety(s){
+  const sf = s.safety || {}; const hc = sosHotel(s); const calls = callsFor(s);
+  const kids = s.who === 'family' && (s.kids || []).length;
+  const big = calls.filter(c => c.big), rest = calls.filter(c => !c.big);
+  return `<section class="step sos">
+    <p class="eyebrow">긴급</p>
+    <h1>안전·긴급 정보</h1>
+    <p class="lead">인터넷이 없어도 열려요. 출발 전에 한 번 읽어 보고, 숙소 주소를 넣어 두세요.</p>
+    ${s.country !== 'jp' ? '<div class="box tip"><p>지금은 일본 정보만 준비했어요. 아래 외교부 영사안전콜센터는 어느 나라에서나 24시간 받아요.</p></div>' : ''}
+    <div class="sosbig">${big.map(c => `<a class="sosbtn" href="${telHref(c.tel)}"><b>${esc(c.num)}</b><span>${esc(c.label)}</span></a>`).join('')}</div>
+    <p class="fine">${big.map(c => `<b>${esc(c.num)}</b> ${esc(c.when)}`).join('<br>')}</p>
+    <div class="box"><h2>도움받을 곳</h2>
+      <ul class="soslist">${rest.map(c => `<li><div class="sbody"><b>${esc(c.label)}</b><span>${esc(c.when)}</span></div><a class="link" href="${telHref(c.tel)}">${esc(c.num)}</a></li>`).join('')}</ul>
+      <p class="fine">${CHECKED}에 주일본 대한민국 대사관·외교부·일본정부관광국(JNTO)·도쿄도 공식 누리집에서 확인한 번호예요. 출발 전에 외교부 해외안전여행 누리집에서 한 번 더 확인해 주세요. 한국 휴대폰 로밍으로 걸면 국제전화 요금이 나와요.</p>
+    </div>
+    <div class="box" id="soshotel"><h2>숙소 일본어 카드<small>택시·길 묻기</small></h2>
+      <div class="soscard"><p class="sosja">この住所に行きたいです</p><b>${esc(hc.name || '숙소 이름을 넣어 주세요')}</b>${hc.addr ? `<span>${esc(hc.addr)}</span>` : ''}${hc.tel ? `<span>TEL ${esc(hc.tel)}</span>` : ''}</div>
+      <div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button>${hc.mapUrl ? `<a class="link" href="${esc(hc.mapUrl)}" target="_blank" rel="noopener">지도 ↗</a>` : ''}</div>
+      <label for="sfname">숙소 이름 (일본어면 더 좋아요)<input id="sfname" type="text" maxlength="80" data-sf="hname" value="${esc(sf.hname || '')}" placeholder="${esc(hc.name || '예: ホテル○○新宿')}"></label>
+      <label for="sfaddr">주소 (예약 확인서의 일본어 주소를 붙여 넣기)<input id="sfaddr" type="text" maxlength="120" data-sf="addr" value="${esc(sf.addr || '')}" placeholder="예: 東京都新宿区…"></label>
+      <label for="sftel">숙소 전화<input id="sftel" type="tel" maxlength="30" data-sf="tel" value="${esc(sf.tel || '')}" placeholder="예: 03-1234-5678"></label>
+      <p class="fine">함께 짜는 여행이면 가족 모두의 화면에 같이 보여요.</p>
+    </div>
+    ${kids ? `<div class="box"><h2>아이를 잃어버렸을 때</h2>
+      <p class="pnote">${esc(LOST[LOST.length - 1].d)}</p>
+      <label for="sfmeet">만날 장소 (가족이 미리 정해 두기)<input id="sfmeet" type="text" maxlength="80" data-sf="meet" value="${esc(sf.meet || '')}" placeholder="예: 신주쿠역 동쪽 출구 알타 앞"></label>
+      <label for="sfphone">부모 연락처 (이 기기에만 저장)<input id="sfphone" type="tel" maxlength="30" data-sphone value="${esc(s.sphone || '')}" placeholder="예: +82-10-…"></label>
+      <div class="soscard"><p class="sosja">${esc(kidCardJa(s.sphone, hc.name)).replace(/\n/g, '<br>')}</p></div>
+      <div class="pfoot"><button type="button" class="ghost small" data-act="sbig" data-v="kid">아이 카드 크게 보기</button></div>
+      <p class="fine">이 카드를 캡처해 아이 휴대폰 배경으로 두거나, 종이에 적어 아이 주머니에 넣어 주세요.</p>
+    </div>` : ''}
+    <div class="box"><h2>보여 주는 일본어<small>누르면 크게</small></h2>
+      <ul class="sosphr">${PHRASES.map((p, i) => `<li><button type="button" data-act="sbig" data-v="p${i}"><b>${esc(p.ja)}</b><span>${esc(p.ko)} · ${esc(p.read)}</span></button></li>`).join('')}</ul>
+    </div>
+    <div class="box"><h2>지진이 나면</h2>
+      <ol class="sosq">${QUAKE.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
+      <p class="fine">출발 전에 일본 관광청이 감수한 'Safety tips' 앱(한국어, 지진·쓰나미·기상 경보)을 설치해 두면 좋아요.</p>
+    </div>
+    <div class="box"><h2>잃어버렸을 때</h2>
+      <ul class="soslist">${LOST.slice(0, -1).map(x => `<li><div class="sbody"><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div></li>`).join('')}</ul>
+    </div>
+    <div class="box"><h2>${esc(EMBASSY.name)}</h2>
+      <p class="pnote">${esc(EMBASSY.ja)}<br>〒${esc(EMBASSY.zip)} ${esc(EMBASSY.addr)}</p>
+      <div class="pfoot"><a class="link" href="${esc(gmap(EMBASSY.addr))}" target="_blank" rel="noopener">지도 ↗</a></div>
+    </div>
+    ${sosBig(s)}
+  </section>`;
+}
+
 /* 오늘 하루 (여행 중 앱을 열면 먼저 보이는 화면. 단계 밖) */
 function todayVaultCard(it){
   const k = kindOf(it.kind); const link = safeHttpsUrl(it.link);
@@ -912,7 +973,7 @@ export function vToday(s){
       <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:s.country === 'jp' ? 'JPY' : 'KRW' }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
     </form>
-    <div class="pfoot"><button type="button" class="ghost small" data-act="go" data-v="${STEP('일정')}">전체 일정</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('준비물')}">준비물</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('보관함')}">보관함</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('가계부')}">가계부·정산</button></div>
+    <div class="pfoot"><button type="button" class="ghost small" data-act="go" data-v="${STEP('일정')}">전체 일정</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('준비물')}">준비물</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('보관함')}">보관함</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('가계부')}">가계부·정산</button><button type="button" class="ghost small" data-act="sos">긴급 정보</button></div>
   </section>`;
 }
 

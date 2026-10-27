@@ -1,7 +1,7 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces } from './logic.js';
-import { VIEWS, SHEET, vToday } from './views.js';
+import { VIEWS, SHEET, vToday, vSafety } from './views.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
@@ -294,11 +294,13 @@ function render(){
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
   s.sh.today = ymd(new Date());
-  const todayMode = s.mode === 'today';
-  if(todayMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
-  document.getElementById('view').innerHTML = todayMode ? vToday(s) : VIEWS[s.step](s);
+  const todayMode = s.mode === 'today', sosMode = s.mode === 'sos';
+  if(todayMode || sosMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
+  document.getElementById('view').innerHTML = sosMode ? vSafety(s) : todayMode ? vToday(s) : VIEWS[s.step](s);
   document.getElementById('line').style.setProperty('--n', STEPS.length);
-  document.getElementById('bar').innerHTML = todayMode
+  document.getElementById('bar').innerHTML = sosMode
+    ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="sbig" data-v="hotel">숙소 카드 보여 주기</button>`
+    : todayMode
     ? `<button type="button" class="ghost" data-act="tclose">계획으로</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`
     : s.step < STEPS.length-1
     ? `<button type="button" class="ghost" data-act="prev"${s.step === 0 ? ' disabled' : ''}>이전</button><button type="button" class="primary" data-act="next">다음 · ${STEPS[s.step+1]}</button>`
@@ -309,6 +311,8 @@ function render(){
   const tb = document.getElementById('todayBtn');
   tb.hidden = phaseOf(s, s.sh.today).phase === 'none';
   tb.classList.toggle('on', todayMode); tb.setAttribute('aria-pressed', String(todayMode));
+  const xb = document.getElementById('sosBtn'); xb.classList.toggle('on', sosMode); xb.setAttribute('aria-pressed', String(sosMode));
+  document.body.classList.toggle('noscroll', !!s.sh.open || (sosMode && !!s.sh.sbig));
   const sb = document.getElementById('shareBtn');
   sb.textContent = s.shareId && s.sh.trip ? `함께 · ${s.sh.trip.memberUids.length}명` : '함께 짜기';
   sb.classList.toggle('on', !!s.shareId);
@@ -316,7 +320,7 @@ function render(){
   const keepScroll = sheet.querySelector('.shbody') ? sheet.querySelector('.shbody').scrollTop : 0;
   if(s.sh.open){ sheet.innerHTML = SHEET(s); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
   else sheet.innerHTML = '';
-  document.body.classList.toggle('noscroll', !!s.sh.open);
+  if(!(sosMode && s.sh.sbig)) document.body.classList.toggle('noscroll', !!s.sh.open);
   ensureWeather(false);
   ensureFx();
   hydrateThumbs();
@@ -641,7 +645,9 @@ function act(a, v){
     case 'prev': s.step = Math.max(0, s.step-1); scroll = true; break;
     case 'next': s.step = Math.min(STEPS.length-1, s.step+1); scroll = true; break;
     case 'topen': s.mode = s.mode === 'today' ? null : 'today'; s.tday = null; scroll = true; break;
-    case 'tclose': s.mode = null; scroll = true; break;
+    case 'tclose': s.mode = null; s.sh.sbig = null; scroll = true; break;
+    case 'sos': s.mode = s.mode === 'sos' ? null : 'sos'; s.sh.sbig = null; scroll = true; break;
+    case 'sbig': s.sh.sbig = v || null; if(v && s.mode !== 'sos') s.mode = 'sos'; break;   // 크게 보여 주기 (직원·택시 기사에게)
     case 'tday': s.tday = +v; break;
     case 'tdone': {   // 다녀옴 표시: 오늘 화면에서 보고 있는 날짜 기준
       const k = doneKey(shownDate(s, ymd(new Date())), v); s.tdone = Object.assign({}, s.tdone);
@@ -747,6 +753,8 @@ function onChange(e){
     const p = partyOf(s).map(x => Object.assign({}, x)); const it = p.find(x => x.id === t.dataset.lname); if(!it) return;
     it.name = t.value.trim().slice(0, 12) || it.name; s.party = p;
   }
+  else if(t.dataset.sf != null){ s.safety = Object.assign({ hname:'', addr:'', tel:'', meet:'' }, s.safety, { [t.dataset.sf]:t.value.trim().slice(0, 120) }); }
+  else if(t.dataset.sphone != null){ s.sphone = t.value.trim().slice(0, 30); }
   else if(t.dataset.pkwho != null){ const it = s.pack[t.dataset.pkwho]; if(!it) return; it.who = t.value; }
   else if(t.dataset.lrate != null){ s.lrate = Math.max(0, Math.round((+t.value || 0) * 100) / 100); }
   else if(t.dataset.limport != null){

@@ -365,6 +365,32 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .ralt{display:flex; flex-direction:column; gap:2px}
 .ralt .implist .imp:first-child{border-top:0}
 
+/* 안전·긴급 정보 */
+#sosBtn{border-color:var(--warn); color:var(--warn)}
+#sosBtn.on{background:var(--warn-soft)}
+.sosbig{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.sosbtn{display:flex; flex-direction:column; align-items:center; gap:2px; padding:14px 8px; border-radius:14px; background:var(--warn); color:#FFFFFF; text-decoration:none}
+.sosbtn b{font:600 30px/1 var(--f-mono)}
+.sosbtn span{font-size:13.5px; font-weight:600}
+.soslist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column}
+.soslist li{display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; padding:9px 0; border-top:1px dashed var(--rule)}
+.soslist li:first-child{border-top:0}
+.soslist .link{font-family:var(--f-mono); white-space:nowrap}
+.soscard{border:2px solid var(--ink); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:4px; background:var(--surface)}
+.soscard b{font-size:18px; overflow-wrap:anywhere}
+.sosja{font-size:17px; font-weight:600; overflow-wrap:anywhere}
+#soshotel input, .sos input{padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--paper); color:var(--ink); font:inherit; width:100%; min-width:0}
+.sosphr{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
+.sosphr button{width:100%; text-align:left; border:1.5px solid var(--rule); background:var(--surface); border-radius:10px; padding:9px 12px; display:flex; flex-direction:column; gap:2px}
+.sosphr b{font-size:16px}
+.sosphr span{font-size:12.5px; color:var(--muted)}
+.sosq{margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:14px}
+.sosover{position:fixed; inset:0; z-index:70; background:#FFFFFF; color:#121212; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:18px; text-align:center;
+  padding:max(24px, env(safe-area-inset-top, 0px)) 20px max(24px, env(safe-area-inset-bottom, 0px))}
+.sosover .sosja{font:700 clamp(26px, 8vw, 44px)/1.35 var(--f-body); color:#121212}
+.sosover .fine{color:#5A6775; font-size:15px}
+.sosover .ghost{color:#121212; border-color:#C9D1D8}
+
 /* 준비물 */
 .pkprev{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:14px}
 .pkprev li{display:flex; flex-direction:column; gap:2px}
