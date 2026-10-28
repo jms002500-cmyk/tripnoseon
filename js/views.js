@@ -8,6 +8,7 @@ import { mealSlots, rankFood, moreFoodUrl, foodKey, walkMin } from './food.js';
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
 import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
+import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
 import { SITES, siteUrl, priceOptions } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
@@ -363,12 +364,15 @@ function priceCompare(h, s, r){
   </details>`;
 }
 
+// 일본어 숙소 이름의 한글 읽기 (라쿠텐에서 담은 곳은 담을 때 받은 읽기, 없으면 이름의 가나·한자로)
+const koOf = h => h.ko || koHotelName(h.name, '');
+
 function hotelCard(r, i, s, c){
-  const h = r.h; const on = s.hotelPick === h.id;
+  const h = r.h; const on = s.hotelPick === h.id; const ko = koOf(h);
   const book = safeHttpsUrl(h.bookUrl); const map = safeMapUrl(h.mapUrl);
   const where = h.approx ? ' 근처 · 위치 대략' : h.src === 'geo' ? ' · 이름으로 찾은 위치' : '';
   return `<article class="acard hcard${i === 0 ? ' top' : ''}${on ? ' on' : ''}">
-    <div class="ahead"><span class="rank">${i+1}</span><div><h3>${esc(h.name)}</h3><p class="ja">${esc(r.a.name)}${where}</p></div></div>
+    <div class="ahead"><span class="rank">${i+1}</span><div><h3>${esc(ko || h.name)}</h3>${ko ? `<p class="ja">${esc(h.name)}</p>` : ''}<p class="ja">${esc(r.a.name)}${where}</p></div></div>
     <ul class="facts">
       ${c.dayCount ? `<li><span>담은 곳까지 평균</span><b>${r.avg.toFixed(1)}km</b></li><li><span>2.5km 안에 담은 곳</span><b>${r.near}곳</b></li>` : ''}
       ${c.hasDisney ? `<li class="wide"><span>디즈니까지 (동네 기준 대략)</span><b>${esc(r.a.disneyText || '알 수 없음')}</b></li>` : ''}
@@ -390,7 +394,7 @@ function hotelNoLoc(h, s){
   const areaOpts = `<option value="">동네 고르기</option>` + Object.entries(AREAS).map(([k, a]) => `<option value="${k}">${a.name}</option>`).join('');
   const st = h.st === 'need' ? (s.hotelBusy ? '이름으로 위치를 찾고 있어요…' : '위치를 아직 안 찾았어요') : '위치를 못 찾았어요. 구글 지도 주소를 붙이거나 동네를 골라 주세요';
   return `<li class="imp">
-    <div class="sbody"><b>${esc(h.name)}</b><span>${st}</span></div>
+    <div class="sbody"><b>${esc(koOf(h) || h.name)}</b>${koOf(h) ? `<span>${esc(h.name)}</span>` : ''}<span>${st}</span></div>
     <button type="button" class="link" data-act="hdel" data-v="${esc(h.id)}">지우기</button>
     ${h.st === 'fail' ? `<a class="link" href="${gmap(h.name)}" target="_blank" rel="noopener">구글 지도에서 찾기 ↗</a>` : ''}
     ${h.st === 'fail' ? `<div class="row2"><select data-harea="${esc(h.id)}" aria-label="${esc(h.name)} 동네">${areaOpts}</select></div>
@@ -429,7 +433,7 @@ function rakutenBox(s, areaKey){
   const list = r && r.items && r.items.length ? `<p class="fine">${esc(AREAS[r.area].name)} 주변 ${RK_RADIUS}km · ${esc(r.party)} · 1박 싼 순 · ${esc(r.at)} 기준${fresh ? '' : ' (지금 조건과 달라요. 다시 찾아 주세요)'}</p>
       <ul class="implist rklist">${r.items.map(it => { const avg = it.lat != null ? avgToPicks(s, it) : null; const on = taken.has(it.hotelNo);
         return `<li class="imp">
-          <div class="sbody"><b>${esc(it.name)}</b><span>${it.station ? esc(it.station) + '역 · ' : ''}${it.review ? `★${it.review.toFixed(1)} (${it.reviewCount}) · ` : ''}${avg != null ? `담은 곳까지 평균 ${avg.toFixed(1)}km` : ''}</span>
+          <div class="sbody"><b>${esc(it.ko || it.name)}</b>${it.ko ? `<span>${esc(it.name)}</span>` : ''}<span>${it.station ? esc(it.station) + '역 · ' : ''}${it.review ? `★${it.review.toFixed(1)} (${it.reviewCount}) · ` : ''}${avg != null ? `담은 곳까지 평균 ${avg.toFixed(1)}km` : ''}</span>
             <span class="rkprice">1박 ${yen(it.price)}${it.priceIsPlan ? '' : ' (최저가 목안)'}${it.breakfast ? ' · 조식 포함' : ''}</span></div>
           <button type="button" class="${on ? 'ghost' : 'primary'} small" data-act="rkadd" data-v="${esc(it.hotelNo)}"${on ? ' disabled' : ''}>${on ? '담음 ✓' : '후보에 담기'}</button>
         </li>`; }).join('')}</ul>` : '';
@@ -441,7 +445,7 @@ function rakutenBox(s, areaKey){
       ${r && r.msg ? `<p class="warnline">${esc(r.msg)}</p>` : ''}
       ${list}
       ${(s.hotels || []).some(h => h.hotelNo) && days ? `<div><button type="button" class="ghost small" data-act="rkrefresh"${s.rkBusy ? ' disabled' : ''}>담은 라쿠텐 후보 가격 새로 확인</button></div>` : ''}
-      <p class="fine">숙소 이름은 라쿠텐에 나온 일본어 그대로예요. 실제 요금은 예약 페이지에서 꼭 다시 확인해 주세요.</p>
+      <p class="fine">한글 이름은 라쿠텐의 일본어 읽기를 자동으로 옮긴 거라 예약 사이트의 한국어 이름과 조금 다를 수 있어요. 그 아래가 일본어 원래 이름이에요. 실제 요금은 예약 페이지에서 꼭 다시 확인해 주세요.</p>
     </div>`;
 }
 

@@ -2,6 +2,7 @@
 // 키(applicationId + accessKey)는 사용자가 앱에 직접 넣고 그 기기 localStorage에만 둠 — 코드·저장소에 넣지 않음.
 // 라쿠텐 앱 등록에서 '허용된 웹사이트'로 지정한 주소(github.io)에서 부를 때만 통과함 (브라우저가 Referer를 붙임).
 // 위쪽은 순수 함수(테스트 대상), 맨 아래 vacantSearch만 네트워크를 씀.
+import { koHotelName } from './janame.js';
 
 export const RK_URL = 'https://openapi.rakuten.co.jp/engine/api/Travel/VacantHotelSearch/20170426';
 export const RK_RADIUS = 3;   // 좌표 검색 반경 최대값(km)
@@ -52,8 +53,8 @@ export function parseVacant(json){
       return dc.total > 0 ? [{ total:+dc.total, planName:rb.planName || '', breakfast:rb.withBreakfastFlag === 1, url:rb.reserveUrl || '' }] : [];
     });
     const best = rooms.reduce((m, r) => (!m || r.total < m.total) ? r : m, null);
-    const lat = +b.latitude, lng = +b.longitude;
-    return { hotelNo:String(b.hotelNo), name:String(b.hotelName || '').slice(0, 80), station:b.nearestStation || '',
+    const lat = +b.latitude, lng = +b.longitude; const name = String(b.hotelName || '').slice(0, 80);
+    return { hotelNo:String(b.hotelNo), name, ko:koHotelName(name, b.hotelKanaName), station:b.nearestStation || '',
       review:+b.reviewAverage || 0, reviewCount:+b.reviewCount || 0,
       price: best ? best.total : (+b.hotelMinCharge || 0), priceIsPlan: !!best, breakfast: best ? best.breakfast : false,
       lat: Number.isFinite(lat) && lat ? lat : null, lng: Number.isFinite(lng) && lng ? lng : null,

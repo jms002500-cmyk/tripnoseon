@@ -63,7 +63,7 @@ async function rkRefresh(){
   else {
     const by = new Map((res.items || []).map(it => [it.hotelNo, it])); const at = stamp();
     targets.slice(0, 15).forEach(h => { const it = by.get(h.hotelNo);
-      if(it){ if(s.hotelCur === 'JPY') h.price = it.price; h.priceAt = at; h.soldOut = false; } else { h.soldOut = true; h.priceAt = at; } });
+      if(it){ if(s.hotelCur === 'JPY') h.price = it.price; h.priceAt = at; h.soldOut = false; if(!h.ko && it.ko) h.ko = it.ko; } else { h.soldOut = true; h.priceAt = at; } });
     s.hotelMsg = targets.length > 15 ? '라쿠텐 후보는 한 번에 15곳까지만 확인해요.' : '';
   }
   save(); render();
@@ -77,7 +77,7 @@ function rkAdd(hotelNo){
   if(!wonInUse) s.hotelCur = 'JPY';
   const has = it.lat != null && nearTokyo(it);
   const memo = [it.station ? `${it.station}역` : '', it.breakfast ? '조식 포함 플랜' : '', wonInUse ? `라쿠텐 1박 ¥${it.price.toLocaleString('ko-KR')}` : ''].filter(Boolean).join(', ');
-  s.hotels.push({ id:'h' + Date.now().toString(36), name:it.name, price:wonInUse ? 0 : it.price, mapUrl:'', bookUrl:safeHttpsUrl(it.url), memo,
+  s.hotels.push({ id:'h' + Date.now().toString(36), name:it.name, ko:it.ko || '', price:wonInUse ? 0 : it.price, mapUrl:'', bookUrl:safeHttpsUrl(it.url), memo,
     lat:has ? it.lat : null, lng:has ? it.lng : null, area:has ? nearestArea(it).key : '', st:has ? 'ok' : 'need', src:'rakuten', approx:false, label:'',
     hotelNo:it.hotelNo, priceAt:s.rk.at, soldOut:false });
   s.hotelMsg = wonInUse ? '가격 통화가 원이라 라쿠텐 엔화 요금은 메모에 넣었어요.' : '';
