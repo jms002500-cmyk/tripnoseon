@@ -1069,6 +1069,31 @@ render();
 if(state.step === VAULT_STEP) refreshUsage();
 setTimeout(refreshGoogle, 4000);   // 첫 화면을 먼저 그린 뒤
 
+// 개발 중에만: 폰에서 쓰다가 버튼 하나로 PC의 Claude 대화(원격 조종)로 넘어가 질문·수정 요청.
+// 주소 뒤에 ?dev=1 을 붙여 한 번 열면 이 기기에서만 켜지고 ?dev=0 으로 꺼짐. 상용화 때 이 묶음과 .devchat 스타일을 지움
+const DEV_KEY = 'tripnoseon-dev';
+{
+  const q = new URLSearchParams(location.search).get('dev');
+  if(q === '1' || q === '0'){
+    try{ if(q === '1') localStorage.setItem(DEV_KEY, '1'); else localStorage.removeItem(DEV_KEY); }catch(e){}
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
+}
+if(hasKey(DEV_KEY)){
+  let ver = '';
+  if('caches' in window) caches.keys().then(k => { ver = (k.find(x => x.startsWith('tripnoseon-')) || '').slice(11); }).catch(() => {});
+  const a = document.createElement('a');
+  a.className = 'devchat'; a.href = 'https://claude.ai/code'; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '💬 Claude';
+  // 누르면 지금 화면 정보를 복사해 두고 Claude를 엶 → 대화창에 붙여 넣으면 어느 화면 얘기인지 바로 앎
+  a.addEventListener('click', () => {
+    const s = state, where = s.mode === 'sos' ? '긴급' : s.mode === 'today' ? '오늘' : STEPS[s.step];
+    const txt = `[트립노선 ${ver || '?'} · ${where} 화면 · ${(REGIONS[s.city] || {}).name || s.city}] `;
+    try{ navigator.clipboard.writeText(txt).catch(() => {}); }catch(e){}
+    toast('지금 화면 정보를 복사했어요. Claude 대화창에 붙여 넣고 말씀해 주세요.');
+  });
+  document.body.appendChild(a);
+}
+
 // 오프라인 사용(홈 화면 앱). localhost 개발 중에는 캐시 때문에 헷갈리지 않게 등록하지 않음
 if('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)){
   navigator.serviceWorker.register('./sw.js').catch(() => {});
