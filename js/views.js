@@ -4,6 +4,7 @@ import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, R
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as sosHotel, kidCardJa } from './safety.js';
+import * as HK from './regions/hksz-guide.js';
 import { mealSlots, rankFood, moreFoodUrl, foodKey, walkMin } from './food.js';
 import { canShareLoc, locList, kmText, locMapUrl } from './loc.js';
 import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHECKED as FARE_CHECKED, dayTrips, legMinutes, legSegments, legMode, minText } from './transit.js';
@@ -486,8 +487,10 @@ function hotelSection(s, areaKey){
 
 // 나눠 자기: 밤마다 어느 숙소에서 잘지 (위치를 아는 후보가 2곳 이상일 때)
 function nightsBox(s, hasDisney){
-  const days = buildDays(s); const cands = (s.hotels || []).filter(h => h.lat != null);
-  if(days.length < 2 || cands.length < 2) return '';
+  const days = buildDays(s); const cands = compareHotels(s, 'place').rows.map(r => r.h);
+  // 숙소 후보가 2곳 이상이거나, 홍콩·선전처럼 밤마다 도시를 바꿀 수 있는 지역이면 (동네만 골라도 됨)
+  const areaOpts = REGION.key === 'hksz' ? Object.entries(AREAS).filter(([, a]) => a.hotel) : [];
+  if(days.length < 2 || (cands.length < 2 && !areaOpts.length)) return '';
   const nightsList = days.slice(0, -1); const pick = cands.find(h => h.id === s.hotelPick);
   const count = {}; nightsList.forEach(d => { const n = nightHotel(s, d.key).name; count[n] = (count[n] || 0) + 1; });
   const moves = days.slice(1, -1).filter((d, i) => nightHotel(s, nightsList[i].key).name !== nightHotel(s, d.key).name).map(d => d.label);
@@ -498,7 +501,8 @@ function nightsBox(s, hasDisney){
     <ul class="nightlist">${nightsList.map(d => { const cur = (s.nights || {})[d.key] || '';
       return `<li><span>${esc(d.label)} 밤</span><select data-night="${esc(d.key)}" aria-label="${esc(d.label)} 밤 숙소">
         <option value="">${pick ? `정한 숙소 (${esc(pick.name)})` : '정한 숙소'}</option>
-        ${cands.map(h => `<option value="${esc(h.id)}"${cur === h.id ? ' selected' : ''}>${esc(h.name)}</option>`).join('')}</select></li>`; }).join('')}</ul>
+        ${cands.length ? `<optgroup label="숙소 후보">${cands.map(h => `<option value="${esc(h.id)}"${cur === h.id ? ' selected' : ''}>${esc(h.name)}</option>`).join('')}</optgroup>` : ''}
+        ${areaOpts.length ? ['hk', 'sz'].map(c => `<optgroup label="${c === 'hk' ? '홍콩 동네' : '선전 동네'} (숙소는 나중에)">${areaOpts.filter(([, a]) => a.city === c).map(([k, a]) => `<option value="area:${esc(k)}"${cur === 'area:' + k ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</optgroup>`).join('') : ''}</select></li>`; }).join('')}</ul>
     <p class="fine">${Object.entries(count).map(([n, c]) => `${esc(n)} ${c}박`).join(' · ')}${moves.length ? ` · 🧳 짐 옮기는 날: ${moves.map(esc).join(', ')}` : ''}${s.shareId ? ' · 함께 짜는 가족에게도 보여요.' : ''}</p>
   </div>`;
 }
@@ -951,17 +955,73 @@ function foodBox(s, d, hotel){
 }
 
 /* 안전·긴급 정보 한 장 (단계 밖, 위 '긴급' 버튼). 인터넷 없이 열림 */
+// 홍콩·선전 미아 카드 (번체·간체 둘 다: 홍콩·선전 어디서 보여 줘도 읽히게)
+function kidCardZh(phone, hotel){
+  return ['我迷路了。請打電話給我的父母。', '我迷路了。请给我的父母打电话。', phone ? `☎ ${phone}` : '☎ (부모 연락처를 넣어 주세요)', hotel ? `🏨 ${hotel}` : ''].filter(Boolean).join('\n');
+}
+// 홍콩·선전 긴급 정보 (js/regions/hksz-guide.js, 공식 출처로 확인)
+function vSafetyHKSZ(s){
+  const sf = s.safety || {}; const hc = sosHotel(s);
+  const kids = s.who === 'family' && (s.kids || []).length;
+  const big = HK.CALLS.filter(c => c.big); const rest = HK.CALLS.filter(c => !c.big);
+  const cityTag = c => c.city === 'hk' ? '홍콩' : c.city === 'sz' ? '선전' : '';
+  const infoBox = (title, list) => list.length ? `<div class="box"><h2>${esc(title)}</h2><ul class="soslist">${list.map(x => `<li><div class="sbody"><b>${esc(x.title)}</b><span>${esc(x.text)}</span></div></li>`).join('')}</ul></div>` : '';
+  const phr = (list, pre) => `<ul class="sosphr">${list.map((p, i) => `<li><button type="button" data-act="sbig" data-v="${pre}${i}"><b>${esc(p.local)}</b><span>${esc(p.ko)} · ${esc(p.read)}</span></button></li>`).join('')}</ul>`;
+  return `<section class="step sos">
+    <p class="eyebrow">긴급</p>
+    <h1>안전·긴급 정보</h1>
+    <p class="lead">인터넷이 없어도 열려요. 홍콩과 선전(중국 본토)은 긴급번호·공관·쓰는 글자가 달라요.</p>
+    <div class="sosbig">${big.map(c => `<a class="sosbtn" href="${telHref(c.tel)}"><b>${esc(c.num)}</b><span>${c.label.includes(cityTag(c)) ? '' : esc(cityTag(c)) + ' '}${esc(c.label)}</span></a>`).join('')}</div>
+    <p class="fine">${big.map(c => `<b>${esc(c.num)}</b>(${esc(cityTag(c))}) ${esc(c.when)}`).join('<br>')}</p>
+    <div class="box"><h2>도움받을 곳</h2>
+      <ul class="soslist">${rest.map(c => `<li><div class="sbody"><b>${esc(c.label)}</b><span>${esc(c.when)}</span></div><a class="link" href="${telHref(c.tel)}">${esc(c.num)}</a></li>`).join('')}</ul>
+      <p class="fine">${esc(HK.CHECKED)}에 주홍콩·주광저우 총영사관, 외교부, 홍콩 정부·중국 공관 공식 누리집에서 확인한 내용이에요. 출발 전에 한 번 더 확인해 주세요.</p>
+    </div>
+    <div class="box" id="soshotel"><h2>숙소 주소 카드<small>택시·길 묻기</small></h2>
+      <div class="soscard"><p class="sosja">請帶我去這個地址 / 请带我去这个地址</p><b>${esc(hc.name || '숙소 이름을 넣어 주세요')}</b>${hc.addr ? `<span>${esc(hc.addr)}</span>` : ''}${hc.tel ? `<span>TEL ${esc(hc.tel)}</span>` : ''}</div>
+      <div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button></div>
+      <label for="sfname">숙소 이름 (중국어 이름이면 더 좋아요)<input id="sfname" type="text" maxlength="80" data-sf="hname" value="${esc(sf.hname || '')}" placeholder="${esc(hc.name || '예약 확인서의 숙소 이름')}"></label>
+      <label for="sfaddr">주소 (예약 확인서의 중국어 주소를 붙여 넣기)<input id="sfaddr" type="text" maxlength="120" data-sf="addr" value="${esc(sf.addr || '')}"></label>
+      <label for="sftel">숙소 전화<input id="sftel" type="tel" maxlength="30" data-sf="tel" value="${esc(sf.tel || '')}" placeholder="예: +852-1234-5678"></label>
+      <p class="fine">홍콩·선전 숙소를 나눠 자면 그날 밤 숙소로 바꿔 넣어 주세요. 함께 짜는 여행이면 가족 모두의 화면에 같이 보여요.</p>
+    </div>
+    ${kids ? `<div class="box"><h2>아이를 잃어버렸을 때</h2>
+      <p class="pnote">${esc(HK.LOST[HK.LOST.length - 1].d)}</p>
+      <label for="sfmeet">만날 장소 (가족이 미리 정해 두기)<input id="sfmeet" type="text" maxlength="80" data-sf="meet" value="${esc(sf.meet || '')}" placeholder="예: 들어온 출입구 앞"></label>
+      <label for="sfphone">부모 연락처 (이 기기에만 저장)<input id="sfphone" type="tel" maxlength="30" data-sphone value="${esc(s.sphone || '')}" placeholder="예: +82-10-1234-5678"></label>
+      <div class="soscard"><p class="sosja">${esc(kidCardZh(s.sphone, hc.name)).replace(/\n/g, '<br>')}</p></div>
+      <div class="pfoot"><button type="button" class="ghost small" data-act="sbig" data-v="kid">아이 카드 크게 보기</button></div>
+      <p class="fine">국경 검사장처럼 사람이 많은 곳에서는 손을 꼭 잡고 다녀요. 아이 휴대폰 배경으로 이 카드를 캡처해 두세요.</p>
+    </div>` : ''}
+    <div class="box"><h2>보여 주는 광둥어 (홍콩)<small>누르면 크게</small></h2>${phr(HK.PHRASES.hk, 'h')}</div>
+    <div class="box"><h2>보여 주는 중국어 (선전)<small>누르면 크게</small></h2>${phr(HK.PHRASES.sz, 'z')}</div>
+    ${infoBox('입국·국경', HK.ENTRY)}
+    ${infoBox('교통', HK.TRANSPORT)}
+    <div class="box"><h2>돈 내기</h2>
+      ${['hk', 'sz'].map(c => HK.MONEY[c] ? `<h3>${esc(HK.CITY_NAMES[c])} (${esc(HK.MONEY[c].cur)})</h3><ul class="sosq">${HK.MONEY[c].tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '').join('')}
+    </div>
+    <div class="box"><h2>홍콩 태풍·폭우 경보 때</h2><ol class="sosq">${HK.WEATHER.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>
+    <div class="box"><h2>잃어버렸을 때</h2>
+      <ul class="soslist">${HK.LOST.slice(0, -1).map(x => `<li><div class="sbody"><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div></li>`).join('')}</ul>
+    </div>
+    ${HK.CONSULATES.map(c => `<div class="box"><h2>${esc(c.name)}</h2><p class="pnote">${esc(c.local)}<br>${esc(c.addr)}${c.hours ? `<br>${esc(c.hours)}` : ''}</p></div>`).join('')}
+    ${sosBig(s)}
+  </section>`;
+}
 function sosBig(s){
   const b = (s.sh || {}).sbig; if(!b) return '';
-  const hc = sosHotel(s); const ph = b.startsWith('p') ? PHRASES[+b.slice(1)] : null;
-  const ja = b === 'hotel' ? ['この住所に行きたいです', hc.name, hc.addr, hc.tel ? `TEL ${hc.tel}` : ''].filter(Boolean).join('\n')
-    : b === 'kid' ? kidCardJa(s.sphone, hc.name) : ph ? ph.ja : '';
+  const hc = sosHotel(s); const hk = s.city === 'hksz';
+  // 문장: 일본어 p0…, 홍콩(광둥어) h0…, 선전(보통화) z0…
+  const ph = b[0] === 'p' ? PHRASES[+b.slice(1)] : (b[0] === 'h' && b !== 'hotel') ? HK.PHRASES.hk[+b.slice(1)] : b[0] === 'z' ? HK.PHRASES.sz[+b.slice(1)] : null;
+  const ja = b === 'hotel' ? [hk ? '請帶我去這個地址\n请带我去这个地址' : 'この住所に行きたいです', hc.name, hc.addr, hc.tel ? `TEL ${hc.tel}` : ''].filter(Boolean).join('\n')
+    : b === 'kid' ? (hk ? kidCardZh(s.sphone, hc.name) : kidCardJa(s.sphone, hc.name)) : ph ? (ph.ja || ph.local) : '';
   const ko = b === 'hotel' ? '이 주소로 가고 싶어요' : b === 'kid' ? '길을 잃었어요. 이 번호로 전화해 주세요' : ph ? `${ph.ko} · ${ph.read}` : '';
   return `<div class="sosover" role="dialog" aria-label="크게 보기"><p class="sosja">${esc(ja).replace(/\n/g, '<br>')}</p><p class="fine">${esc(ko)}</p>
     <button type="button" class="ghost" data-act="sbig" data-v="">닫기</button></div>`;
 }
 
 export function vSafety(s){
+  if(s.city === 'hksz') return vSafetyHKSZ(s);
   const sf = s.safety || {}; const hc = sosHotel(s); const calls = callsFor(s);
   const kids = s.who === 'family' && (s.kids || []).length;
   const big = calls.filter(c => c.big), rest = calls.filter(c => !c.big);

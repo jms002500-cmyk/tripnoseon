@@ -143,8 +143,11 @@ export function hotelOf(s){
 
 // 담은 곳(하루 종일 쓰는 곳 제외)까지 평균 직선거리. 담은 곳이 없으면 null
 // 나눠 자기: s.nights { '그날 밤 YYYY-MM-DD': 숙소 후보 id } (함께 짜기로 공유). 정하지 않은 밤은 정한 숙소(hotelOf)
+//   값이 'area:동네키'면 숙소를 아직 안 정하고 동네만 정한 밤 (홍콩·선전처럼 밤마다 도시가 바뀔 때)
 export function nightHotel(s, key){
-  const id = s.nights && s.nights[key]; const h = id && (s.hotels || []).find(x => x.id === id && x.lat != null);
+  const id = s.nights && s.nights[key];
+  if(id && id.startsWith('area:')){ const k = id.slice(5); if(AREAS[k]) return { key:k, ...AREAS[k], name:AREAS[k].name }; }
+  const h = id && (s.hotels || []).find(x => x.id === id && x.lat != null && inRegion(x));
   return h ? hotelPt(h) : hotelOf(s);
 }
 // 날마다 출발 숙소(전날 밤)·돌아갈 숙소(그날 밤). 첫날은 그날 밤 숙소에서, 마지막 날은 전날 밤 숙소로
