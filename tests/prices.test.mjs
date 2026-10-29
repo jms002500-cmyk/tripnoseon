@@ -52,3 +52,11 @@ test('비교 계산이 사이트 최저가로 합계·정렬', () => {
   assert.deepEqual(r.map(x => x.h.id), ['a', 'b']);
   assert.equal(r[0].price, 15000); assert.equal(r[0].total, 60000); assert.equal(r[0].best.key, 'agoda');
 });
+
+test('직접 넣은 숙소 가격은 넣을 때 통화로 기억 (나중에 통화를 바꿔도 금액이 안 바뀜)', () => {
+  const rate = { HKD:170, CNY:200 };
+  const h = { price:1450, pcur:'HKD' };
+  assert.equal(bestPrice(h, 'HKD', rate).value, 1450);
+  const c = bestPrice(h, 'CNY', rate); assert.equal(c.cur, 'HKD'); assert.equal(Math.round(c.value), Math.round(1450 * 170 / 200));
+  assert.equal(bestPrice({ price:900 }, 'CNY', rate).value, 900);   // 옛 데이터(pcur 없음)는 지금 통화로
+});

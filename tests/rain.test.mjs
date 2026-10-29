@@ -55,6 +55,16 @@ test('바꾸기와 되돌리기', () => {
   assert.deepEqual(s.assign, {}); assert.equal(s.picked.kahaku, undefined); assert.equal(s.picked.uenozoo, true);
 });
 
+test('바꾸기: 그날 남는 장소는 그날에 고정하고, 되돌리면 고정도 풀림', () => {
+  const s = trip({ picked:{ uenozoo:true, ameyoko:true }, assign:{} });
+  const P = plan(s); const di = where(P, 'uenozoo'); const keep = P.days[di].items.map(p => p.id);
+  const u = swapPlan(s, 'uenozoo', 'kahaku', di, keep);
+  keep.filter(id => id !== 'uenozoo').forEach(id => assert.equal(s.assign[id], di));
+  const P2 = plan(s); keep.filter(id => id !== 'uenozoo').forEach(id => assert.equal(where(P2, id), di));
+  undoSwap(s, u);
+  assert.deepEqual(s.assign, {});
+});
+
 test('디즈니 날에 비가 오면 비 안 오는 다른 날을 제안', () => {
   const s = trip({ picked:{ tdl:true } });
   const P = plan(s); const di = where(P, 'tdl');

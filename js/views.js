@@ -413,12 +413,13 @@ function hotelNoLoc(h, s){
 // 고른 동네에서 숙소를 찾아볼 수 있는 바로가기. 예약 사이트로 가는 링크는 날짜·인원이 넘어간다고 알림
 function hotelSearchLinks(s, key){
   const a = AREAS[key]; const n = nights(s);
-  const p = new URLSearchParams({ ss:`${a.q.replace(/駅$/, '')} 東京`, no_rooms:'1', group_adults:String(Math.max(1, s.who ? s.adults : 2)) });
+  const city = REGION.key === 'tokyo' ? '東京' : a.city === 'sz' ? '深圳' : '香港';   // 지역 이름을 붙여야 같은 이름 다른 도시로 안 감
+  const p = new URLSearchParams({ ss:`${a.q.replace(/[駅站]$/, '')} ${city}`, no_rooms:'1', group_adults:String(Math.max(1, s.who ? s.adults : 2)) });
   if(n){ p.set('checkin', s.start); p.set('checkout', s.end); }
   const kids = s.who === 'family' ? s.kids : [];
   p.set('group_children', String(kids.length)); kids.forEach(k => p.append('age', String(k)));
   return `<div class="pfoot">
-    <a class="link" href="${gmap('ホテル ' + a.q)}" target="_blank" rel="noopener">구글 지도에서 ${esc(a.name)} 숙소 ↗</a>
+    <a class="link" href="${gmap((REGION.key === 'tokyo' ? 'ホテル ' : 'hotel ') + a.q)}" target="_blank" rel="noopener">구글 지도에서 ${esc(a.name)} 숙소 ↗</a>
     <a class="link" href="https://www.booking.com/searchresults.ko.html?${p}" target="_blank" rel="noopener noreferrer">Booking.com에서 찾기 ↗</a>
   </div>
   <p class="fine">Booking.com 링크를 누르면 여행 날짜와 인원${kids.length ? '(아이 나이 포함)' : ''}이 그 사이트로 전달돼요.</p>`;
@@ -499,7 +500,7 @@ function nightsBox(s, hasDisney){
   const disneyHint = hasDisney && cands.some(h => (h.area || '') === disneyArea() || /마이하마|舞浜|디즈니|ディズニー|迪士尼|Disney/i.test(h.name));
   return `<div class="box" id="nightsbox">
     <h2>밤마다 어디서 잘까요?<small>나눠 자기</small></h2>
-    <p class="fine">정하지 않은 밤은 ${pick ? `정한 숙소(${esc(pick.name)})` : nightsList.some(d => autoNight(s, d.key)) ? '나눠 자기 추천대로' : s.hotelArea ? '정한 동네' : '1순위 동네'}에서 자요. 숙소를 바꾸면 그날 일정·오늘 하루·${REGION.key === 'tokyo' ? '교통패스·' : ''}식당 찾기가 출발·돌아갈 숙소를 따라가요.${disneyHint ? ' 디즈니 가는 날 전날 밤만 마이하마 숙소로 정하면 아침 이동이 없어져요.' : ''}</p>
+    <p class="fine">정하지 않은 밤은 ${pick ? `정한 숙소(${esc(pick.name)})에서` : nightsList.some(d => autoNight(s, d.key)) ? '나눠 자기 추천대로' : s.hotelArea ? '정한 동네에서' : '1순위 동네에서'} 자요. 숙소를 바꾸면 그날 일정·오늘 하루·${REGION.key === 'tokyo' ? '교통패스·' : ''}식당 찾기가 출발·돌아갈 숙소를 따라가요.${disneyHint ? ' 디즈니 가는 날 전날 밤만 마이하마 숙소로 정하면 아침 이동이 없어져요.' : ''}</p>
     <ul class="nightlist">${nightsList.map(d => { const cur = (s.nights || {})[d.key] || '';
       return `<li><span>${esc(d.label)} 밤</span><select data-night="${esc(d.key)}" aria-label="${esc(d.label)} 밤 숙소">
         <option value="">${pick ? `정한 숙소 (${esc(pick.name)})` : (ak => ak ? `추천대로 (${esc(AREAS[ak].name)})` : `${s.hotelArea ? '정한' : '1순위'} 동네 (${esc(hotelOf(s).name)})`)(autoNight(s, d.key))}</option>
@@ -761,7 +762,7 @@ export function vVault(s){
   return `<section class="step">
     <p class="eyebrow">Step 8 · 보관함</p>
     <h1>예약과 티켓을 한곳에</h1>
-    <p class="lead">항공권·숙소·입장권·입국 QR을 모아 두면 공항·호텔·입구에서 인터넷 없이 바로 꺼내 보여 줄 수 있어요.</p>
+    <p class="lead">항공권·숙소·입장권·${REGION.key === 'tokyo' ? '입국 QR' : '입국카드'}을 모아 두면 공항·호텔·입구에서 인터넷 없이 바로 꺼내 보여 줄 수 있어요.</p>
     <div class="box tip"><p>보관함은 <b>이 기기에만</b> 저장돼요. 예약번호·QR은 민감한 정보라 함께 짜기로 공유하지 않아요. 가족에게 줄 티켓은 사진을 열어 '보내기'로 전해 주세요.${s.sh && s.sh.vusage ? ` 이 앱이 기기에서 쓰는 저장 공간은 약 ${sizeText(s.sh.vusage)}이에요.` : ''}</p></div>
     ${miss.length ? `<div class="box"><h2>아직 보관함에 없는 예약<small>${miss.length}가지</small></h2>
       <ul class="implist">${miss.map((m, i) => `<li class="imp"><div class="sbody"><b>${kindOf(m.kind).icon} ${esc(m.title)}</b><span>${esc(m.why)}</span></div>

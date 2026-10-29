@@ -48,12 +48,15 @@ export function betterFullDay(P, wx, dayIndex){
 }
 
 // 바꾸기: 실외 장소는 '빼두기'로, 실내 장소를 그날에 넣음. 되돌리기용으로 바꾸기 전 값을 돌려줌
-export function swapPlan(s, outId, inId, dayIndex){
-  const undo = { outId, inId, aOut:s.assign[outId], pIn:!!s.picked[inId], aIn:s.assign[inId] };
+//   keep: 그날 남는 장소 id들. 그날에 고정해 둠 (안 그러면 시간이 바뀐 만큼 자동 배치가 다른 날 장소와 뒤섞임)
+export function swapPlan(s, outId, inId, dayIndex, keep){
+  const undo = { outId, inId, aOut:s.assign[outId], pIn:!!s.picked[inId], aIn:s.assign[inId], keep:{} };
+  (keep || []).filter(id => id !== outId && id !== inId).forEach(id => { undo.keep[id] = s.assign[id]; s.assign[id] = dayIndex; });
   s.assign[outId] = -1; s.picked[inId] = true; s.assign[inId] = dayIndex;
   return undo;
 }
 export function undoSwap(s, u){
+  Object.entries(u.keep || {}).forEach(([id, a]) => { if(a === undefined) delete s.assign[id]; else s.assign[id] = a; });
   if(u.aOut === undefined) delete s.assign[u.outId]; else s.assign[u.outId] = u.aOut;
   if(u.aIn === undefined) delete s.assign[u.inId]; else s.assign[u.inId] = u.aIn;
   if(!u.pIn) delete s.picked[u.inId];
