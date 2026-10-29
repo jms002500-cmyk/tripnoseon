@@ -7,9 +7,9 @@ import { budgetOf } from './budget.js';
 
 export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'start', 'end',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
-  'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock'];
+  'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
-export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock'];
+export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights'];
 export const DELETE = { __delete:true };   // Firebase deleteField()로 바꿔 보낼 표시
 
 const clone = o => JSON.parse(JSON.stringify(o === undefined ? null : o));

@@ -161,6 +161,23 @@ export async function nearbyFood(pt, radius){
   });
 }
 
+// 담아 둔 구글 장소를 장소 ID로 새로 받기 (약관상 좌표 등은 30일 넘게 두지 않음). 지도 없이 장소 라이브러리만 씀
+//   → [{ id, lat, lng, addr, periods }] (못 받은 곳은 빠짐)
+export async function refreshPlaces(gids){
+  await loadMaps(); const { Place } = await window.google.maps.importLibrary('places');
+  const out = [];
+  for(const id of gids){
+    try{
+      const p = new Place({ id, requestedLanguage:'ko' });
+      await p.fetchFields({ fields:['id', 'location', 'formattedAddress', 'regularOpeningHours'] });
+      if(!p.location) continue; const oh = p.regularOpeningHours;
+      out.push({ id, lat:p.location.lat(), lng:p.location.lng(), addr:p.formattedAddress || '',
+        periods:oh && oh.periods ? oh.periods.map(x => ({ open:x.open && { day:x.open.day, hour:x.open.hour, minute:x.open.minute }, close:x.close && { day:x.close.day, hour:x.close.hour, minute:x.close.minute } })) : null });
+    }catch(e){ /* 닫았거나 없어진 곳: 다음에 다시 */ }
+  }
+  return out;
+}
+
 export async function openMap(callbacks){
   cb = callbacks;
   if(!sheet) buildSheet();

@@ -56,3 +56,21 @@ test('구글 지도 링크: 장소 ID로 정확히', () => {
   assert.equal(u.searchParams.get('origin'), '35.690000,139.700000');
   assert.equal(u.searchParams.get('origin_place_id'), null);
 });
+
+test('구글에서 담은 곳: 25일 지나면 새로 받고, 좌표·쉬는 요일만 고침', async () => {
+  const { staleGoogle, applyRefresh, REFRESH_DAYS } = await import('../js/gplace.js');
+  const day = 86400000, now = 100 * day;
+  const custom = [
+    { id:'g1', src:'google', gid:'G1', gAt:now - (REFRESH_DAYS + 1) * day, name:'옛 가게', lat:35.70, lng:139.80, kind:'먹거리', hours:1, closed:[1] },
+    { id:'g2', src:'google', gid:'G2', gAt:now - 3 * day },
+    { id:'g3', src:'google', gid:'G3' },            // 받은 날이 없으면 새로 받음
+    { id:'c1', custom:true, lat:1, lng:2 },          // 직접 담은 곳은 아님
+    { id:'g4', src:'google', gid:'', gAt:0 }         // 장소 ID가 없으면 못 받음
+  ];
+  assert.deepEqual(staleGoogle(custom, now).map(p => p.id), ['g1', 'g3']);
+  const r = applyRefresh(custom[0], { id:'G1', lat:35.7101, lng:139.8107, addr:'도쿄도 스미다구', periods:null }, now);
+  assert.equal(r.lat, 35.7101); assert.equal(r.gAt, now); assert.equal(r.addr, '도쿄도 스미다구');
+  assert.equal(r.name, '옛 가게'); assert.equal(r.kind, '먹거리'); assert.equal(r.hours, 1);
+  assert.equal(r.closed, undefined);   // 쉬는 요일 정보가 없어졌으면 지움
+  assert.equal(applyRefresh(custom[0], { lat:'x', lng:1 }, now), custom[0]);
+});

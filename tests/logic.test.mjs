@@ -94,3 +94,27 @@ test('일차별 확정: 확정한 날은 자동 배치·다시 짜기가 안 바
   assert.deepEqual(Object.keys(kept).sort(), before.slice().sort());
   unlockDay(s, di); assert.ok(!isLocked(s, buildDays(s)[di])); assert.ok(!plan(s).days[di].locked);
 });
+
+test('나눠 자기: 밤마다 숙소, 날마다 출발·돌아갈 숙소', async () => {
+  const { nightHotel, dayHotels, isSplitStay } = await import('../js/logic.js');
+  const s = demo(); // 2027-03-07 ~ 03-11 (5일, 4박)
+  s.hotels = [{ id:'h1', name:'아사쿠사 호텔', lat:35.712, lng:139.796, area:'asakusa' }, { id:'h2', name:'마이하마 호텔', lat:35.630, lng:139.880, area:'maihama' }, { id:'h3', name:'위치 모름' }];
+  s.hotelPick = 'h1';
+  const days = buildDays(s);
+  assert.equal(nightHotel(s, '2027-03-08').name, '아사쿠사 호텔');
+  assert.ok(!isSplitStay(s, days));
+  s.nights = { '2027-03-08':'h2', '2027-03-09':'h3' };            // 위치 모르는 후보는 정한 숙소로
+  assert.equal(nightHotel(s, '2027-03-08').name, '마이하마 호텔');
+  assert.equal(nightHotel(s, '2027-03-09').name, '아사쿠사 호텔');
+  const dh = dayHotels(s, days).map(h => [h.from.name, h.to.name]);
+  assert.deepEqual(dh, [
+    ['아사쿠사 호텔', '아사쿠사 호텔'],   // 1일차: 그날 밤 숙소에서
+    ['아사쿠사 호텔', '마이하마 호텔'],   // 2일차: 짐 옮기는 날
+    ['마이하마 호텔', '아사쿠사 호텔'],   // 3일차: 다시 아사쿠사로
+    ['아사쿠사 호텔', '아사쿠사 호텔'],
+    ['아사쿠사 호텔', '아사쿠사 호텔']    // 마지막 날: 전날 밤 숙소에서
+  ]);
+  assert.ok(isSplitStay(s, days));
+  const P = plan(s);
+  assert.equal(P.days[1].to.name, '마이하마 호텔'); assert.equal(P.hotel.name, '아사쿠사 호텔');
+});
