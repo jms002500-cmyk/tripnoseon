@@ -2,6 +2,7 @@
 // 이용 규칙: 1초에 1번 이하, 같은 검색 반복 금지 → 줄 세워 천천히 보내고 결과는 브라우저에 저장해 둠.
 // 찾은 위치는 '후보'일 뿐이라 화면에서 사용자가 확인하게 함.
 import { nearTokyo, queryVariants } from './gimport.js';
+import { REGION } from './data.js';
 
 const URL_BASE = 'https://nominatim.openstreetmap.org/search';
 const C_KEY = 'tripnoseon-geo';
@@ -14,7 +15,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
 async function search(q){
   const now = Date.now(); if(now - last < GAP_MS) await wait(GAP_MS - (now - last)); last = Date.now();
-  const p = new URLSearchParams({ q, format:'jsonv2', limit:'5', countrycodes:'jp', 'accept-language':'ko', viewbox:'139.40,35.90,140.05,35.45' });
+  const p = new URLSearchParams({ q, format:'jsonv2', limit:'5', countrycodes:REGION.codes.join(','), 'accept-language':'ko', viewbox:REGION.viewbox });
   const res = await fetch(`${URL_BASE}?${p}`, { headers:{ Accept:'application/json' } });
   if(!res.ok) throw new Error('geocode ' + res.status);
   const list = await res.json();

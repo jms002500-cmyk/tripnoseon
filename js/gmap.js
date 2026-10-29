@@ -6,11 +6,11 @@
 // app.js가 상태·날짜를 넘기고(getState, getDays), 담기·빼기는 콜백(onPick, onToggle)으로 돌려줌.
 // 계산(종류·영업시간·같은 장소 찾기)은 gplace.js. #view 밖(body 끝)에 붙어서 다시 그려도 지도가 남음.
 import { mapsConfig } from './maps-config.js';
+import { REGION } from './data.js';
 import { allPlaces } from './logic.js';
 import { esc } from './ui.js';
 import { matchKnown, closedDays } from './gplace.js';
 
-const CENTER = { lat:35.6812, lng:139.7671 };
 const FIELDS = ['id', 'displayName', 'location', 'formattedAddress', 'types', 'rating', 'userRatingCount', 'regularOpeningHours', 'googleMapsURI', 'primaryTypeDisplayName'];
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 let G = null, map = null, sheet = null, cb = null, pins = [], temp = null, token = null, typing = null, cur = null, loading = null;
@@ -114,8 +114,8 @@ async function suggest(q){
   if(q.length < 2){ ul.hidden = true; ul.innerHTML = ''; return; }
   try{
     if(!token) token = new G.places.AutocompleteSessionToken();
-    const { suggestions } = await G.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input:q, sessionToken:token, language:'ko', region:'jp',
-      includedRegionCodes:['jp'], locationBias:map ? map.getBounds() || undefined : undefined });
+    const { suggestions } = await G.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input:q, sessionToken:token, language:'ko', region:REGION.gl,
+      includedRegionCodes:REGION.codes, locationBias:map ? map.getBounds() || undefined : undefined });
     const list = (suggestions || []).map(x => x.placePrediction).filter(Boolean).slice(0, 6);
     sheet.__sug = list;
     ul.innerHTML = list.map((p, i) => `<li><button type="button" data-gm="sug" data-i="${i}"><b>${esc(p.mainText ? p.mainText.toString() : p.text.toString())}</b><span>${esc(p.secondaryText ? p.secondaryText.toString() : '')}</span></button></li>`).join('');
@@ -150,7 +150,7 @@ export async function nearbyFood(pt, radius){
   const { places } = await g.places.Place.searchNearby({
     fields:['id', 'displayName', 'location', 'rating', 'userRatingCount', 'regularOpeningHours', 'primaryTypeDisplayName', 'googleMapsURI'],
     locationRestriction:{ center:{ lat:+pt.lat, lng:+pt.lng }, radius:radius || 500 },
-    includedPrimaryTypes:['restaurant'], maxResultCount:15, rankPreference:g.places.SearchNearbyRankPreference.POPULARITY, language:'ko', region:'jp' });
+    includedPrimaryTypes:['restaurant'], maxResultCount:15, rankPreference:g.places.SearchNearbyRankPreference.POPULARITY, language:'ko', region:REGION.gl });
   const R = 6371, rad = Math.PI / 180;
   const km = (a, b) => { const x = (b.lng - a.lng) * rad * Math.cos((a.lat + b.lat) / 2 * rad), y = (b.lat - a.lat) * rad; return Math.sqrt(x * x + y * y) * R; };
   return (places || []).filter(p => p.location).map(p => {
@@ -190,7 +190,7 @@ export async function openMap(callbacks){
     return;
   }
   if(!map){
-    map = new G.maps.Map(sheet.querySelector('#gmmap'), { center:CENTER, zoom:12, mapId:mapsConfig.mapId || 'DEMO_MAP_ID',
+    map = new G.maps.Map(sheet.querySelector('#gmmap'), { center:REGION.center, zoom:REGION.key === 'hksz' ? 11 : 12, mapId:mapsConfig.mapId || 'DEMO_MAP_ID',
       clickableIcons:true, gestureHandling:'greedy', mapTypeControl:false, streetViewControl:false, fullscreenControl:false });
     map.addListener('click', ev => { if(ev.placeId){ ev.stop(); showPlace(ev.placeId); } });
   }

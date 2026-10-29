@@ -131,3 +131,22 @@ test('이동 시간 어림: 걷기·지하철·패스 밖 갈아타기', async (
   const T2 = dayTrips({ items:[shibuya], from:asakusa, to:tdl }, asakusa);
   assert.equal(T2.legs[1].to, tdl);
 });
+
+test('홍콩↔선전 국경 넘기: 출입국 시간을 더하고 길 이름에 국경을 적음', async () => {
+  const D = await import('../js/data.js');
+  const { legSegments, legMinutes, legMode, crossesBorder } = await import('../js/transit.js');
+  D.REGIONS.hksz.data = {
+    AREAS:{ tst:{ name:'침사추이', city:'hk', lat:22.297, lng:114.172 }, futian:{ name:'푸톈', city:'sz', lat:22.541, lng:114.058 } },
+    PLACES:[], LINES:[],
+    BORDER:[{ key:'lmc', name:'푸톈(록마차우)', lat:22.514, lng:114.066, minutes:40 }, { key:'lowu', name:'뤄후', lat:22.531, lng:114.113, minutes:45 }] };
+  assert.ok(D.useRegion('hksz'));
+  try{
+    const a = { area:'tst', lat:22.297, lng:114.172 }, b = { area:'futian', lat:22.541, lng:114.058 };
+    const segs = legSegments(a, b);
+    assert.ok(crossesBorder(segs));
+    assert.equal(segs.find(x => x.kind === 'border').at, '푸톈(록마차우)');
+    const m = legMinutes(a, b, segs); assert.ok(m >= 70 && m <= 120, `침사추이→푸톈 ${m}`);
+    assert.match(legMode(segs), /국경\(푸톈\(록마차우\)\)/);
+    const same = legSegments(a, { area:'tst', lat:22.30, lng:114.18 }); assert.ok(!crossesBorder(same));
+  } finally { D.useRegion('tokyo'); }
+});

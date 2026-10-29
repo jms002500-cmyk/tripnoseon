@@ -18,7 +18,7 @@
 //   note    짧은 안내 문구
 //   indoor  비 오는 날 기준: true 실내 | 'part' 반쯤(가게는 실내, 거리는 걸어 다님) | false 실외 (시부야 스카이는 옥상이라 실외)
 
-export const AREAS = {
+const TOKYO_AREAS = {
   maihama:{name:'마이하마', station:'JR 마이하마역', q:'舞浜駅', lat:35.6365, lng:139.8838, hotel:true, disneyMin:0,
     disneyText:'걸어서 바로', price:'높음', lx:0, ly:48, anchor:'middle',
     note:'디즈니 가는 날 아침·저녁이 편해요. 도심 관광지와는 멀어요.'},
@@ -47,7 +47,7 @@ export const AREAS = {
     lx:-14, ly:50, anchor:'start', note:''}
 };
 
-export const PLACES = [
+const TOKYO_PLACES = [
   {id:'tdl', kind:'테마파크', indoor:false, name:'도쿄 디즈니랜드', ja:'東京ディズニーランド', area:'maihama', lat:35.6329, lng:139.8804, hours:0, full:true, anchor:true, tags:['테마파크'], kid:'kids', book:true, note:'날짜 지정 입장권이에요. 주말과 연말은 많이 붐벼요.'},
   {id:'tds', kind:'테마파크', indoor:false, name:'도쿄 디즈니씨', ja:'東京ディズニーシー', area:'maihama', lat:35.6267, lng:139.8851, hours:0, full:true, anchor:true, tags:['테마파크'], kid:'teen', book:true, note:'스릴 있는 놀이기구가 많아 10대 이상이 특히 좋아해요.'},
   {id:'ghibli', kind:'박물관·미술관', indoor:true, name:'지브리 미술관', ja:'三鷹の森ジブリ美術館', area:'west', lat:35.6962, lng:139.5704, hours:2.5, anchor:true, tags:['문화·역사','체험'], kid:'all', closed:[2], book:true, note:'날짜·시간 지정 예약제예요.'},
@@ -146,4 +146,42 @@ export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'no
   shareId:null};                       // shareId: 함께 짜는 공유 여행 번호(없으면 이 기기에만 있는 여행)
 
 // 숙소 가격 통화. 후보끼리 비교해야 해서 여행 하나에 통화 하나만 씀
-export const CURRENCY = { JPY:{ label:'엔', sign:'¥' }, KRW:{ label:'원', sign:'₩' } };
+export const CURRENCY = { JPY:{ label:'엔', sign:'¥' }, KRW:{ label:'원', sign:'₩' }, HKD:{ label:'홍콩달러', sign:'HK$' }, CNY:{ label:'위안', sign:'元' } };
+
+/* ---------- 여행 지역 ----------
+   지역마다 동네(AREAS)·장소(PLACES)·약도 노선이 다름. 지금 고른 지역의 것을 AREAS·PLACES로 내보내고(ES 모듈의 살아 있는 바인딩이라
+   다른 파일은 import { AREAS, PLACES } 그대로 써도 바뀐 지역을 봄), 지역을 바꿀 땐 loadRegion(키)를 부름.
+   s.city가 지역 키: 'tokyo' | 'hksz'(홍콩·선전 한 여행). 홍콩·선전 데이터는 처음 고를 때만 불러옴(js/regions/hksz-data.js). */
+export const REGIONS = {
+  tokyo:{ key:'tokyo', country:'jp', name:'도쿄', cur:'JPY', curs:['JPY'], center:{ lat:35.6812, lng:139.7671 }, radiusKm:80, tz:'Asia/Tokyo',
+    gl:'jp', codes:['jp'], viewbox:'139.40,35.90,140.05,35.45', bounds:{ minLng:139.555, maxLng:139.915, minLat:35.600, maxLat:35.748 },
+    data:{ AREAS:TOKYO_AREAS, PLACES:TOKYO_PLACES, LINES:[], BORDER:[] } },
+  hksz:{ key:'hksz', country:'hk', name:'홍콩·선전', cur:'HKD', curs:['HKD', 'CNY'], center:{ lat:22.40, lng:114.10 }, radiusKm:60, tz:'Asia/Hong_Kong',
+    gl:'hk', codes:['hk', 'cn'], viewbox:'113.80,22.75,114.45,22.15', bounds:{ minLng:113.88, maxLng:114.30, minLat:22.19, maxLat:22.62 },
+    data:null, load:() => import('./regions/hksz-data.js') }
+};
+export let REGION = REGIONS.tokyo;
+export let AREAS = TOKYO_AREAS;
+export let PLACES = TOKYO_PLACES;
+export let LINES = [];      // 약도에 그릴 노선 [{ name, color, pts:[[lat,lng]…] }] (도쿄는 map.js가 야마노테선·게이요선을 그림)
+export let BORDER = [];     // 국경 넘는 곳 [{ key, name, local, lat, lng, how, minutes }] (홍콩↔선전)
+export const regionOf = s => REGIONS[s && s.city] || REGIONS.tokyo;
+// 불러온 지역으로 바꿈 (아직 안 불러왔으면 false)
+export function useRegion(key){
+  const r = REGIONS[key]; if(!r || !r.data) return false;
+  REGION = r; AREAS = r.data.AREAS; PLACES = r.data.PLACES; LINES = r.data.LINES || []; BORDER = r.data.BORDER || [];
+  return true;
+}
+// 지역 데이터를 불러와서 바꿈. 데이터 파일이 아직 없으면 false (화면은 '준비 중')
+export async function loadRegion(key){
+  const r = REGIONS[key]; if(!r) return false;
+  if(!r.data && r.load){
+    try{ const m = await r.load(); if(!m.AREAS || !m.PLACES) return false; r.data = { AREAS:m.AREAS, PLACES:m.PLACES, LINES:m.LINES || [], BORDER:m.BORDER || [] }; }
+    catch(e){ return false; }
+  }
+  return useRegion(key);
+}
+// 동네가 홍콩인지 선전인지 ('hk' | 'sz' | 도쿄는 '')
+// 디즈니(하루 종일 앵커)가 있는 동네 키: disneyMin이 0인 동네 (도쿄 마이하마, 홍콩 란타우)
+export const disneyArea = () => Object.keys(AREAS).find(k => AREAS[k].disneyMin === 0) || '';
+export const cityOfArea = key => (AREAS[key] && AREAS[key].city) || '';

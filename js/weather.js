@@ -4,7 +4,7 @@
 // 위쪽은 순수 함수(테스트 대상), 맨 아래 loadWeather만 네트워크를 씀.
 import { parseDate } from './logic.js';
 
-export const CITY_PT = { tokyo:{ lat:35.6812, lng:139.7671 } };
+export const CITY_PT = { tokyo:{ lat:35.6812, lng:139.7671, tz:'Asia/Tokyo' }, hksz:{ lat:22.39, lng:114.11, tz:'Asia/Hong_Kong' } };   // 홍콩·선전은 둘 사이(날씨가 거의 같음)
 export const YEARS = 10;
 const ARCHIVE = 'https://archive-api.open-meteo.com/v1/archive';
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
@@ -24,7 +24,7 @@ export function tripMonthDays(start, end){
 // 지난 YEARS년을 한 번에 받는 주소. today 기준으로 작년까지(올해 관측은 아직 덜 쌓임)
 export function climateUrl(pt, today){
   const y = today.getFullYear() - 1;
-  const p = new URLSearchParams({ latitude:String(pt.lat), longitude:String(pt.lng), start_date:`${y - YEARS + 1}-01-01`, end_date:`${y}-12-31`, daily:DAILY, timezone:'Asia/Tokyo' });
+  const p = new URLSearchParams({ latitude:String(pt.lat), longitude:String(pt.lng), start_date:`${y - YEARS + 1}-01-01`, end_date:`${y}-12-31`, daily:DAILY, timezone:pt.tz || 'Asia/Tokyo' });
   return `${ARCHIVE}?${p}`;
 }
 
@@ -68,7 +68,7 @@ export function canForecast(start, today){
 
 export function forecastUrl(pt, start, end){
   const p = new URLSearchParams({ latitude:String(pt.lat), longitude:String(pt.lng), start_date:start, end_date:end,
-    daily:'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max', timezone:'Asia/Tokyo' });
+    daily:'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max', timezone:pt.tz || 'Asia/Tokyo' });
   return `${FORECAST}?${p}`;
 }
 

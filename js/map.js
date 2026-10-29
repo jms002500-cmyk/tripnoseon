@@ -1,13 +1,18 @@
-// 도쿄 약도(SVG). 실제 지도 타일 없이 위경도를 단순 투영해서 위치 관계만 보여줌.
+// 여행 지역 약도(SVG). 도쿄는 야마노테선·게이요선, 다른 지역은 데이터의 LINES를 그림. 실제 지도 타일 없이 위경도를 단순 투영해서 위치 관계만 보여줌.
 // 구글 지도 JS API를 붙이면 이 파일을 교체하면 됨.
-import { AREAS, YAMANOTE, KEIYO, DAY_COLORS } from './data.js';
+import { AREAS, YAMANOTE, KEIYO, DAY_COLORS, REGION, LINES } from './data.js';
 import { allPlaces, pickedPlaces, rankAreas } from './logic.js';
 import { esc } from './ui.js';
 
-const B = { minLng:139.555, maxLng:139.915, minLat:35.600, maxLat:35.748 };
-const KX = Math.cos(35.67 * Math.PI / 180);
+// 지역마다 약도 범위가 다름 (data.js REGIONS의 bounds). mapSVG가 그릴 때마다 지금 지역으로 맞춤
+let B, MH;
 export const MW = 1000;
-export const MH = Math.round(MW * (B.maxLat - B.minLat) / ((B.maxLng - B.minLng) * KX));
+function setBounds(){
+  B = REGION.bounds; const kx = Math.cos((B.minLat + B.maxLat) / 2 * Math.PI / 180);
+  MH = Math.round(MW * (B.maxLat - B.minLat) / ((B.maxLng - B.minLng) * kx));
+}
+setBounds();
+export const mapHeight = () => MH;
 
 export function px(o){
   return [ +((o.lng - B.minLng) / (B.maxLng - B.minLng) * MW).toFixed(1), +((B.maxLat - o.lat) / (B.maxLat - B.minLat) * MH).toFixed(1) ];
@@ -18,11 +23,15 @@ function pathOf(pts, close){
 
 // mode: 'pick'(장소 담기) | 'stay'(숙소 동네) | 'plan'(일정, P = plan() 결과)
 export function mapSVG(mode, s, P){
+  setBounds();
   let g = ''; let legend = '';
-  g += `<path d="${pathOf(YAMANOTE, true)}" class="m-loop"/>`;
-  g += `<path d="${pathOf(KEIYO, false)}" class="m-keiyo"/>`;
-  { const [x, y] = px({ lat:35.7395, lng:139.7290 }); g += `<text x="${x}" y="${y-14}" text-anchor="middle" class="m-cap">야마노테선</text>`; }
-  { const [x, y] = px({ lat:35.6560, lng:139.8330 }); g += `<text x="${x}" y="${y-14}" text-anchor="middle" class="m-cap">게이요선 → 디즈니</text>`; }
+  if(REGION.key === 'tokyo'){
+    g += `<path d="${pathOf(YAMANOTE, true)}" class="m-loop"/>`;
+    g += `<path d="${pathOf(KEIYO, false)}" class="m-keiyo"/>`;
+    { const [x, y] = px({ lat:35.7395, lng:139.7290 }); g += `<text x="${x}" y="${y-14}" text-anchor="middle" class="m-cap">야마노테선</text>`; }
+    { const [x, y] = px({ lat:35.6560, lng:139.8330 }); g += `<text x="${x}" y="${y-14}" text-anchor="middle" class="m-cap">게이요선 → 디즈니</text>`; }
+  }
+  LINES.forEach(l => { if(l.pts && l.pts.length > 1) g += `<path d="${pathOf(l.pts, false)}" fill="none" stroke="${esc(l.color || '#888')}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>`; });
   Object.values(AREAS).forEach(a => { const [x, y] = px(a); g += `<text x="${x + a.lx}" y="${y + a.ly}" text-anchor="${a.anchor}" class="m-area">${esc(a.name)}</text>`; });
 
   if(mode === 'pick'){
@@ -76,5 +85,5 @@ export function mapSVG(mode, s, P){
       + `<span class="lg"><i style="background:var(--ink);border-radius:3px"></i>숙소</span>`;
   }
 
-  return `<figure class="map"><svg viewBox="0 0 ${MW} ${MH}" role="img" aria-label="도쿄 약도">${g}</svg><figcaption>${legend}<span class="lg">위치 관계만 보여주는 약도예요</span></figcaption></figure>`;
+  return `<figure class="map"><svg viewBox="0 0 ${MW} ${MH}" role="img" aria-label="${esc(REGION.name)} 약도">${g}</svg><figcaption>${legend}<span class="lg">위치 관계만 보여주는 약도예요</span></figcaption></figure>`;
 }

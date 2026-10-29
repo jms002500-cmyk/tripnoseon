@@ -1,5 +1,5 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
-import { AREAS, STEPS, DEFAULT } from './data.js';
+import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign } from './logic.js';
 import { VIEWS, SHEET, vToday, vSafety } from './views.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
@@ -14,7 +14,7 @@ import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx, convert } from './prices.js';
 import { planTripleImport, applyTripleImport } from './ledgerimport.js';
-import { atPlace, parseLine, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, personUsed, catOf } from './ledger.js';
+import { atPlace, parseLine, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, ratesOf, mainCur, personUsed, catOf } from './ledger.js';
 import { parseWon, setBudget } from './budget.js';
 import { ledgerCsv, ledgerCsvName } from './ledgerexport.js';
 import { missingBookings, bookings, receiptOf, newReceipt } from './vault.js';
@@ -103,7 +103,7 @@ function ensureWeather(force){
 let fxBusy = false;
 function ensureFx(){
   const s = state; const today = ymd(new Date());
-  if((s.step !== 4 && s.step !== LEDGER_STEP) || fxBusy || (s.fx && s.fx.checked === today)) return;
+  if((s.step !== 4 && s.step !== LEDGER_STEP) || fxBusy || (s.fx && s.fx.checked === today && s.fx.rates)) return;
   fxBusy = true;
   loadFx(today).then(fx => { fxBusy = false; if(fx && state === s){ s.fx = fx; save(); render(); } });
 }
@@ -183,6 +183,7 @@ function watchTrip(){
       const base = lastSynced || loadBase(id);
       const pending = base ? diffShared(base, sharedOf(s)) : [];
       applyRemote(s, data.p);
+      if(REGION.key !== s.city) loadRegion(s.city).then(() => renderRemote());   // 가족이 여행 지역을 바꿈
       lastSynced = sharedOf(s);
       if(!mine) saveBase(id, lastSynced);   // 아직 서버가 안 받은 내 변경이 섞인 일정은 기준으로 남기지 않음
       pending.forEach(([path, v]) => setPath(s, path, v));
@@ -529,11 +530,20 @@ function undoRestore(){
 /* ---------- 가계부 (함께 짜기 여행이면 참여자 모두와 공유) ---------- */
 // 오늘 하루 화면에서 적으면 그 화면에서 보고 있는 날짜가 기준(날짜를 안 쓰면 그날, '어제'는 그 전날)
 function ledgerCtx(){
-  const s = state; const real = ymd(new Date());
-  return { today:s.mode === 'today' ? (shownDate(s, real) || real) : real, cur:s.country === 'jp' ? 'JPY' : 'KRW', by:defaultPayer(s) };
+  const s = state; const real = ymd(new Date()); const today = s.mode === 'today' ? (shownDate(s, real) || real) : real;
+  return { today, cur:dayCur(s, today), by:defaultPayer(s) };
+}
+// 통화를 안 썼을 때 기본값: 지역 기본 통화. 홍콩·선전이면 그날(또는 '여기서 쓴 돈' 장소)이 선전 쪽이면 위안
+function dayCur(s, date){
+  const main = mainCur(s); if(s.city !== 'hksz') return main;
+  const lp = s.sh.lplace && allPlaces(s).find(p => p.id === s.sh.lplace);
+  if(lp) return cityOfArea(lp.area) === 'sz' ? 'CNY' : 'HKD';
+  const d = plan(s).days.find(x => x.key === date); if(!d) return main;
+  const pts = d.full ? [d.full] : d.items; const sz = pts.filter(p => cityOfArea(p.area) === 'sz').length;
+  return pts.length && sz * 2 > pts.length ? 'CNY' : main;
 }
 function spentText(e){
-  const w = e.cur === 'JPY' ? convert(e.amt, 'JPY', 'KRW', rateOf(state)) : null;
+  const w = e.cur !== 'KRW' ? convert(e.amt, e.cur, 'KRW', ratesOf(state)) : null;
   return `${e.what} ${money(e.amt, e.cur)}${w ? ` (≈ ${money(w, 'KRW')})` : ''} · ${dayLabel(state, e.d)}`;
 }
 function focusLine(){ const i = document.getElementById('lline'); if(i) i.focus(); }
@@ -571,7 +581,7 @@ function saveDetail(){
   const boxes = Array.from(document.querySelectorAll('input[name="lsplit"]'));
   const on = boxes.filter(b => b.checked).map(b => b.value).filter(id => ids.includes(id));
   const editing = sh.ledit && s.spend[sh.ledit] ? s.spend[sh.ledit] : null;
-  const e = { d:g('ldate').value, amt, cur:g('lcur').value === 'KRW' ? 'KRW' : 'JPY', what:g('lwhat').value.trim().slice(0, 40) || catOf(cat).label, cat,
+  const e = { d:g('ldate').value, amt, cur:['KRW', 'JPY', 'HKD', 'CNY'].includes(g('lcur').value) ? g('lcur').value : mainCur(s), what:g('lwhat').value.trim().slice(0, 40) || catOf(cat).label, cat,
     pay:g('lpay').value, by:ids.includes(g('lby').value) ? g('lby').value : ids[0],
     split:on.length && on.length < ids.length ? on : null, at:editing ? (editing.at || Date.now()) : Date.now() };
   if(editing && editing.pl) e.pl = editing.pl;   // 장소에서 적은 지출은 고쳐도 장소를 그대로
@@ -745,8 +755,16 @@ function act(a, v){
     case 'kiddel': s.kids.splice(+v, 1); break;
     case 'style': s.styles = s.styles.includes(v) ? s.styles.filter(x => x !== v) : s.styles.concat(v); break;
     case 'pace': s.pace = v; break;
-    case 'country': s.country = v; break;
-    case 'city': s.city = v; break;
+    case 'city': {   // 여행 지역 바꾸기: 그 지역 데이터를 불러온 뒤 바꿈 (전에 담은 다른 지역 장소·숙소 후보는 숨김)
+      if(v === s.city) return;
+      s.sh.cityMsg = '';
+      loadRegion(v).then(ok => {
+        if(!ok){ state.sh.cityMsg = `${(REGIONS[v] || {}).name || '이 지역'} 데이터를 아직 준비 중이에요. 조금 뒤에 다시 눌러 주세요.`; loadRegion(state.city); render(); return; }
+        const t = state; t.city = v; t.country = REGIONS[v].country; t.hotelArea = null; t.hotelCur = REGIONS[v].cur; t.wx = null;
+        save(); render();
+      });
+      return;
+    }
     case 'anchor': if(s.must[v]) unpick(s, v); else { s.must[v] = true; s.picked[v] = true; } break;
     case 'pick': if(s.picked[v]) unpick(s, v); else s.picked[v] = true; break;
     case 'must': if(s.must[v]) delete s.must[v]; else { s.must[v] = true; s.picked[v] = true; } break;
@@ -1036,6 +1054,8 @@ async function refreshGoogle(){
 window.addEventListener('online', () => setTimeout(refreshGoogle, 3000));
 
 // 여행 중 그날 처음 열면 오늘 하루 화면부터 (계획으로 돌아가면 그날은 다시 안 띄움)
+// 고른 여행 지역의 데이터를 먼저 불러옴 (홍콩·선전은 따로 받는 파일). 못 불러오면 도쿄로 보여 주고 지역 단계에서 알림
+if(!(await loadRegion(state.city))){ await loadRegion('tokyo'); state.sh.cityMsg = `${(REGIONS[state.city] || {}).name || '이 지역'} 데이터를 불러오지 못했어요. 인터넷을 확인하고 다시 열어 주세요.`; }
 { const td = ymd(new Date()); if(shouldAutoOpen(state, td)){ state.mode = 'today'; state.tday = null; state.todayOpened = td; saveLocal(); } }
 render();
 if(state.step === VAULT_STEP) refreshUsage();
