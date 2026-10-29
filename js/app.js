@@ -1,6 +1,6 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
-import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign } from './logic.js';
+import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights } from './logic.js';
 import { VIEWS, SHEET, vToday, vSafety } from './views.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
@@ -774,6 +774,13 @@ function act(a, v){
     case 'autopick': autoPickIds(s).forEach(id => { s.picked[id] = true; }); break;
     case 'customdel': s.custom = s.custom.filter(c => c.id !== v); unpick(s, v); break;
     case 'hotel': s.hotelArea = s.hotelArea === v ? null : v; break;
+    // 홍콩·선전 나눠 자기: 추천대로 밤마다 동네 정하기 / 한 도시의 동네만 바꾸기 (다른 도시 밤은 그대로)
+    case 'splitstay': { const sp = suggestSplit(s); if(sp) s.nights = splitNights(s, sp); break; }
+    case 'splitarea': { const c = cityOfArea(v); const sp = suggestSplit(s); const o = {}; let hit = false;
+      buildDays(s).slice(0, -1).forEach(d => { const cur = nightHotel(s, d.key);
+        if(cityOfArea(cur.key) === c){ o[d.key] = 'area:' + v; hit = true; } else o[d.key] = (s.nights || {})[d.key] || 'area:' + cur.key; });
+      if(!hit && sp) Object.entries(splitNights(s, sp)).forEach(([k, x]) => { if(cityOfArea(x.slice(5)) === c) o[k] = 'area:' + v; });
+      s.nights = o; break; }
     case 'replan': s.assign = keepLockedAssign(s); break;
     case 'dlock': lockDay(s, +v); toast(`${+v + 1}일차를 확정했어요. 이날 장소는 자동으로 바뀌지 않아요.`); break;
     case 'dunlock': unlockDay(s, +v); break;
