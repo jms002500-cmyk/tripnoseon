@@ -1071,14 +1071,14 @@ setTimeout(refreshGoogle, 4000);   // 첫 화면을 먼저 그린 뒤
 
 // 개발 중에만: 폰에서 쓰다가 버튼 하나로 PC의 Claude 대화(원격 조종)로 넘어가 질문·수정 요청.
 // 주소 뒤에 ?dev=1 을 붙여 한 번 열면 이 기기에서만 켜지고 ?dev=0 으로 꺼짐.
-// 주소를 칠 수 없는 홈 화면 앱에서는 위의 '가칭 · 시제품' 글자를 5번 빨리 누르면 켜고 끔. 상용화 때 이 묶음과 .devchat 스타일을 지움
+// 주소를 칠 수 없는 홈 화면 앱에서는 맨 위 '트립노선' 글자를 5번 빨리 누르면 켜고 끔(폰에서는 '가칭 · 시제품'이 숨겨짐). 상용화 때 이 묶음과 .devchat 스타일을 지움
 const DEV_KEY = 'tripnoseon-dev';
 function setDev(on){ try{ if(on) localStorage.setItem(DEV_KEY, '1'); else localStorage.removeItem(DEV_KEY); }catch(e){} }
 {
   const q = new URLSearchParams(location.search).get('dev');
   if(q === '1' || q === '0'){ setDev(q === '1'); history.replaceState(null, '', location.pathname + location.hash); }
   let taps = [];
-  document.querySelector('.brand .tag')?.addEventListener('click', () => {
+  document.querySelector('.brand')?.addEventListener('click', () => {
     const now = Date.now(); taps = taps.filter(t => now - t < 2500).concat(now);
     if(taps.length >= 5){ taps = []; const on = !hasKey(DEV_KEY); setDev(on); toast(on ? 'Claude 대화 버튼을 켰어요.' : 'Claude 대화 버튼을 껐어요.'); setTimeout(() => location.reload(), 900); }
   });
