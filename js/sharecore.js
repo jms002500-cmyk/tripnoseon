@@ -1,12 +1,13 @@
 // 함께 짜기(공유 여행)의 순수 함수 모음. Firebase·DOM을 건드리지 않음 → tests/에서 바로 테스트.
-// 공유하는 것은 일정과 가계부(SHARED_KEYS)뿐. 화면 위치·필터·라쿠텐 키·날씨·환율·가져오기 대기 목록·보관함은 각자 기기에만 둠.
+// 공유하는 것은 일정과 가계부(예산 포함)·준비물·긴급 정보(SHARED_KEYS)뿐. 화면 위치·필터·라쿠텐 키·날씨·환율·가져오기 대기 목록·보관함은 각자 기기에만 둠.
 import { DEFAULT } from './data.js';
 import { allPlaces } from './logic.js';
 import { money } from './ledger.js';
+import { budgetOf } from './budget.js';
 
 export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'start', 'end',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
-  'spend', 'party', 'lrate', 'pack', 'safety'];
+  'spend', 'party', 'lrate', 'budget', 'pack', 'safety'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
 export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack'];
 export const DELETE = { __delete:true };   // Firebase deleteField()로 바꿔 보낼 표시
@@ -81,6 +82,7 @@ export function describeChange(prev, next){
   if(!same(prev.party, next.party)) parts.push('정산할 사람 바꿈');
   if(!same(prev.safety, next.safety)) parts.push('긴급 정보(숙소 주소·만날 장소) 고침');
   if(prev.lrate !== next.lrate) parts.push('정산 환율 바꿈');
+  if(!same(budgetOf(prev), budgetOf(next))) parts.push('예산 바꿈');
   if(!parts.length && !same(prev, next)) parts.push('일정 수정');
   return parts.join(' · ').slice(0, 190);
 }

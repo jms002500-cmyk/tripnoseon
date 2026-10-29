@@ -15,6 +15,8 @@ import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx, convert } from './prices.js';
 import { planTripleImport, applyTripleImport } from './ledgerimport.js';
 import { parseLine, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, personUsed, catOf } from './ledger.js';
+import { parseWon, setBudget } from './budget.js';
+import { ledgerCsv, ledgerCsvName } from './ledgerexport.js';
 import { missingBookings } from './vault.js';
 import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } from './vaultdb.js';
 import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blobToB64, b64ToBlob } from './backup.js';
@@ -540,6 +542,10 @@ function ledgerAct(a, v){
     case 'lmore': sh.lmore = true; sh.ledit = null; render(); { const f = document.getElementById('ledgerdetail'); if(f){ f.scrollIntoView({ block:'start' }); document.getElementById('lamt').focus({ preventScroll:true }); } } return;
     case 'ledit': sh.ledit = v; sh.lmore = false; render(); { const f = document.getElementById('ledgerdetail'); if(f) f.scrollIntoView({ block:'start' }); } return;
     case 'lcancel': sh.ledit = null; sh.lmore = false; render(); return;
+    case 'lbedit': sh.lbedit = true; render(); { const i = document.getElementById('lbtotal'); if(i) i.focus(); } return;
+    case 'lbcats': sh.lbcats = true; render(); return;
+    case 'lbdone': sh.lbedit = false; sh.lbcats = false; render(); return;
+    case 'lexport': exportLedger(); return;
     case 'lundo': if(sh.lundo && s.spend[sh.lundo]){ delete s.spend[sh.lundo]; sh.lmsg = '방금 적은 지출을 지웠어요.'; } sh.lundo = null; break;
     case 'ldel':
       if(sh.ldel !== v){ sh.ldel = v; render(); setTimeout(() => { if(state.sh.ldel === v){ state.sh.ldel = null; render(); } }, 4000); return; }
@@ -566,6 +572,21 @@ function ledgerAct(a, v){
     }
   }
   save(); render();
+}
+
+// 엑셀 내보내기: 폰에서는 공유 창(카톡·메일·파일 앱), 안 되면·PC에서는 내려받기
+async function exportLedger(){
+  const sh = state.sh; const now = new Date(); const name = ledgerCsvName(now);
+  try{
+    const blob = new Blob([ledgerCsv(state)], { type:'text/csv;charset=utf-8' });
+    const file = new File([blob], name, { type:'text/csv' });
+    if(matchMedia('(pointer:coarse)').matches && navigator.canShare && navigator.canShare({ files:[file] })){
+      try{ await navigator.share({ files:[file], title:'트립노선 가계부' }); }
+      catch(e){ if(e && e.name === 'AbortError') return; downloadBlob(blob, name); }
+    } else downloadBlob(blob, name);
+    sh.lxmsg = `${name} 파일을 만들었어요. 엑셀에서 열면 돼요.`; sh.lxbad = false;
+  }catch(e){ sh.lxmsg = '파일을 만들지 못했어요. 잠시 후 다시 눌러 주세요.'; sh.lxbad = true; }
+  render();
 }
 
 function focusVaultForm(){ const f = document.getElementById('vaultform'); if(f){ f.scrollIntoView({ block:'start' }); document.getElementById('vtitle').focus({ preventScroll:true }); } }
@@ -730,6 +751,7 @@ function act(a, v){
     case 'pkdel': { const it = s.pack[v]; if(!it) return; if(it.src){ it.hide = true; it.done = false; } else delete s.pack[v]; break; }   // 추천에서 온 건 숨겨서 다시 추천하지 않음
     case 'pkfilter': s.pfilter = v; break;
     case 'lfocus': case 'lex': case 'lmore': case 'ledit': case 'lcancel': case 'lundo': case 'ldel': case 'lpadd': case 'lpdel': case 'lpmembers': case 'limpok': case 'limpcancel':
+    case 'lbedit': case 'lbcats': case 'lbdone': case 'lexport':
       ledgerAct(a, v); return;
     case 'bkexport': exportBackup(); return;
     case 'bkrestore': doRestore(); return;
@@ -778,6 +800,14 @@ function onChange(e){
   else if(t.dataset.sf != null){ s.safety = Object.assign({ hname:'', addr:'', tel:'', meet:'' }, s.safety, { [t.dataset.sf]:t.value.trim().slice(0, 120) }); }
   else if(t.dataset.sphone != null){ s.sphone = t.value.trim().slice(0, 30); }
   else if(t.dataset.pkwho != null){ const it = s.pack[t.dataset.pkwho]; if(!it) return; it.who = t.value; }
+  else if(t.dataset.bud != null){
+    // 못 읽는 글이면 그대로 두고 칸만 원래 값으로. 고치는 동안은 칸을 열어 둠('다 정했어요'로 닫기)
+    const v = parseWon(t.value); if(t.value.trim() && !v){ render(); return; }
+    s.budget = setBudget(s, t.dataset.bud, v); s.sh.lbedit = true; save();
+    // 다음 칸으로 넘어가며 바뀐 것이면 다시 그린 뒤 그 칸에 그대로 (분류별 예산을 이어서 적을 수 있게)
+    setTimeout(() => { const a = document.activeElement; const id = a && a.id; render(); const el = id && document.getElementById(id); if(el) el.focus({ preventScroll:true }); });
+    return;
+  }
   else if(t.dataset.lrate != null){ s.lrate = Math.max(0, Math.round((+t.value || 0) * 100) / 100); }
   else if(t.dataset.limport != null){
     const f = t.files && t.files[0]; t.value = ''; if(!f) return;

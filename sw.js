@@ -4,7 +4,7 @@ const CACHE = 'tripnoseon-v19';
 const SHELL = [
   './', './index.html', './css/styles.css', './manifest.webmanifest',
   './js/app.js', './js/data.js', './js/logic.js', './js/map.js', './js/ui.js', './js/views.js',
-  './js/gimport.js', './js/geocode.js', './js/rakuten.js', './js/weather.js', './js/prices.js', './js/share.js', './js/sharecore.js', './js/firebase-config.js', './js/vault.js', './js/vaultdb.js', './js/backup.js', './js/ledger.js', './js/ledgerimport.js', './js/today.js', './js/packing.js', './js/rain.js', './js/safety.js', './js/food.js', './js/gplace.js', './js/gmap.js', './js/maps-config.js', './js/janame.js',
+  './js/gimport.js', './js/geocode.js', './js/rakuten.js', './js/weather.js', './js/prices.js', './js/share.js', './js/sharecore.js', './js/firebase-config.js', './js/vault.js', './js/vaultdb.js', './js/backup.js', './js/ledger.js', './js/ledgerimport.js', './js/today.js', './js/packing.js', './js/rain.js', './js/safety.js', './js/food.js', './js/gplace.js', './js/gmap.js', './js/maps-config.js', './js/janame.js', './js/budget.js', './js/ledgerexport.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'
 ];
 
