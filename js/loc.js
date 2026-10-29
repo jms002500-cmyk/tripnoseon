@@ -32,6 +32,13 @@ export function canShareLoc(s, today){
 // 켜 둔 채로 여행이 끝났으면 꺼야 함
 export const locExpired = (s, today) => !!(s && s.locOn && s.end && today > s.end);
 
+// 서버에 남은 끝난 여행의 위치 → 지울 uid 목록. Firestore 자동 삭제(TTL)는 결제가 필요해 못 써서 앱이 지움:
+// 여행 주인은 모두(규칙상 주인은 참여자 위치를 지울 수 있음), 다른 사람은 자기 것만
+export function expiredLocs(docs, { today, myUid, isOwner }){
+  if(!today) return [];
+  return (docs || []).filter(d => d && d.uid && d.until && d.until < today && (isOwner || d.uid === myUid)).map(d => d.uid);
+}
+
 // 'n분 전'
 export function ageText(ms){
   if(!(ms >= 0)) return '';

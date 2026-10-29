@@ -23,7 +23,7 @@ import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blo
 import { sizeText } from './vault.js';
 import * as SH from './share.js';
 import { netBanner } from './net.js';
-import { roundLoc, shouldSend, canShareLoc, locExpired } from './loc.js';
+import { roundLoc, shouldSend, canShareLoc, locExpired, expiredLocs } from './loc.js';
 import { sharedOf, diffShared, applyRemote, inviteLink, parseJoin, describeChange, voteSummary, DELETE } from './sharecore.js';
 
 const S_KEY = 'tripnoseon-v1';
@@ -176,6 +176,7 @@ function watchTrip(){
     const s = state;
     s.sh.trip = { title:data.title || '', ownerUid:data.ownerUid, members:data.members || {}, memberUids:data.memberUids || [], open:!!data.open, updatedBy:data.updatedBy || null };
     s.sh.votes = data.votes || {};
+    if(s.sh.locs) clearExpiredLocs(id, s.sh.locs);   // 주인인지 알게 된 뒤에도 한 번 (위치 목록이 먼저 왔을 때)
     if(data.p){
       // 아직 서버에 못 올린 내 변경을 기억했다가, 서버 일정을 받은 뒤 그 위에 다시 얹음 (서로 덮어쓰지 않게)
       //   앱을 막 열었으면 이 기기에 남긴 기준으로 (끊긴 동안 고친 것)
@@ -195,7 +196,7 @@ function watchTrip(){
   }));
   unsubs.push(SH.watchComments(id, list => { state.sh.comments = list; renderRemote(); }));
   unsubs.push(SH.watchLog(id, list => { state.sh.log = list; renderRemote(); }));
-  unsubs.push(SH.watchLocs(id, list => { state.sh.locs = list; if(state.mode === 'today') renderRemote(); }));
+  unsubs.push(SH.watchLocs(id, list => { state.sh.locs = list; clearExpiredLocs(id, list); if(state.mode === 'today') renderRemote(); }));
 }
 
 // 이 기기에서 공유를 끊음 (일정은 마지막 상태 그대로 남김)
@@ -960,6 +961,14 @@ document.addEventListener('submit', onSubmit);
 /* ---------- 위치 공유 (켜는 사람만, js/loc.js) ---------- */
 // 앱을 열어 둔 동안만 위치를 받아(watchPosition) 움직이거나 2분마다 올림. 여행 마지막 날이 지나면 끄고 서버 위치도 지움
 let geoWatch = null, locLast = null;
+// 끝난 여행의 위치가 서버에 남아 있으면 지움 (주인은 모두, 다른 사람은 자기 것). 같은 위치는 한 번만 시도
+const locCleared = new Set();
+function clearExpiredLocs(id, list){
+  const sh = state.sh, u = sh.user; if(!u || state.shareId !== id) return;
+  expiredLocs(list, { today:ymd(new Date()), myUid:u.uid, isOwner:!!(sh.trip && sh.trip.ownerUid === u.uid) })
+    .filter(uid => !locCleared.has(id + '/' + uid))
+    .forEach(uid => { locCleared.add(id + '/' + uid); SH.clearLoc(id, uid).catch(() => {}); });
+}
 function stopGeo(){ if(geoWatch != null){ try{ navigator.geolocation.clearWatch(geoWatch); }catch(e){} geoWatch = null; } locLast = null; }
 function locSync(){
   const s = state, today = ymd(new Date());
