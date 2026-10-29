@@ -50,7 +50,7 @@ export function missingBookings(s, items){
   if(!has('hotel')) out.push({ kind:'hotel', title:h ? h.name : '숙소', date:s.start || '', why:h ? '정한 숙소의 예약 확인서를 넣어 두세요.' : '숙소 예약 확인서를 넣어 두세요.' });
   pickedPlaces(s).filter(p => p.book && !linked.has(p.id)).forEach(p =>
     out.push({ kind:'ticket', title:`${p.name} ${p.full ? '입장권' : '예약'}`, placeId:p.id, why:p.note || '날짜·시간 지정 예약이 필요한 곳이에요.' }));
-  if(!has('entry')) out.push(s.city === 'hksz'
+  if(!has('entry') && !(s.city === 'hksz' && s.cityOnly === 'hk')) out.push(s.city === 'hksz'
     ? { kind:'entry', title:'중국 입국카드 (온라인 작성)', why:'선전(중국 본토)에 들어갈 때 필요해요. 가족 각자 작성한 화면을 캡처해 넣어 두면 국경에서 바로 보여 줄 수 있어요.' }
     : { kind:'entry', title:'Visit Japan Web 입국 QR', why:'입국 심사·세관 QR이에요. 가족 각자 화면을 캡처해 넣어 두면 줄 서서 바로 보여 줄 수 있어요.' });
   return out;

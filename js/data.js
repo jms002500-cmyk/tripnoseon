@@ -129,7 +129,7 @@ export const DAY_COLORS = ['#F39700','#E60012','#00A7DB','#009944','#9B7CB6','#B
 
 // 처음 연 사람의 상태. 실제 사람의 일정은 넣지 않음(공개 저장소). 입력한 값은 그 기기 localStorage에만 저장
 export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'normal',
-  country:'jp', city:'tokyo', start:'', end:'',
+  country:'jp', city:'tokyo', cityOnly:'', start:'', end:'',   // cityOnly: 도시가 둘인 지역에서 한 도시만 갈 때 'hk' | 'sz' (''이면 둘 다)
   picked:{}, must:{}, fullDay:{}, custom:[], hotelArea:null, assign:{}, areaFilter:'all', kindFilter:'all', anchorKind:'all',
   imports:[], geoBusy:false, geoErr:false, impMsg:'',       // imports: 구글 지도에서 가져와 확인을 기다리는 곳
   hotels:[], hotelPick:null, hotelCur:'JPY', hotelSort:'place', hotelMsg:'', hotelBusy:false, hotelErr:false,   // hotels: 숙소 후보
@@ -185,3 +185,5 @@ export async function loadRegion(key){
 // 디즈니(하루 종일 앵커)가 있는 동네 키: disneyMin이 0인 동네 (도쿄 마이하마, 홍콩 란타우)
 export const disneyArea = () => Object.keys(AREAS).find(k => AREAS[k].disneyMin === 0) || '';
 export const cityOfArea = key => (AREAS[key] && AREAS[key].city) || '';
+export const CITY_KO = { hk:'홍콩', sz:'선전' };
+export const CITY_FLAG = { hk:'🇭🇰', sz:'🇨🇳' };

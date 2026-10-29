@@ -76,3 +76,30 @@ test('한 도시에만 담았거나 도쿄면 나눠 자기 추천 없음', asyn
   assert.equal(suggestSplit(t), null);
   assert.equal(buildDays(t).length, 5);
 });
+
+test('홍콩만·선전만: 그 도시 장소·숙소 동네만, 나눠 자기 없음, 국경 넘는 날 없음', async () => {
+  await D.loadRegion('hksz');
+  const L = await import('../js/logic.js');
+  try{
+    for(const c of ['hk', 'sz']){
+      const s = trip(); s.cityOnly = c;
+      assert.deepEqual(L.tripCities(s), [c]); assert.equal(L.onlyCity(s), c);
+      assert.ok(L.allPlaces(s).length > 0 && L.allPlaces(s).every(p => placeCity(p) === c));
+      assert.ok(L.pickedPlaces(s).every(p => placeCity(p) === c));
+      assert.equal(suggestSplit(s), null);
+      assert.ok(L.rankAreas(s).every(r => r.a.city === c));
+      const P = plan(s);
+      P.days.forEach(d => { assert.ok(!d.cross); d.items.forEach(p => assert.equal(placeCity(p), c)); if(d.full) assert.equal(placeCity(d.full), c); });
+      assert.ok(s.picked.hk_starferry && s.picked.sz_dji);                 // 다른 도시 담은 표시는 지우지 않고 숨기기만
+    }
+    const s = trip(); s.cityOnly = '';
+    assert.deepEqual(L.tripCities(s), ['hk', 'sz']); assert.equal(L.onlyCity(s), '');
+  } finally { D.useRegion('tokyo'); }
+});
+
+test('도쿄에서는 cityOnly가 남아 있어도 무시', async () => {
+  const L = await import('../js/logic.js');
+  const s = clone(D.DEFAULT); s.cityOnly = 'hk';
+  assert.deepEqual(L.tripCities(s), []); assert.equal(L.onlyCity(s), '');
+  assert.equal(L.allPlaces(s).length, D.PLACES.length);
+});
