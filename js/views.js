@@ -14,6 +14,7 @@ import { SITES, siteUrl, priceOptions } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
 import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText } from './vault.js';
 import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDates, ledgerSummary, ledgerHint, money as lmoney, personUsed } from './ledger.js';
+import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
@@ -785,6 +786,30 @@ function ledgerImportBox(s){
   </div>`;
 }
 
+// 예산: 정하지 않았으면 칸만, 정했으면 쓴 돈·남은 돈·하루에 쓸 수 있는 돈 (넘어도 부드럽게)
+const wonVal = v => v > 0 ? v.toLocaleString('ko-KR') : '';
+function budgetBox(s, today){
+  const sh = s.sh || {}; const b = budgetOf(s); const v = budgetView(s, today); const ln = budgetLines(v);
+  const edit = !v.on || sh.lbedit; const catsOpen = sh.lbcats || Object.keys(b.cats).length;
+  const bar = (pct, level) => `<span class="meter bmeter${level === 'over' ? ' bover' : ''}"><span style="width:${Math.min(100, Math.max(pct ? 3 : 0, pct))}%"></span></span>`;
+  return `<div class="box" id="lbudget">
+    <h2>예산<small>${v.on ? `${manwon(v.total)}${v.fromCats ? ' · 분류별 합' : ''}` : '원화로'}</small></h2>
+    ${v.on ? `<p class="bnums"><b>${manwon(v.spent)}</b> 썼어요 <span class="fine">/ ${manwon(v.total)} · ${v.pct}%</span></p>
+      ${bar(v.pct, v.level)}
+      <p class="bnote${v.level === 'ok' ? '' : ' bsoft'}">${esc(ln.head)}${ln.day ? `<br><span class="fine">${esc(ln.day)}</span>` : ''}</p>
+      ${v.missing ? `<p class="fine">환율을 아직 못 받아서 엔화 지출 ${v.missing}건은 예산에 넣지 못했어요. 아래 정산 칸에 환율을 넣어 주세요.</p>` : ''}
+      ${v.cats.length ? `<ul class="lcats bcats">${v.cats.map(c => `<li><span>${c.icon} ${esc(c.label)}</span>${bar(c.pct, c.level)}<b${c.level === 'over' ? ' class="bsoftk"' : ''}>${esc(catLine(c))}</b></li>`).join('')}</ul>
+        ${v.cats.some(c => c.level === 'over') ? `<p class="fine">${v.cats.filter(c => c.level === 'over').map(c => `${esc(c.label)} 예산보다 ${manwon(-c.left)} 더 썼어요`).join(' · ')}. 다른 분류에서 조금 아끼면 돼요.</p>` : ''}` : ''}
+      ${edit ? '' : '<div class="pfoot"><button type="button" class="link" data-act="lbedit">예산 고치기</button></div>'}` : ''}
+    ${edit ? `<label class="lrate" for="lbtotal">여행 전체 예산 (원)<input id="lbtotal" type="text" inputmode="numeric" data-bud="total" value="${esc(wonVal(b.total))}" placeholder="예: 2,000,000 또는 200만"></label>
+      <p class="fine">항공권·숙소처럼 여행 전에 낸 돈도 같이 세요. 엔으로 적은 지출은 정산 환율로 원화로 바꿔 계산해요.${s.shareId && sh.trip ? ' 예산도 함께 짜는 사람 모두에게 보여요.' : ''}</p>
+      ${catsOpen ? `<fieldset class="bcatin"><legend>분류별 예산 (원, 비우면 안 정함)</legend>${CATS.map(c => `<label for="lb_${c.key}"><span>${c.icon} ${esc(c.label)}</span><input id="lb_${c.key}" type="text" inputmode="numeric" data-bud="${c.key}" value="${esc(wonVal(b.cats[c.key] || 0))}" placeholder="예: 50만"></label>`).join('')}</fieldset>
+        ${v.catOver ? `<p class="fine">분류별 예산을 더하면 전체 예산보다 ${manwon(v.catOver)} 많아요.</p>` : ''}`
+        : '<div><button type="button" class="link" data-act="lbcats">분류별로도 정하기</button></div>'}
+      ${v.on ? '<div class="pfoot"><button type="button" class="ghost small" data-act="lbdone">다 정했어요</button></div>' : ''}` : ''}
+  </div>`;
+}
+
 export function vLedger(s){
   const sh = s.sh || {}; const today = sh.today || ''; const L = ledgerSummary(s); const party = partyOf(s);
   const shared = !!(s.shareId && sh.trip);
@@ -806,6 +831,7 @@ export function vLedger(s){
       <p class="fine">어제·그제, '2일차', '3/8', '여행 전', 사람 이름, 카드·현금, '따로'(혼자 부담), '3그릇 980엔씩'을 알아들어요.${sh.lmore || editing ? '' : ' <button type="button" class="link" data-act="lmore">자세히 적기</button>'}</p>
     </form>
     ${sh.lmore || editing ? ledgerDetail(s, editing, today) : ''}
+    ${budgetBox(s, today)}
     ${L.count ? `<div class="box">
       <h2>지금까지 쓴 돈<small>${L.count}건</small></h2>
       <p class="ltotal">${lmoney(L.total, L.base)}</p>
@@ -813,6 +839,9 @@ export function vLedger(s){
       ${L.missing ? `<p class="warnline">환율을 아직 못 받아서 엔화 지출 ${L.missing}건은 합계에 넣지 못했어요. 아래에 정산 환율을 넣어 주세요.</p>` : ''}
       <ul class="lcats">${L.byCat.map(c => `<li><span>${c.icon} ${esc(c.label)}</span><span class="meter"><span style="width:${Math.max(3, c.value / L.total * 100)}%"></span></span><b>${lmoney(c.value, L.base)}</b></li>`).join('')}</ul>
       ${L.byPay.cash || L.byPay.card || L.byPay.ic ? `<p class="fine">${[['cash', '현금'], ['card', '카드'], ['ic', '교통카드']].filter(([k]) => L.byPay[k]).map(([k, l]) => `${l} ${lmoney(L.byPay[k], L.base)}`).join(' · ')}</p>` : ''}
+      <div class="pfoot"><button type="button" class="ghost small" data-act="lexport">엑셀로 내보내기</button></div>
+      ${sh.lxmsg ? `<p class="lmsg${sh.lxbad ? ' bad' : ''}" role="status">${esc(sh.lxmsg)}</p>` : ''}
+      <p class="fine">지출 목록을 엑셀에서 바로 열리는 CSV 파일로 만들어요. 폰에서는 보내기 창이 뜨고, 컴퓨터에서는 내려받아요.</p>
     </div>` : ''}
     <div class="box">
       <h2>정산<small>누가 누구에게</small></h2>
@@ -1001,6 +1030,7 @@ export function vToday(s){
       : `<p class="fine">이날 날짜로 넣은 예약이 없어요. 입장권·QR은 <button type="button" class="link" data-act="go" data-v="${STEP('보관함')}">보관함</button>에 날짜를 넣어 두면 여기에 떠요.</p>`}
     <form class="box" id="ledgerform" autocomplete="off">
       <h2>이날 쓴 돈<small>${g ? lmoney(g.total, L.base) : '아직 없음'}</small></h2>
+      ${(bv => bv.on && bv.level !== 'over' && bv.phase === 'during' && date === today && bv.perDay > 0 ? `<p class="fine">${bv.todayLeft >= 0 ? `오늘 쓸 수 있는 돈 <b>${manwon(bv.todayLeft)}</b> 남았어요` : `오늘은 하루 몫보다 ${manwon(-bv.todayLeft)} 더 썼어요`} (하루 ${manwon(bv.perDay)})</p>` : '')(budgetView(s, today))}
       ${g ? `<ul class="tspend">${g.items.map(e => `<li><span>${catOf(e.cat).icon} ${esc(e.what || catOf(e.cat).label)}</span><b>${lmoney(e.amt, e.cur)}</b></li>`).join('')}</ul>` : ''}
       <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="예: 라멘 1200엔" aria-label="이날 쓴 돈 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
       <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:s.country === 'jp' ? 'JPY' : 'KRW' }))}</p>
