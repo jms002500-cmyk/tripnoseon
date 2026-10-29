@@ -11,7 +11,7 @@ import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHEC
 // 한 구간 이동 시간 한 줄: '약 15분 · 지하철' (직선거리 어림)
 const legText = (a, b) => { const segs = legSegments(a, b); return `약 ${minText(legMinutes(a, b, segs))} · ${legMode(segs)}`; };
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
-import { nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
+import { nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
@@ -147,7 +147,7 @@ export function vWhere(s){
     <h2>날짜</h2>
     <div class="dates">
       <label for="dstart">가는 날<input id="dstart" type="date" value="${s.start}" data-date="start"></label>
-      <label for="dend">오는 날<input id="dend" type="date" value="${s.end}" data-date="end"></label>
+      <label for="dend">오는 날<input id="dend" type="date" value="${s.end}"${s.start ? ` min="${s.start}"` : ''} data-date="end"></label>
     </div>
     ${days.length ? `<div class="box">
       <div class="row"><h2>${days.length-1}박 ${days.length}일</h2><span class="fine">${PACE[s.pace].label} 기준</span></div>
@@ -184,10 +184,12 @@ function weatherBox(s){
 
 const CITY_NAME = { tokyo:'도쿄', hksz:'홍콩·선전' };
 
+// 종류 이름 (값은 그대로 두고 보여 주는 이름만 지역에 맞춤)
+const kindName = k => REGION.key !== 'tokyo' && k === '신사·절' ? '사원·절' : k;
 // 종류 거르기 칩. 목록에 있는 종류만, 개수와 함께
 function kindChips(act, cur, items){
   const n = {}; items.forEach(p => { if(p.kind) n[p.kind] = (n[p.kind] || 0) + 1; });
-  return `<div class="scroller" role="group" aria-label="종류로 거르기">${chip(act, 'all', `전체 ${items.length}`, cur === 'all')}${KINDS.filter(k => n[k]).map(k => chip(act, k, `${k} ${n[k]}`, cur === k)).join('')}</div>`;
+  return `<div class="scroller" role="group" aria-label="종류로 거르기">${chip(act, 'all', `전체 ${items.length}`, cur === 'all')}${KINDS.filter(k => n[k]).map(k => chip(act, k, `${kindName(k)} ${n[k]}`, cur === k)).join('')}</div>`;
 }
 
 /* Step 3 · 꼭 갈 곳 */
@@ -216,7 +218,7 @@ export function vMust(s){
       return `<article class="pcard${on ? ' on' : ''}">
         <div class="ptop"><div><h3>${esc(p.name)}</h3><p class="ja">${esc(p.ja)}</p></div>
           <button type="button" class="mustbtn" data-act="anchor" data-v="${p.id}" aria-pressed="${on}">${on ? '꼭 갈 곳 ✓' : '꼭 갈 곳으로'}</button></div>
-        <p class="meta">${p.kind ? esc(p.kind) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
+        <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
         ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
         ${on && p.full && fa[p.id] != null ? daySelect(p, days, fa, s) : ''}
       </article>`; }).join('')}</div>
@@ -230,7 +232,7 @@ function placeCard(p, s){
   return `<article class="pcard${on ? ' on' : ''}">
     <div class="ptop"><div><h3>${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
-    <p class="meta">${p.kind ? esc(p.kind) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
+    <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
     ${(f.why.length || f.neg.length) ? `<div class="why">${f.why.map(w => `<span>${esc(w)}</span>`).join('')}${f.neg.map(w => `<span class="neg">${esc(w)}</span>`).join('')}</div>` : ''}
     ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
     ${on ? voteBar(s, p) : ''}
@@ -318,7 +320,7 @@ export function vPick(s){
     <div class="box">
       <div class="statline"><span>담은 곳 <b>${pickedPlaces(s).length}</b>곳</span><span>필요한 시간 <b>${cap.used}</b> / 쓸 수 있는 시간 <b>${cap.total}</b>시간</span></div>
       <div class="meter${over && cap.total ? ' over' : ''}"><span style="width:${pct}%"></span></div>
-      <p class="fine">${!cap.total ? '여행 날짜를 정하면 쓸 수 있는 시간을 계산해 드려요.' : over ? '쓸 수 있는 시간보다 많이 담았어요. 일정에서 넘치는 곳은 따로 모아둘게요.' : `하루 종일 쓰는 곳을 뺀 나머지 날에 ${+(cap.total - cap.used).toFixed(1)}시간 정도 여유가 있어요.`}</p>
+      <p class="fine">${!cap.total ? '여행 날짜를 정하면 쓸 수 있는 시간을 계산해 드려요.' : over ? '쓸 수 있는 시간보다 많이 담았어요. 일정에서 넘치는 곳은 따로 모아둘게요.' : (cap.total - cap.used < 0.5 ? '쓸 수 있는 시간을 거의 다 채웠어요. 더 담으면 일정에서 넘치는 곳은 따로 모아둘게요.' : `하루 종일 쓰는 곳을 뺀 나머지 날에 ${+(cap.total - cap.used).toFixed(1)}시간 정도 여유가 있어요.`)}</p>
       <div><button type="button" class="ghost small" data-act="autopick">추천 순서대로 빈 시간 채우기</button></div>
     </div>
     <div class="box">
@@ -475,7 +477,7 @@ function hotelSection(s, areaKey){
       <label for="hname">숙소 이름<input id="hname" type="text" required maxlength="60" placeholder="예: 예약 사이트에 나온 호텔 이름"></label>
       <div class="row2">
         <label for="hprice">1박 가격 (${cur.label})<input id="hprice" type="number" min="0" step="1" inputmode="numeric" placeholder="세금 포함 객실 1개"></label>
-        <label for="hcur">통화<select id="hcur" data-hcur>${Object.entries(CURRENCY).map(([k, v]) => `<option value="${k}"${s.hotelCur === k ? ' selected' : ''}>${v.label} (${v.sign})</option>`).join('')}</select></label>
+        <label for="hcur">통화<select id="hcur" data-hcur>${Object.entries(CURRENCY).filter(([k]) => k === 'KRW' || k === s.hotelCur || (REGION.curs || [REGION.cur]).includes(k)).map(([k, v]) => `<option value="${k}"${s.hotelCur === k ? ' selected' : ''}>${v.label} (${v.sign})</option>`).join('')}</select></label>
       </div>
       <label for="hmap">구글 지도 주소 (위치가 정확해져요)<input id="hmap" type="url" inputmode="url" placeholder="PC 구글 지도에서 숙소를 연 뒤 주소창의 긴 주소"></label>
       <label for="hbook">예약 페이지 주소 (선택)<input id="hbook" type="url" inputmode="url" placeholder="https://"></label>
@@ -497,10 +499,10 @@ function nightsBox(s, hasDisney){
   const disneyHint = hasDisney && cands.some(h => (h.area || '') === disneyArea() || /마이하마|舞浜|디즈니|ディズニー|迪士尼|Disney/i.test(h.name));
   return `<div class="box" id="nightsbox">
     <h2>밤마다 어디서 잘까요?<small>나눠 자기</small></h2>
-    <p class="fine">정하지 않은 밤은 ${pick ? `정한 숙소(${esc(pick.name)})` : '1순위 동네'}에서 자요. 숙소를 바꾸면 그날 일정·오늘 하루·교통패스·식당 찾기가 출발·돌아갈 숙소를 따라가요.${disneyHint ? ' 디즈니 가는 날 전날 밤만 마이하마 숙소로 정하면 아침 이동이 없어져요.' : ''}</p>
+    <p class="fine">정하지 않은 밤은 ${pick ? `정한 숙소(${esc(pick.name)})` : nightsList.some(d => autoNight(s, d.key)) ? '나눠 자기 추천대로' : s.hotelArea ? '정한 동네' : '1순위 동네'}에서 자요. 숙소를 바꾸면 그날 일정·오늘 하루·${REGION.key === 'tokyo' ? '교통패스·' : ''}식당 찾기가 출발·돌아갈 숙소를 따라가요.${disneyHint ? ' 디즈니 가는 날 전날 밤만 마이하마 숙소로 정하면 아침 이동이 없어져요.' : ''}</p>
     <ul class="nightlist">${nightsList.map(d => { const cur = (s.nights || {})[d.key] || '';
       return `<li><span>${esc(d.label)} 밤</span><select data-night="${esc(d.key)}" aria-label="${esc(d.label)} 밤 숙소">
-        <option value="">${pick ? `정한 숙소 (${esc(pick.name)})` : '정한 숙소'}</option>
+        <option value="">${pick ? `정한 숙소 (${esc(pick.name)})` : (ak => ak ? `추천대로 (${esc(AREAS[ak].name)})` : `${s.hotelArea ? '정한' : '1순위'} 동네 (${esc(hotelOf(s).name)})`)(autoNight(s, d.key))}</option>
         ${cands.length ? `<optgroup label="숙소 후보">${cands.map(h => `<option value="${esc(h.id)}"${cur === h.id ? ' selected' : ''}>${esc(h.name)}</option>`).join('')}</optgroup>` : ''}
         ${areaOpts.length ? ['hk', 'sz'].map(c => `<optgroup label="${c === 'hk' ? '홍콩 동네' : '선전 동네'} (숙소는 나중에)">${areaOpts.filter(([, a]) => a.city === c).map(([k, a]) => `<option value="area:${esc(k)}"${cur === 'area:' + k ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</optgroup>`).join('') : ''}</select></li>`; }).join('')}</ul>
     <p class="fine">${Object.entries(count).map(([n, c]) => `${esc(n)} ${c}박`).join(' · ')}${moves.length ? ` · 🧳 짐 옮기는 날: ${moves.map(esc).join(', ')}` : ''}${s.shareId ? ' · 함께 짜는 가족에게도 보여요.' : ''}</p>
@@ -511,7 +513,10 @@ function nightsBox(s, hasDisney){
 export function vStay(s){
   const ranked = rankAreas(s); const picked = pickedPlaces(s); const dayPicks = picked.filter(p => !p.full);
   const hasDisney = picked.some(p => p.full && p.area === disneyArea()); const best = ranked[0]; const chosen = s.hotelArea;
-  const card = (r, i) => { const a = r.a; const on = chosen === r.key;
+  // 두 도시(홍콩·선전)에 담았으면 도시마다 동네 순위를 따로 보여 주고, 동네를 고르면 그 도시에서 자는 밤만 바뀜
+  const sp = chosen ? null : suggestSplit(s); const days = buildDays(s);
+  const nightKeys = new Set(days.slice(0, -1).map(d => nightHotel(s, d.key).key));
+  const card = (r, i) => { const a = r.a; const on = sp ? nightKeys.has(r.key) : chosen === r.key;
     return `<article class="acard${i < 3 ? ' top' : ''}${on ? ' on' : ''}">
       <div class="ahead"><span class="rank">${i+1}</span><div><h3>${esc(a.name)}</h3><p class="ja">${esc(a.station)} 주변</p></div></div>
       <ul class="facts">
@@ -521,8 +526,8 @@ export function vStay(s){
       </ul>
       <p class="pnote">${esc(a.note)}</p>
       <div class="pfoot">
-        <button type="button" class="${on ? 'primary' : 'ghost'} small" data-act="hotel" data-v="${r.key}" aria-pressed="${on}">${on ? '이 동네로 정함 ✓' : '이 동네로 정하기'}</button>
-        <a class="link" href="${gmap('ホテル ' + a.q)}" target="_blank" rel="noopener">구글 지도에서 숙소 보기 ↗</a>
+        <button type="button" class="${on ? 'primary' : 'ghost'} small" data-act="${sp ? 'splitarea' : 'hotel'}" data-v="${r.key}" aria-pressed="${on}">${on ? '이 동네로 정함 ✓' : '이 동네로 정하기'}</button>
+        <a class="link" href="${gmap((REGION.key === 'tokyo' ? 'ホテル ' : 'hotel ') + a.q)}" target="_blank" rel="noopener">구글 지도에서 숙소 보기 ↗</a>
       </div>
     </article>`; };
   return `<section class="step">
@@ -531,11 +536,19 @@ export function vStay(s){
     <p class="lead">호텔을 고르기 전에 동네부터 정해요. 담은 장소 ${dayPicks.length}곳과의 거리${hasDisney ? ', 디즈니 가는 시간' : ''}을 같이 따져 순서를 매겼어요.</p>
     ${dayPicks.length < 3 ? `<div class="box tip"><p>장소를 3곳 이상 담으면 추천이 더 정확해져요.</p><div><button type="button" class="ghost small" data-act="go" data-v="3">장소 더 담으러 가기</button></div></div>` : ''}
     ${mapSVG('stay', s)}
-    ${hasDisney && best.key !== disneyArea() ? `<div class="box tip"><h2>나눠 자는 방법도 있어요</h2><p>디즈니 가는 날 전날 1박만 ${esc((AREAS[disneyArea()] || {}).name || '디즈니 근처')}에서 자고, 나머지는 ${esc(best.a.name)}에서 자면 디즈니 아침 이동이 없어져요. 대신 짐을 한 번 옮겨야 해요.</p></div>` : ''}
-    <div class="list">${ranked.slice(0, 3).map(card).join('')}</div>
-    ${ranked.length > 3 ? `<details class="more"><summary>다른 동네 ${ranked.length-3}곳 더 보기</summary><div class="list">${ranked.slice(3).map((r, i) => card(r, i + 3)).join('')}</div></details>` : ''}
+    ${sp ? (() => { const cn = c => HK.CITY_NAMES[c] || c; const fixed = days.slice(0, -1).every(d => (s.nights || {})[d.key]);
+      return `<div class="box tip" id="splitbox"><h2>${sp.map(o => esc(cn(o.city))).join('·')} 나눠 자기 추천</h2>
+      <p>담은 곳이 두 도시에 나뉘어 있어요. <b>${sp.map(o => `${esc(cn(o.city))} ${o.nights}박 (${esc(o.a.name)})`).join(' → ')}</b>으로 나눠 자면 국경을 한 번만 넘고, 날마다 그 도시 장소를 다녀요. 담은 시간에 맞춰 밤을 나눴어요.</p>
+      <p class="fine">아래에서 도시마다 동네를 바꾸면 그 도시에서 자는 밤만 바뀌어요. 한 동네에서 다 자려면 맨 아래 '밤마다 어디서 잘까요?'에서 고르세요.</p>
+      ${fixed ? '' : '<div><button type="button" class="primary small" data-act="splitstay">이대로 밤마다 정하기</button></div>'}</div>`; })() : ''}
+    ${!sp && hasDisney && best.key !== disneyArea() ? `<div class="box tip"><h2>나눠 자는 방법도 있어요</h2><p>디즈니 가는 날 전날 1박만 ${esc((AREAS[disneyArea()] || {}).name || '디즈니 근처')}에서 자고, 나머지는 ${esc(best.a.name)}에서 자면 디즈니 아침 이동이 없어져요. 대신 짐을 한 번 옮겨야 해요.</p></div>` : ''}
+    ${sp ? sp.map(o => { const rk = rankAreas(s, o.city); return `<h2 class="cityhead">${esc(HK.CITY_NAMES[o.city] || o.city)}에서 잘 동네 <small>${o.nights}박</small></h2>
+      <div class="list">${rk.slice(0, 3).map(card).join('')}</div>
+      ${rk.length > 3 ? `<details class="more"><summary>${esc(HK.CITY_NAMES[o.city] || o.city)} 다른 동네 ${rk.length-3}곳 더 보기</summary><div class="list">${rk.slice(3).map((r, i) => card(r, i + 3)).join('')}</div></details>` : ''}`; }).join('')
+    : `<div class="list">${ranked.slice(0, 3).map(card).join('')}</div>
+    ${ranked.length > 3 ? `<details class="more"><summary>다른 동네 ${ranked.length-3}곳 더 보기</summary><div class="list">${ranked.slice(3).map((r, i) => card(r, i + 3)).join('')}</div></details>` : ''}`}
     <p class="fine">거리는 직선거리 기준이에요. 이동 시간과 가격대는 시제품용 대략값이라 실제와 다를 수 있어요.</p>
-    ${hotelSection(s, chosen || best.key)}
+    ${hotelSection(s, chosen || (sp ? sp[0].key : best.key))}
     ${nightsBox(s, hasDisney)}
   </section>`;
 }
@@ -608,7 +621,9 @@ export function vPlan(s){
   return `<section class="step">
     <p class="eyebrow">Step 6 · 일정</p>
     <h1>날짜별 일정 초안</h1>
-    <p class="lead">${esc(P.hotel.name)}에 묵는 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${s.hotelArea || P.hotel.cand ? '' : ' 숙소 동네를 아직 안 정해서 1순위 동네로 계산했어요.'}</p>
+    <p class="lead">${split
+      ? `밤마다 자는 곳을 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${REGION.key === 'hksz' ? ' 국경을 오가지 않게 그날 자는 도시의 장소를 먼저 넣어요.' : ''}${buildDays(s).slice(0, -1).some(d => !(s.nights || {})[d.key] && autoNight(s, d.key)) ? ' 아직 정하지 않은 밤은 숙소 동네 단계의 나눠 자기 추천대로 계산했어요.' : ''}`
+      : `${esc(P.hotel.name)}에 묵는 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${s.hotelArea || P.hotel.cand ? '' : ' 숙소 동네를 아직 안 정해서 1순위 동네로 계산했어요.'}`}</p>
     <div><button type="button" class="ghost small" data-act="replan">손으로 옮긴 것 지우고 다시 짜기</button></div>
     ${mapSVG('plan', s, P)}
     ${(sh => sh.total ? `<p class="fine">담은 곳 ${sh.total}곳 중 실내는 ${sh.indoor}곳이에요. 날짜마다 '☔ 비 오면?'을 누르면 가까운 실내 장소로 바꿀 수 있어요.</p>` : '')(indoorShare(s))}
@@ -634,7 +649,7 @@ export function vPlan(s){
       </article>`; }).join('')}
     ${REGION.key === 'tokyo' ? transitBox(s, P) : ''}
     ${P.unassigned.length ? `<div class="box"><h2>아직 일정에 못 넣은 곳</h2><ol class="stops">${P.unassigned.map(u => `<li><span class="num" style="--day:var(--muted)">·</span><div class="sbody"><b>${esc(u.p.name)}</b><span>${esc(u.why)}</span></div>${u.p.full ? '' : moveSelect(u.p, P.days, s.assign[u.p.id])}</li>`).join('')}</ol></div>` : ''}
-    ${anyItems ? '<p class="fine">이동 시간은 직선거리로 어림한 값이에요(구글은 일본 대중교통 경로를 다른 앱에 주지 않아요). 정확한 시간·노선은 길찾기를 눌러 구글 지도에서 보세요.</p>' : '<p class="empty">담은 장소가 없어요. 장소 담기 단계에서 몇 곳을 담아 주세요.</p>'}
+    ${anyItems ? `<p class="fine">이동 시간은 직선거리로 어림한 값이에요(${REGION.key === 'tokyo' ? '구글은 일본 대중교통 경로를 다른 앱에 주지 않아요' : '국경을 넘는 구간은 출입국 시간을 더했어요'}). 정확한 시간·노선은 길찾기를 눌러 구글 지도에서 보세요.</p>` : '<p class="empty">담은 장소가 없어요. 장소 담기 단계에서 몇 곳을 담아 주세요.</p>'}
   </section>`;
 }
 
@@ -778,7 +793,9 @@ export function vVault(s){
 }
 
 /* Step 9 · 가계부 (함께 짜기 여행이면 참여자 모두와 공유) */
-const LEX = ['어제 택시 2800엔 카드', '아빠가 디즈니 입장권 4장 39600엔', '여행 전 유심 25000원'];
+const LEX_BY = { tokyo:['어제 택시 2800엔 카드', '아빠가 디즈니 입장권 4장 39600엔', '여행 전 유심 25000원'], hksz:['어제 택시 85 카드', '아빠가 디즈니 입장권 3장 2097홍콩달러', '밀크티 25위안'] };
+const LEX_ONE = { tokyo:'라멘 1200엔', hksz:'딤섬 180' }; const LEX_EACH = { tokyo:'3그릇 980엔씩', hksz:'3그릇 45씩' };
+const lexOf = () => LEX_BY[REGION.key] || LEX_BY.tokyo; const lexOne = () => LEX_ONE[REGION.key] || LEX_ONE.tokyo;
 
 function ledgerRow(s, e, L, armed){
   const c = catOf(e.cat); const p = partyOf(s).find(x => x.id === e.by);
@@ -864,7 +881,7 @@ function budgetBox(s, today){
         ${v.cats.some(c => c.level === 'over') ? `<p class="fine">${v.cats.filter(c => c.level === 'over').map(c => `${esc(c.label)} 예산보다 ${manwon(-c.left)} 더 썼어요`).join(' · ')}. 다른 분류에서 조금 아끼면 돼요.</p>` : ''}` : ''}
       ${edit ? '' : '<div class="pfoot"><button type="button" class="link" data-act="lbedit">예산 고치기</button></div>'}` : ''}
     ${edit ? `<label class="lrate" for="lbtotal">여행 전체 예산 (원)<input id="lbtotal" type="text" inputmode="numeric" data-bud="total" value="${esc(wonVal(b.total))}" placeholder="예: 2,000,000 또는 200만"></label>
-      <p class="fine">항공권·숙소처럼 여행 전에 낸 돈도 같이 세요. 엔으로 적은 지출은 정산 환율로 원화로 바꿔 계산해요.${s.shareId && sh.trip ? ' 예산도 함께 짜는 사람 모두에게 보여요.' : ''}</p>
+      <p class="fine">항공권·숙소처럼 여행 전에 낸 돈도 같이 세요. 외국 돈으로 적은 지출은 정산 환율로 원화로 바꿔 계산해요.${s.shareId && sh.trip ? ' 예산도 함께 짜는 사람 모두에게 보여요.' : ''}</p>
       ${catsOpen ? `<fieldset class="bcatin"><legend>분류별 예산 (원, 비우면 안 정함)</legend>${CATS.map(c => `<label for="lb_${c.key}"><span>${c.icon} ${esc(c.label)}</span><input id="lb_${c.key}" type="text" inputmode="numeric" data-bud="${c.key}" value="${esc(wonVal(b.cats[c.key] || 0))}" placeholder="예: 50만"></label>`).join('')}</fieldset>
         ${v.catOver ? `<p class="fine">분류별 예산을 더하면 전체 예산보다 ${manwon(v.catOver)} 많아요.</p>` : ''}`
         : '<div><button type="button" class="link" data-act="lbcats">분류별로도 정하기</button></div>'}
@@ -888,11 +905,11 @@ export function vLedger(s){
     <div class="box tip"><p>${shared ? '함께 짜는 여행이라 <b>가계부도 참여자 모두와 공유</b>돼요. 누가 적어도 모두의 화면에 바로 보여요.' : '지금은 <b>이 기기에만</b> 저장돼요. 가족과 같이 적으려면 오른쪽 위 \'함께 짜기\'로 여행을 공유해 주세요. 공유하면 가계부도 함께 보여요.'}</p></div>
     <form class="box" id="ledgerform" autocomplete="off">
       <h2>한 줄로 적기</h2>
-      <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="예: 라멘 1200엔" aria-label="지출을 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
+      <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="예: ${esc(lexOne())}" aria-label="지출을 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
       <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today, cur:mainCur(s) }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
-      <p class="fine lex">이렇게도 돼요: ${LEX.map(x => `<button type="button" class="link" data-act="lex" data-v="${esc(x)}">${esc(x)}</button>`).join(' · ')}</p>
-      <p class="fine">어제·그제, '2일차', '3/8', '여행 전', 사람 이름, 카드·현금, '따로'(혼자 부담), '3그릇 980엔씩'을 알아들어요.${sh.lmore || editing ? '' : ' <button type="button" class="link" data-act="lmore">자세히 적기</button>'}</p>
+      <p class="fine lex">이렇게도 돼요: ${lexOf().map(x => `<button type="button" class="link" data-act="lex" data-v="${esc(x)}">${esc(x)}</button>`).join(' · ')}</p>
+      <p class="fine">어제·그제, '2일차', '3/8', '여행 전', 사람 이름, 카드·현금, '따로'(혼자 부담), '${esc(LEX_EACH[REGION.key] || LEX_EACH.tokyo)}'을 알아들어요.${sh.lmore || editing ? '' : ' <button type="button" class="link" data-act="lmore">자세히 적기</button>'}</p>
     </form>
     ${sh.lmore || editing ? ledgerDetail(s, editing, today) : ''}
     ${budgetBox(s, today)}
@@ -923,7 +940,7 @@ export function vLedger(s){
     </div>
     ${L.groups.length ? L.groups.map(g => `<h2 class="vday">${esc(g.d ? dayLabel(s, g.d) : '날짜 없음')}<small>${lmoney(g.total, L.base)}</small></h2>
       <ul class="llist">${g.items.map(e => ledgerRow(s, e, L, sh.ldel)).join('')}</ul>`).join('')
-      : '<p class="empty">아직 적은 지출이 없어요. 위 칸에 "라멘 1200엔"처럼 적어 보세요.</p>'}
+      : '<p class="empty">아직 적은 지출이 없어요. 위 칸에 "' + esc(lexOne()) + '"처럼 적어 보세요.</p>'}
     ${ledgerImportBox(s)}
   </section>`;
 }
@@ -950,7 +967,7 @@ function foodBox(s, d, hotel){
   const slots = mealSlots(d, hotel, d.to); if(!slots.length) return '';
   return `<div class="box" id="foodbox"><h2>이날 식당<small>${slots.map(m => m.meal === 'lunch' ? '점심' : '저녁').join('·')}</small></h2>
     ${slots.map((m, k) => foodSlot(s.sh || {}, d, m, k)).join('')}
-    <p class="fine">버튼을 누르면 그 장소 좌표를 구글로 보내 근처 식당을 찾아요. 일본은 정기휴무·예약제·현금만 받는 곳이 많으니 가기 전에 구글 지도에서 한 번 더 확인하세요.</p>
+    <p class="fine">버튼을 누르면 그 장소 좌표를 구글로 보내 근처 식당을 찾아요. ${REGION.key === 'tokyo' ? '일본은 정기휴무·예약제·현금만 받는 곳이 많으니' : '선전(중국 본토)은 알리페이·위챗페이로 내는 곳이 많고 구글 지도 정보가 늦을 수 있으니'} 가기 전에 한 번 더 확인하세요.</p>
   </div>`;
 }
 
@@ -1194,7 +1211,7 @@ export function vToday(s){
       ${(bv => bv.on && bv.level !== 'over' && bv.phase === 'during' && date === today && bv.perDay > 0 ? `<p class="fine">${bv.todayLeft >= 0 ? `오늘 쓸 수 있는 돈 <b>${manwon(bv.todayLeft)}</b> 남았어요` : `오늘은 하루 몫보다 ${manwon(-bv.todayLeft)} 더 썼어요`} (하루 ${manwon(bv.perDay)})</p>` : '')(budgetView(s, today))}
       ${g ? `<ul class="tspend">${g.items.map(e => `<li><span>${catOf(e.cat).icon} ${esc(e.what || catOf(e.cat).label)}</span><b>${lmoney(e.amt, e.cur)}</b></li>`).join('')}</ul>` : ''}
       ${lp ? `<p class="lat">📍 <b>${esc(lp.name)}</b>에서 쓴 돈으로 적어요. 금액만 써도 돼요. <button type="button" class="link" data-act="lplacex">장소 빼기</button></p>` : ''}
-      <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="${lp ? '예: 3000엔 또는 기념품 1500엔' : '예: 라멘 1200엔'}" aria-label="이날 쓴 돈 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
+      <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="${lp ? (REGION.key === 'tokyo' ? '예: 3000엔 또는 기념품 1500엔' : '예: 120 또는 기념품 80') : `예: ${esc(lexOne())}`}" aria-label="이날 쓴 돈 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
       <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:mainCur(s) }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
     </form>

@@ -1,5 +1,5 @@
 // 계산만 하는 순수 함수 모음 (DOM을 건드리지 않음 → tests/에서 바로 테스트 가능)
-import { AREAS, PLACES, PACE, WD, REGION, disneyArea } from './data.js';
+import { AREAS, PLACES, PACE, WD, REGION, disneyArea, cityOfArea } from './data.js';
 import { ratesOf } from './ledger.js';
 import { bestPrice } from './prices.js';
 
@@ -89,8 +89,14 @@ export function keepLockedAssign(s){
   return out;
 }
 
+// 날마다 출발·돌아갈 숙소가 있는 도시 (홍콩·선전처럼 도시가 둘인 지역만, 아니면 빈 집합)
+const dayCities = (s, days) => dayHotels(s, days).map(h => new Set([h.from, h.to].map(x => x && x.key ? cityOfArea(x.key) : '').filter(Boolean)));
+const CITY_KO = { hk:'홍콩', sz:'선전' };
+// 그날 자는 도시가 아닌 곳이면 true (국경을 왕복해야 함)
+const offCity = (dc, p) => { const c = placeCity(p); return !!c && dc.size > 0 && !dc.has(c); };
+
 export function fullAssign(s, days){
-  const res = {}; const used = new Set();
+  const res = {}; const used = new Set(); const dc = dayCities(s, days);
   const fulls = pickedPlaces(s).filter(p => p.full);
   const fullIdx = days.filter(d => d.kind === 'full' || d.kind === 'single').map(d => d.i);
   const pool = fullIdx.length ? fullIdx : days.map(d => d.i);
@@ -98,8 +104,9 @@ export function fullAssign(s, days){
   fulls.forEach(p => {
     if(res[p.id] != null) return;
     const free = pool.filter(i => !used.has(i) && !isLocked(s, days[i])); if(!free.length){ res[p.id] = null; return; }   // 확정한 날에는 자동으로 안 넣음
-    const wk = free.filter(i => days[i].wd >= 1 && days[i].wd <= 5);
-    const pick = (wk.length ? wk : free)[0]; res[p.id] = pick; used.add(pick);
+    const inCity = free.filter(i => !offCity(dc[i], p)); const base = inCity.length ? inCity : free;   // 그 도시에서 자는 날 먼저
+    const wk = base.filter(i => days[i].wd >= 1 && days[i].wd <= 5);
+    const pick = (wk.length ? wk : base)[0]; res[p.id] = pick; used.add(pick);
   });
   return res;
 }
@@ -113,17 +120,44 @@ export function capacity(s){
   return { total, used };
 }
 
+// 장소·숙소가 속한 도시 (홍콩·선전처럼 한 여행에 도시가 둘인 지역만, 도쿄는 '')
+export const placeCity = p => cityOfArea(p.area && AREAS[p.area] ? p.area : nearestArea(p).key);
+
 // 숙소 동네 순위: 담은 곳까지 평균 직선거리 + (디즈니가 있으면) 디즈니 이동 시간 가중
-export function rankAreas(s){
-  const picked = pickedPlaces(s); const dayPicks = picked.filter(p => !p.full);
-  const hasDisney = picked.some(p => p.full && p.area === disneyArea());
-  return Object.entries(AREAS).filter(([, a]) => a.hotel).map(([key, a]) => {
+//   city를 주면 그 도시 동네만, 그 도시에 담은 곳만으로 따짐 (나눠 자기 추천용)
+export function rankAreas(s, city){
+  const picked = pickedPlaces(s); let dayPicks = picked.filter(p => !p.full);
+  const hasDisney = picked.some(p => p.full && p.area === disneyArea()) && (!city || cityOfArea(disneyArea()) === city);
+  if(city) dayPicks = dayPicks.filter(p => placeCity(p) === city);
+  return Object.entries(AREAS).filter(([, a]) => a.hotel && (!city || a.city === city)).map(([key, a]) => {
     const ds = dayPicks.map(p => dist(a, p));
     const avg = ds.length ? ds.reduce((x,y) => x+y, 0)/ds.length : 0;
     const near = ds.filter(x => x <= 2.5).length;
     const score = avg + (hasDisney ? a.disneyMin/12 : 0);
     return { key, a, avg, near, score };
   }).sort((x, y) => x.score - y.score);
+}
+
+// 두 도시에 장소를 담았을 때 나눠 자기 추천: 도시마다 담은 시간(하루 종일 곳은 하루치)에 비례해 밤을 나눔
+//   도시마다 최소 1박, 순서는 AREAS에 적힌 도시 순서(홍콩 → 선전). 한 도시뿐이거나 2박 미만이면 null
+export function suggestSplit(s){
+  const n = nights(s); if(n < 2) return null;
+  const order = [...new Set(Object.values(AREAS).map(a => a.city).filter(Boolean))]; if(order.length < 2) return null;
+  const hrs = {}; const dayH = PACE[s.pace].hours;
+  pickedPlaces(s).forEach(p => { const c = placeCity(p); if(c) hrs[c] = (hrs[c] || 0) + (p.full ? dayH : p.hours); });
+  const cities = order.filter(c => hrs[c] > 0); if(cities.length < 2 || cities.length > n) return null;
+  const tot = cities.reduce((x, c) => x + hrs[c], 0);
+  const out = cities.map(c => ({ city:c, hours:hrs[c], nights:Math.max(1, Math.round(n * hrs[c] / tot)) }));
+  const sum = () => out.reduce((x, o) => x + o.nights, 0);
+  while(sum() > n){ const o = out.filter(o => o.nights > 1).sort((a, b) => b.nights - a.nights)[0]; o.nights--; }
+  while(sum() < n){ out.slice().sort((a, b) => b.hours / b.nights - a.hours / a.nights)[0].nights++; }
+  return out.map(o => { const r = rankAreas(s, o.city)[0]; return { ...o, key:r.key, a:r.a }; });
+}
+// 추천대로 밤마다 동네 정하기 → s.nights 값
+export function splitNights(s, sp){
+  const list = buildDays(s).slice(0, -1); const out = {}; let i = 0;
+  sp.forEach(o => { for(let k = 0; k < o.nights && i < list.length; k++) out[list[i++].key] = 'area:' + o.key; });
+  return out;
 }
 
 // 가장 가까운 동네
@@ -144,8 +178,14 @@ export function hotelOf(s){
 // 담은 곳(하루 종일 쓰는 곳 제외)까지 평균 직선거리. 담은 곳이 없으면 null
 // 나눠 자기: s.nights { '그날 밤 YYYY-MM-DD': 숙소 후보 id } (함께 짜기로 공유). 정하지 않은 밤은 정한 숙소(hotelOf)
 //   값이 'area:동네키'면 숙소를 아직 안 정하고 동네만 정한 밤 (홍콩·선전처럼 밤마다 도시가 바뀔 때)
+//   정하지 않은 밤은, 동네·숙소를 아직 안 정했고 두 도시에 장소를 담았으면 나눠 자기 추천(suggestSplit)대로
+export function autoNight(s, key){
+  if((s.hotelArea && AREAS[s.hotelArea]) || (s.hotels || []).some(x => x.id === s.hotelPick && x.lat != null && inRegion(x))) return null;
+  const sp = suggestSplit(s); const v = sp && splitNights(s, sp)[key]; return v ? v.slice(5) : null;
+}
 export function nightHotel(s, key){
-  const id = s.nights && s.nights[key];
+  let id = s.nights && s.nights[key];
+  if(!id){ const ak = autoNight(s, key); if(ak) id = 'area:' + ak; }
   if(id && id.startsWith('area:')){ const k = id.slice(5); if(AREAS[k]) return { key:k, ...AREAS[k], name:AREAS[k].name }; }
   const h = id && (s.hotels || []).find(x => x.id === id && x.lat != null && inRegion(x));
   return h ? hotelPt(h) : hotelOf(s);
@@ -215,7 +255,7 @@ export function orderNN(items, start){
 export function plan(s){
   const days = buildDays(s); const dh = dayHotels(s, days);
   const res = days.map((d, i) => ({ ...d, full:null, items:[], used:0, locked:isLocked(s, d), from:dh[i].from, to:dh[i].to }));
-  const hotel = hotelOf(s); const fa = fullAssign(s, days); const unassigned = []; const auto = [];
+  const hotel = hotelOf(s); const fa = fullAssign(s, days); const unassigned = []; const auto = []; const dc = dayCities(s, days);
   pickedPlaces(s).forEach(p => {
     if(p.full){
       const di = fa[p.id];
@@ -233,11 +273,12 @@ export function plan(s){
   auto.sort((a, b) => (groupMust[b.area]||0) - (groupMust[a.area]||0) || groupHours[b.area] - groupHours[a.area]
     || a.area.localeCompare(b.area) || (s.must[b.id]?1:0) - (s.must[a.id]?1:0) || b.hours - a.hours);
   auto.forEach(p => {
-    let best = null, bestCost = Infinity, blockedByClosed = false;
+    let best = null, bestCost = Infinity, blockedByClosed = false, blockedByCity = false;
     res.forEach(d => {
       if(d.full || d.locked) return;
       if(d.used + p.hours > d.cap + 0.01) return;
       if(p.closed && p.closed.includes(d.wd)){ blockedByClosed = true; return; }
+      if(offCity(dc[d.i], p)){ blockedByCity = true; return; }   // 그날 자는 도시가 아니면 국경 왕복이라 자동으로는 안 넣음 (손으로는 옮길 수 있음)
       let c;
       if(d.items.some(q => q.area === p.area)) c = dist(p, centroid(d.items)) * 0.2;
       else if(d.items.length){ const k = dist(p, centroid(d.items)); c = k <= 4 ? 1 + k : 8 + k; }
@@ -245,7 +286,7 @@ export function plan(s){
       if(c < bestCost){ bestCost = c; best = d; }
     });
     if(best){ best.items.push(p); best.used += p.hours; }
-    else unassigned.push({ p, why: blockedByClosed ? '남은 날짜가 휴무일이에요' : '시간이 모자라요' });
+    else unassigned.push({ p, why: blockedByCity ? `${CITY_KO[placeCity(p)] || '그 도시'}에서 자는 날에 시간이 없어요${blockedByClosed ? '(휴무일 포함)' : ''}. 다른 날로 옮기면 국경을 오가야 해요` : blockedByClosed ? '남은 날짜가 휴무일이에요' : '시간이 모자라요' });
   });
   res.forEach(d => { d.items = orderNN(d.items, d.from); });
   return { days:res, unassigned, hotel };
