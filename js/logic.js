@@ -269,10 +269,10 @@ export function plan(s){
     if(m != null && m >= 0 && m < res.length && !res[m].full){ res[m].items.push(p); res[m].used += p.hours; return; }
     auto.push(p);
   });
-  // 동네 단위로 묶기: 큰 묶음(그리고 꼭 갈 곳이 있는 묶음)부터 배치
+  // 꼭 갈 곳을 먼저 (시간이 모자라면 꼭 갈 곳이 아닌 곳이 빠지게), 그다음 동네 단위로 묶기: 큰 묶음(그리고 꼭 갈 곳이 있는 묶음)부터 배치
   const groupHours = {}, groupMust = {};
   auto.forEach(p => { groupHours[p.area] = (groupHours[p.area] || 0) + p.hours; if(s.must[p.id]) groupMust[p.area] = 1; });
-  auto.sort((a, b) => (groupMust[b.area]||0) - (groupMust[a.area]||0) || groupHours[b.area] - groupHours[a.area]
+  auto.sort((a, b) => (s.must[b.id]?1:0) - (s.must[a.id]?1:0) || (groupMust[b.area]||0) - (groupMust[a.area]||0) || groupHours[b.area] - groupHours[a.area]
     || a.area.localeCompare(b.area) || (s.must[b.id]?1:0) - (s.must[a.id]?1:0) || b.hours - a.hours);
   auto.forEach(p => {
     let best = null, bestCost = Infinity, blockedByClosed = false, blockedByCity = false;
