@@ -42,6 +42,19 @@ test('밤을 안 정해도 추천대로 자고, 그날 자는 도시가 아닌 �
   } finally { D.useRegion('tokyo'); }
 });
 
+test('시간이 모자라면 꼭 갈 곳이 아닌 곳이 빠짐 (꼭 갈 곳은 모두 일정에)', async () => {
+  await D.loadRegion('hksz');
+  try{
+    const s = trip(); s.must = { hk_disney:true, sz_pingan:true, sz_dji:true, sz_huaqiangbei:true };
+    s.nights = { '2026-12-06':'area:tst', '2026-12-07':'area:tst', '2026-12-08':'area:futian', '2026-12-09':'area:futian' };
+    const P = plan(s); const out = new Set(P.unassigned.map(u => u.p.id));
+    Object.keys(s.must).forEach(id => assert.ok(!out.has(id), `${id} 빠짐`));
+    assert.ok(P.unassigned.length > 0, '이 여행은 시간이 모자라서 몇 곳은 빠져야 함');
+    // 짐 들고 국경 넘는 날은 2시간 빼고
+    const cross = P.days.find(d => d.cross); assert.ok(cross); assert.equal(cross.cap, 5);
+  } finally { D.useRegion('tokyo'); }
+});
+
 test('밤마다 직접 정한 동네가 추천보다 먼저, 한 동네를 정하면 추천은 꺼짐', async () => {
   await D.loadRegion('hksz');
   try{
