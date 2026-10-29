@@ -373,6 +373,10 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .rainbox h3{font-size:15px}
 .ralt{display:flex; flex-direction:column; gap:2px}
 .ralt .implist .imp:first-child{border-top:0}
+.tday{border-top:1px dashed var(--rule); padding-top:8px; display:flex; flex-direction:column; gap:4px}
+.tday h3{font-size:14px}
+.tlegs{list-style:none; margin:0; padding:0; font-size:13px; display:flex; flex-direction:column; gap:3px; overflow-wrap:anywhere}
+.tout{color:var(--warn)}
 
 /* 안전·긴급 정보 */
 #sosBtn{border-color:var(--warn); color:var(--warn)}
