@@ -1,7 +1,7 @@
 // 실행: npm test
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { roundLoc, shouldSend, canShareLoc, locExpired, ageText, locList, kmText, locMapUrl } from '../js/loc.js';
+import { roundLoc, shouldSend, canShareLoc, locExpired, ageText, locList, kmText, locMapUrl, expiredLocs } from '../js/loc.js';
 
 test('올릴 위치는 약 10m로 줄임', () => {
   assert.deepEqual(roundLoc({ latitude:35.714765, longitude:139.796655, accuracy:23.6 }), { lat:35.7148, lng:139.7967, acc:24 });
@@ -63,4 +63,12 @@ test('거리·지도 링크', () => {
   assert.equal(kmText(0.001), '10m');
   assert.equal(kmText(2.34), '2.3km');
   assert.equal(locMapUrl({ lat:35.7, lng:139.8 }), 'https://www.google.com/maps/search/?api=1&query=35.7,139.8');
+});
+
+test('끝난 여행의 위치: 주인은 모두, 다른 사람은 자기 것만 지움', () => {
+  const docs = [{ uid:'a', until:'2027-03-11' }, { uid:'b', until:'2027-03-11' }, { uid:'c', until:'2027-03-20' }, { uid:'d' }];
+  assert.deepEqual(expiredLocs(docs, { today:'2027-03-12', myUid:'a', isOwner:true }), ['a', 'b']);
+  assert.deepEqual(expiredLocs(docs, { today:'2027-03-12', myUid:'b', isOwner:false }), ['b']);
+  assert.deepEqual(expiredLocs(docs, { today:'2027-03-11', myUid:'a', isOwner:true }), []);
+  assert.deepEqual(expiredLocs(null, { today:'2027-03-12', myUid:'a', isOwner:true }), []);
 });
