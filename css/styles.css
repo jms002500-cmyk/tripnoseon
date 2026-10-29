@@ -50,6 +50,15 @@ p{margin:0}
 .top{position:sticky; top:env(safe-area-inset-top, 0px); z-index:5; background:var(--paper); padding-block:12px 10px;
   display:flex; flex-direction:column; gap:12px}
 .brandrow{display:flex; align-items:center; justify-content:space-between; gap:12px}
+.net{border-radius:10px; padding:8px 12px; font-size:13px; line-height:1.45; background:var(--warn-soft); color:var(--ink); border-left:4px solid var(--warn)}
+.net b{color:var(--warn); margin-right:4px}
+.net summary{cursor:pointer; list-style:none}
+.net summary::-webkit-details-marker{display:none}
+.net summary::after{content:" 자세히"; color:var(--muted); text-decoration:underline; text-underline-offset:2px}
+.net details[open] summary::after{content:" 접기"}
+.net p{margin-top:4px; color:var(--muted)}
+.net.back{background:var(--surface); border-left-color:var(--good)}
+.net.back b{color:var(--good)}
 .brand{display:flex; align-items:baseline; gap:8px}
 .logo{font:400 22px/1 var(--f-display); letter-spacing:.02em}
 .tag{font:500 11px/1 var(--f-mono); color:var(--muted); letter-spacing:.08em; text-transform:uppercase;

@@ -72,7 +72,8 @@ export async function joinTrip(id, user){
 
 // 여행 문서 실시간 감시. onData(data | null), onError(code)
 export function watchTrip(id, onData, onError){
-  return F.fs.onSnapshot(tripRef(id), snap => onData(snap.exists() ? snap.data() : null), e => onError(e && e.code || 'error'));
+  // 두 번째 값: 아직 서버가 받지 않은 이 기기의 변경이 섞여 있는지
+  return F.fs.onSnapshot(tripRef(id), snap => onData(snap.exists() ? snap.data() : null, snap.metadata.hasPendingWrites), e => onError(e && e.code || 'error'));
 }
 
 export async function pushChanges(id, user, changes){

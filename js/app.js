@@ -20,6 +20,7 @@ import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } 
 import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blobToB64, b64ToBlob } from './backup.js';
 import { sizeText } from './vault.js';
 import * as SH from './share.js';
+import { netBanner } from './net.js';
 import { sharedOf, diffShared, applyRemote, inviteLink, parseJoin, describeChange, voteSummary, DELETE } from './sharecore.js';
 
 const S_KEY = 'tripnoseon-v1';
@@ -148,6 +149,14 @@ async function startShare(){
 
 function unwatch(){ unsubs.forEach(f => { try{ f(); }catch(e){} }); unsubs = []; }
 
+// 서버가 받아 준 마지막 공유 일정을 이 기기에도 남김(BASE_KEY). 지하철처럼 끊긴 곳에서 고치고 앱을 닫았다가
+// 다시 열어도, 그 기준과 지금 일정의 차이를 '아직 못 올린 내 변경'으로 보고 서버 일정 위에 다시 얹어 올림
+const BASE_KEY = 'tripnoseon-synced';
+function loadBase(id){ try{ const b = JSON.parse(localStorage.getItem(BASE_KEY) || 'null'); return b && b.id === id ? b.p : null; }catch(e){ return null; } }
+function saveBase(id, p){ try{ localStorage.setItem(BASE_KEY, JSON.stringify({ id, p })); }catch(e){} }
+// 다음에 받는 서버 일정을 그대로 따름 (참여·백업 되돌리기·공유 끊기)
+function forgetSync(){ lastSynced = null; try{ localStorage.removeItem(BASE_KEY); }catch(e){} }
+
 // 'p.key' / 'p.key.id' 경로의 값을 상태에 직접 넣기 (아직 못 올린 내 변경을 서버 일정 위에 다시 얹을 때)
 function setPath(s, path, v){
   const [, key, sub] = path.split('.');
@@ -158,7 +167,7 @@ function setPath(s, path, v){
 
 function watchTrip(){
   unwatch(); const id = state.shareId; if(!id) return;
-  unsubs.push(SH.watchTrip(id, data => {
+  unsubs.push(SH.watchTrip(id, (data, mine) => {
     if(state.shareId !== id) return;
     if(!data){ stopShare('공유 여행이 지워졌어요. 이 기기의 일정은 그대로 남아요.'); return; }
     const s = state;
@@ -166,9 +175,12 @@ function watchTrip(){
     s.sh.votes = data.votes || {};
     if(data.p){
       // 아직 서버에 못 올린 내 변경을 기억했다가, 서버 일정을 받은 뒤 그 위에 다시 얹음 (서로 덮어쓰지 않게)
-      const pending = lastSynced ? diffShared(lastSynced, sharedOf(s)) : [];
+      //   앱을 막 열었으면 이 기기에 남긴 기준으로 (끊긴 동안 고친 것)
+      const base = lastSynced || loadBase(id);
+      const pending = base ? diffShared(base, sharedOf(s)) : [];
       applyRemote(s, data.p);
       lastSynced = sharedOf(s);
+      if(!mine) saveBase(id, lastSynced);   // 아직 서버가 안 받은 내 변경이 섞인 일정은 기준으로 남기지 않음
       pending.forEach(([path, v]) => setPath(s, path, v));
       saveLocal();
       if(pending.length) schedulePush();
@@ -184,7 +196,7 @@ function watchTrip(){
 
 // 이 기기에서 공유를 끊음 (일정은 마지막 상태 그대로 남김)
 function stopShare(msg){
-  unwatch(); clearTimeout(pushTimer); pushTimer = null; lastSynced = null;
+  unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();
   const s = state; s.shareId = null; s.sh.trip = null; s.sh.votes = {}; s.sh.comments = []; s.sh.log = []; s.sh.cmPlace = null; s.sh.msg = msg || '';
   saveLocal(); render();
 }
@@ -198,7 +210,11 @@ async function pushNow(){
   const s = state, id = s.shareId, u = s.sh.user; if(!id || !u || !lastSynced) return;
   const next = sharedOf(s); const changes = diffShared(lastSynced, next); if(!changes.length) return;
   const prev = lastSynced; const text = describeChange(prev, next); lastSynced = next;
-  try{ await SH.pushChanges(id, u, changes); if(text) SH.addLog(id, u, text).catch(() => {}); }
+  try{
+    await SH.pushChanges(id, u, changes);   // 끊긴 동안은 다시 연결돼 서버가 받을 때까지 기다림
+    if(state.shareId === id){ const b = loadBase(id); if(b){ changes.forEach(([path, v]) => setPath(b, path, v)); saveBase(id, b); } }
+    if(text) SH.addLog(id, u, text).catch(() => {});
+  }
   catch(e){ if(state.shareId === id){ lastSynced = prev; s.sh.msg = '바뀐 내용을 공유 여행에 올리지 못했어요. 잠시 후 다시 고쳐 보세요.'; render(); } }
 }
 
@@ -214,7 +230,7 @@ async function shareAct(a, v){
         const title = (document.getElementById('sharetitle')?.value || '').trim().slice(0, 40) || '함께 짜는 여행';
         sh.busy = true; render();
         const newId = await SH.createTrip(u, title, sharedOf(s));
-        s.shareId = newId; lastSynced = sharedOf(s); sh.busy = false; saveLocal(); watchTrip();
+        s.shareId = newId; lastSynced = sharedOf(s); saveBase(newId, lastSynced); sh.busy = false; saveLocal(); watchTrip();
         SH.addLog(newId, u, '공유 여행을 만듦').catch(() => {});
         break;
       }
@@ -223,7 +239,7 @@ async function shareAct(a, v){
         sh.busy = true; render();
         try{ localStorage.setItem(BK_KEY, JSON.stringify(s, (k, val) => k === 'sh' ? undefined : val)); }catch(e){}
         try{ await SH.joinTrip(jid, u); }catch(e){ /* 이미 참여한 여행이면 규칙상 거절됨 → 그대로 열어 봄 */ }
-        unwatch(); clearTimeout(pushTimer); lastSynced = null;   // 첫 일정은 서버 것을 그대로 받음
+        unwatch(); clearTimeout(pushTimer); forgetSync();   // 첫 일정은 서버 것을 그대로 받음
         s.shareId = jid; sh.pendingJoin = null; sh.busy = false; sh.hasBackup = true; saveLocal(); watchTrip();
         SH.addLog(jid, u, '여행에 참여함').catch(() => {});
         break;
@@ -292,6 +308,7 @@ document.addEventListener('focusout', () => { if(renderLater){ renderLater = fal
 
 function render(){
   const s = state;
+  renderNet();
   document.getElementById('line').innerHTML =
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
@@ -463,7 +480,7 @@ async function doRestore(){
     try{ await putFile(f.fid, { blob:b64ToBlob(f.data, f.type), name:f.name, type:f.type, size:f.size }); }catch(e){ failed++; }
   }
   if(rs.data.rakuten && rs.data.rakuten.key){ try{ localStorage.setItem(RK_KEY, JSON.stringify(rs.data.rakuten)); }catch(e){} }
-  unwatch(); clearTimeout(pushTimer); pushTimer = null; lastSynced = null;   // 공유 여행이면 서버 일정을 그대로 받음
+  unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();   // 공유 여행이면 서버 일정을 그대로 받음
   state = restoreState(rs.data); state.rkOn = !!rkKeys(); state.sh = sh;
   sh.restore = null; sh.bkbusy = false; sh.hasRestoreUndo = true;
   sh.bkmsg = failed ? `백업으로 바꿨지만 첨부 ${failed}개는 저장 공간이 모자라 넣지 못했어요.` : '백업으로 바꿨어요.';
@@ -476,7 +493,7 @@ function undoRestore(){
   let prev = null; try{ prev = JSON.parse(localStorage.getItem(RS_KEY) || 'null'); }catch(e){}
   if(!prev) return;
   const sh = state.sh;
-  unwatch(); clearTimeout(pushTimer); pushTimer = null; lastSynced = null;
+  unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();
   state = restoreState({ state:prev }); state.rkOn = !!rkKeys(); state.sh = sh;
   try{ localStorage.removeItem(RS_KEY); }catch(e){}
   sh.hasRestoreUndo = false; sh.bkmsg = '백업으로 바꾸기 전 상태로 돌아왔어요.';
@@ -866,6 +883,28 @@ document.addEventListener('submit', onSubmit);
     startShare();
   } else if(state.shareId) startShare();
 }
+/* ---------- 인터넷 연결 안내 띠 (js/net.js) ---------- */
+const NET_KEY = 'tripnoseon-online-at';   // 마지막으로 연결돼 있던 때 (이 기기에만)
+let netBack = false, netBackTimer = null;
+function markOnline(){ try{ localStorage.setItem(NET_KEY, String(Date.now())); }catch(e){} }
+function renderNet(){
+  const el = document.getElementById('net'); if(!el) return;
+  if(navigator.onLine) markOnline();
+  let at = null; try{ at = +localStorage.getItem(NET_KEY) || null; }catch(e){}
+  const b = netBanner({ online:navigator.onLine, back:netBack, at, now:Date.now(), shared:!!state.shareId });
+  el.hidden = !b; if(!b){ el.innerHTML = ''; return; }
+  el.className = 'net ' + b.kind;
+  const head = `<b>${b.title}</b>${b.text ? ` <span>${b.text}</span>` : ''}`;
+  const open = !!el.querySelector('details[open]');   // 펼쳐 둔 채로 다시 그려도 접히지 않게
+  el.innerHTML = b.more ? `<details${open ? ' open' : ''}><summary>${head}</summary><p>${b.more}</p></details>` : head;
+}
+window.addEventListener('offline', () => { netBack = false; clearTimeout(netBackTimer); renderNet(); });
+window.addEventListener('online', () => {
+  netBack = true; renderNet(); clearTimeout(netBackTimer);
+  netBackTimer = setTimeout(() => { netBack = false; renderNet(); }, 4000);
+  if(state.shareId && !userWatching) startShare();   // 끊긴 채로 앱을 열어 함께 짜기를 못 불러왔으면 다시
+});
+
 // 여행 중 그날 처음 열면 오늘 하루 화면부터 (계획으로 돌아가면 그날은 다시 안 띄움)
 { const td = ymd(new Date()); if(shouldAutoOpen(state, td)){ state.mode = 'today'; state.tday = null; state.todayOpened = td; saveLocal(); } }
 render();
