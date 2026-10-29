@@ -1,6 +1,8 @@
 // 오프라인 지원: 네트워크 우선, 실패하면 저장해 둔 사본으로.
 // 파일 목록을 바꾸면 CACHE 이름의 숫자를 올려 주세요.
-const CACHE = 'tripnoseon-v28';
+// GitHub Pages는 파일을 10분 동안 브라우저 캐시에 두라고 해서, 앱 파일은 늘 서버에 새것인지 물어봄(no-cache).
+// 안 그러면 새 버전을 올려도 10분 동안 옛 파일과 새 파일이 섞여 열릴 수 있음(2026-10-29 실제 폰에서 확인)
+const CACHE = 'tripnoseon-v29';
 const SHELL = [
   './', './index.html', './css/styles.css', './manifest.webmanifest',
   './js/app.js', './js/data.js', './js/logic.js', './js/map.js', './js/ui.js', './js/views.js',
@@ -9,7 +11,7 @@ const SHELL = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache:'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -18,10 +20,11 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if(e.request.method !== 'GET') return;
+  const same = new URL(e.request.url).origin === location.origin;
   e.respondWith(
-    fetch(e.request)
+    fetch(same ? e.request.url : e.request, same ? { cache:'no-cache' } : undefined)   // 페이지 이동 요청은 Request로 다시 만들 수 없어서 주소로
       .then(res => {
-        if(res.ok && new URL(e.request.url).origin === location.origin){
+        if(res.ok && same){
           const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy));
         }
         return res;
