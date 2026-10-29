@@ -2,7 +2,7 @@
 //   종류(types) → 장소 종류(KINDS)·실내 여부·머무는 시간
 //   영업시간(regularOpeningHours.periods) → 그 시간 영업 여부, 쉬는 요일(일정 짜기가 피함)
 //   이미 있는 도쿄 장소 65곳과 같은 곳이면 새로 만들지 않고 그 장소를 씀
-// 구글 이용 약관: 장소 ID는 계속 저장해도 되고, 좌표 등은 오래 저장하지 않게 받은 날(gAt)을 남김 (출시 전 30일마다 새로 받기)
+// 구글 이용 약관: 장소 ID는 계속 저장해도 되고, 좌표 등은 30일 넘게 두지 않게 받은 날(gAt)을 남기고 앱을 열 때 새로 받음(staleGoogle·applyRefresh)
 import { PLACES } from './data.js';
 import { dist } from './logic.js';
 import { nearestArea } from './gimport.js';
@@ -80,6 +80,22 @@ export function toCustom(g, newId, now){
     addr:String(g.addr || '').slice(0, 120), gAt:now || Date.now() };
   const cd = closedDays(g.periods); if(cd.length) p.closed = cd;
   return p;
+}
+
+// 새로 받을 구글 장소: 받은 지 REFRESH_DAYS일이 지난 것 (30일 전에 여유 있게)
+export const REFRESH_DAYS = 25;
+export function staleGoogle(custom, now){
+  const lim = REFRESH_DAYS * 86400000;
+  return (custom || []).filter(p => p && p.src === 'google' && p.gid && !(now - (p.gAt || 0) < lim));
+}
+// 새로 받은 구글 정보로 고침: 좌표·주소·동네·쉬는 요일·받은 날. 이름·종류·머무는 시간은 그대로(담을 때 정한 값)
+//   g: { id, lat, lng, addr, periods } (gmap.js refreshPlaces)
+export function applyRefresh(p, g, now){
+  if(!p || !g || !Number.isFinite(+g.lat) || !Number.isFinite(+g.lng)) return p;
+  const out = Object.assign({}, p, { lat:+g.lat, lng:+g.lng, area:nearestArea(g).key, gAt:now });
+  if(g.addr) out.addr = String(g.addr).slice(0, 120);
+  const cd = closedDays(g.periods); if(cd.length) out.closed = cd; else delete out.closed;
+  return out;
 }
 
 // 구글 지도 앱·웹으로 열기 (장소 ID가 있으면 정확히 그 장소)

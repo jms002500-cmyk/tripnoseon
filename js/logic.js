@@ -131,13 +131,30 @@ export function nearestArea(pt){
 }
 
 // 일정의 출발점. 숙소 후보를 정했으면 그 호텔 위치, 아니면 정한 동네(없으면 1순위 동네) 중심
+const hotelPt = h => { const k = h.area || nearestArea(h).key; return { ...AREAS[k], key:k, name:h.name, lat:h.lat, lng:h.lng, cand:true, hid:h.id }; };
 export function hotelOf(s){
   const h = (s.hotels || []).find(x => x.id === s.hotelPick && x.lat != null);
-  if(h){ const k = h.area || nearestArea(h).key; return { ...AREAS[k], key:k, name:h.name, lat:h.lat, lng:h.lng, cand:true }; }
+  if(h) return hotelPt(h);
   const k = s.hotelArea || rankAreas(s)[0].key; return { key:k, ...AREAS[k] };
 }
 
 // 담은 곳(하루 종일 쓰는 곳 제외)까지 평균 직선거리. 담은 곳이 없으면 null
+// 나눠 자기: s.nights { '그날 밤 YYYY-MM-DD': 숙소 후보 id } (함께 짜기로 공유). 정하지 않은 밤은 정한 숙소(hotelOf)
+export function nightHotel(s, key){
+  const id = s.nights && s.nights[key]; const h = id && (s.hotels || []).find(x => x.id === id && x.lat != null);
+  return h ? hotelPt(h) : hotelOf(s);
+}
+// 날마다 출발 숙소(전날 밤)·돌아갈 숙소(그날 밤). 첫날은 그날 밤 숙소에서, 마지막 날은 전날 밤 숙소로
+export function dayHotels(s, days){
+  return days.map((d, i) => {
+    const night = i < days.length - 1 || days.length === 1 ? nightHotel(s, d.key) : null;
+    const prev = i > 0 ? nightHotel(s, days[i - 1].key) : null;
+    return { from:prev || night, to:night || prev };
+  });
+}
+// 숙소를 옮기는지 (밤마다 숙소가 하나라도 다르면)
+export const isSplitStay = (s, days) => new Set(dayHotels(s, days).flatMap(h => [h.from.name, h.to.name])).size > 1;
+
 export function avgToPicks(s, pt){
   const ds = pickedPlaces(s).filter(p => !p.full).map(p => dist(pt, p));
   return ds.length ? ds.reduce((x,y) => x+y, 0)/ds.length : null;
@@ -189,7 +206,8 @@ export function orderNN(items, start){
 //  2) 사용자가 직접 옮긴 곳(s.assign) 배치 (-1은 빼두기)
 //  3) 나머지는 동네끼리 묶어서, 시간·휴무일을 지키며 가까운 날에 배치
 export function plan(s){
-  const days = buildDays(s); const res = days.map(d => ({ ...d, full:null, items:[], used:0, locked:isLocked(s, d) }));
+  const days = buildDays(s); const dh = dayHotels(s, days);
+  const res = days.map((d, i) => ({ ...d, full:null, items:[], used:0, locked:isLocked(s, d), from:dh[i].from, to:dh[i].to }));
   const hotel = hotelOf(s); const fa = fullAssign(s, days); const unassigned = []; const auto = [];
   pickedPlaces(s).forEach(p => {
     if(p.full){
@@ -216,13 +234,13 @@ export function plan(s){
       let c;
       if(d.items.some(q => q.area === p.area)) c = dist(p, centroid(d.items)) * 0.2;
       else if(d.items.length){ const k = dist(p, centroid(d.items)); c = k <= 4 ? 1 + k : 8 + k; }
-      else c = 5 + dist(p, hotel) * 0.1 + (d.kind === 'full' || d.kind === 'single' ? 0 : 2);
+      else c = 5 + (dist(p, d.from) + dist(p, d.to)) * 0.05 + (d.kind === 'full' || d.kind === 'single' ? 0 : 2);
       if(c < bestCost){ bestCost = c; best = d; }
     });
     if(best){ best.items.push(p); best.used += p.hours; }
     else unassigned.push({ p, why: blockedByClosed ? '남은 날짜가 휴무일이에요' : '시간이 모자라요' });
   });
-  res.forEach(d => { d.items = orderNN(d.items, hotel); });
+  res.forEach(d => { d.items = orderNN(d.items, d.from); });
   return { days:res, unassigned, hotel };
 }
 

@@ -10,9 +10,10 @@ export const walkMin = km => Math.max(1, Math.round(km * 1000 / WALK_M_PER_MIN))
 // 하루 일정 → 끼니 자리. 시작 10시(도착하는 날은 14시), 장소 사이 이동 30분으로 셈
 //   점심: 12:30에 있을(또는 막 나온) 장소 근처 / 저녁: 마지막 장소 근처(없으면 숙소)
 //   하루 종일 장소(디즈니)는 그 안에서 먹으니 점심은 빼고 저녁만 숙소 근처
-export function mealSlots(day, hotel){
+export function mealSlots(day, hotel, home){
+  home = home || hotel;   // 저녁 뒤 돌아갈 숙소 (나눠 자는 날은 다를 수 있음)
   const out = [];
-  if(day.full){ out.push({ meal:'dinner', time:'18:30', at:hotel, why:`${day.full.name} 다녀온 뒤 숙소 근처` }); return out; }
+  if(day.full){ out.push({ meal:'dinner', time:'18:30', at:home, why:`${day.full.name} 다녀온 뒤 숙소 근처` }); return out; }
   const items = day.items || [];
   const start = day.kind === 'arrive' ? 14 : 10;
   if(day.kind !== 'arrive' && items.length){
@@ -21,7 +22,7 @@ export function mealSlots(day, hotel){
     out.push({ meal:'lunch', time:'12:30', at, why:`${at.name} 근처` });
   } else if(day.kind !== 'arrive') out.push({ meal:'lunch', time:'12:30', at:hotel, why:'숙소 근처' });
   if(day.kind !== 'depart'){
-    const last = items.length ? items[items.length - 1] : hotel;
+    const last = items.length ? items[items.length - 1] : home;
     out.push({ meal:'dinner', time:'18:30', at:last, why:items.length ? `${last.name} 근처` : '숙소 근처' });
   }
   return out;

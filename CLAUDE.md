@@ -22,13 +22,13 @@
 5. **추천대로 가기와 내 색깔대로 담기를 둘 다** 열어 둔다. 추천에는 항상 이유를 붙인다("13살이 좋아할 곳"처럼 동행에 맞춰).
 6. 이미 좋은 앱이 있는 기능(번역, 길찾기)은 직접 만들지 않고 링크로 연결한다.
 
-## 현재 상태 (v0.22 시제품)
+## 현재 상태 (v0.23 시제품)
 
 GitHub Pages 배포, 상태는 브라우저 localStorage. 도쿄만 지원(장소 65곳·동네 9곳, `js/data.js`).
 **기능마다 자세한 동작·저장 칸·한계·파일 구조는 [`docs/FEATURES.md`](docs/FEATURES.md)** — 고치는 기능의 절만 찾아 읽고, 바꾸면 같이 고친다.
 
-- 계획: 동행 맞춤 추천(이유 표시)·꼭 갈 곳·장소 담기(구글 지도 시트 `gmap.js`/`gplace.js`, 테이크아웃 가져오기 `gimport.js`)·숙소 동네 순위·숙소 후보 비교·라쿠텐 빈방(`rakuten.js`, 한글 이름 `janame.js`)·사이트별 가격 비교(`prices.js`)·이맘때 날씨(`weather.js`)
-- 일정: 자동 초안(`logic.js plan`)·일차별 확정(`lockDay`)·비 오는 날 대안(`rain.js`)·식당 찾기(`food.js`)·교통패스(`transit.js`)·약도(`map.js`)·구글 길찾기 링크
+- 계획: 동행 맞춤 추천(이유 표시)·꼭 갈 곳·장소 담기(구글 지도 시트 `gmap.js`/`gplace.js`, 25일 지나면 새로 받기, 테이크아웃 가져오기 `gimport.js`)·숙소 동네 순위·숙소 후보 비교·라쿠텐 빈방(`rakuten.js`, 한글 이름 `janame.js`)·사이트별 가격 비교(`prices.js`)·이맘때 날씨(`weather.js`)
+- 일정: 자동 초안(`logic.js plan`)·나눠 자기(`nightHotel`/`dayHotels`)·이동 시간 어림(`transit.js legMinutes`)·일차별 확정(`lockDay`)·비 오는 날 대안(`rain.js`)·식당 찾기(`food.js`)·교통패스(`transit.js`)·약도(`map.js`)·구글 길찾기 링크
 - 여행 중: 오늘 하루(`today.js`, 장소에서 바로 비용)·준비물(`packing.js`)·보관함(`vault.js`/`vaultdb.js`)·가계부·정산·예산·엑셀·영수증 사진(`ledger.js`/`budget.js`/`ledgerexport.js`)·트리플 가져오기(`ledgerimport.js`)·긴급 정보(`safety.js`)·가족 위치(켜는 사람만, `loc.js`)·끊김 안내 띠(`net.js`)·백업(`backup.js`)
 - 함께 짜기: 구글 로그인·초대 링크·실시간 공동 편집·투표·의견·변경 기록(`share.js`/`sharecore.js`, `firestore.rules`)
 - PWA 오프라인(`sw.js`, 네트워크 우선)
@@ -79,4 +79,4 @@ npm test       # node --test, 설치할 패키지 없음
 
 ## 로드맵 (자세한 내용·출시 단계 결정은 docs/FEATURES.md)
 
-다음 후보: 구글에서 담은 곳 30일마다 다시 받기(구글 약관, `gAt`) · 나눠 자기(날짜별 다른 숙소) · 날짜별 실제 이동 경로·시간 · 출시 전 비용 논의(사용자와 따로)
+다음 후보: 실제로 써 보며 보완 (12/1부터는 버그만) · 출시 전 비용 논의(사용자와 따로)

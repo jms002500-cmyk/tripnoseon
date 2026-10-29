@@ -67,6 +67,21 @@ export function legSegments(a, b){
   return segs.concat(tail);
 }
 
+// 이동 시간 어림. 구글 길찾기 API(Routes)는 일본 대중교통 경로를 주지 않아서(2026-10 확인) 앱이 직선거리로 어림하고,
+// 정확한 시간·경로는 구글 지도 길찾기 링크로 봄
+export const WALK_KMH = 4.5;     // 걷기
+export const RAIL_KMH = 28;      // 지하철·전철 평균 (정차 포함)
+export const STATION_MIN = 10;   // 역까지 걷기·기다리기·역에서 나와 걷기
+export function legMinutes(a, b, segs){
+  segs = segs || legSegments(a, b);
+  if(!segs.length) return Math.max(3, Math.round(dist(a, b) * ROUTE_FACTOR / WALK_KMH * 60));
+  let m = STATION_MIN;
+  segs.forEach((x, i) => { const rk = x.km * ROUTE_FACTOR; m += rk / RAIL_KMH * 60; if(i) m += 5; if(x.kind === 'subway' && rk > 8) m += 4; });   // 갈아타기
+  return Math.max(5, Math.round(m / 5) * 5);
+}
+export const legMode = segs => !segs || !segs.length ? '걸어서' : segs.map(x => x.kind === 'subway' ? '지하철' : x.line).join(' → ');
+export const minText = m => m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}`;
+
 // 동행 → 요금 낼 사람: 어른(13살 이상), 아이(6~12살, 초등학생), 무료(6살 미만, 어른 1명당 2명까지)
 export function riders(s){
   const adultsBase = !s.who ? 1 : s.who === 'solo' ? 1 : Math.max(1, s.adults || 1);
@@ -80,12 +95,14 @@ export function riders(s){
 // 하루의 이동: 숙소 → 장소들(또는 하루 종일 장소) → 숙소
 export function dayTrips(d, hotel){
   const stops = d.full ? [d.full] : (d.items || []);
-  if(!stops.length) return { legs:[], rides:0, fareA:0, fareC:0, outs:[] };
-  const pts = [hotel].concat(stops, [hotel]);
-  const legs = []; for(let i = 1; i < pts.length; i++) legs.push({ from:pts[i-1], to:pts[i], km:dist(pts[i-1], pts[i]), segs:legSegments(pts[i-1], pts[i]) });
+  if(!stops.length) return { legs:[], rides:0, fareA:0, fareC:0, outs:[], travelMin:0 };
+  const pts = [d.from || hotel].concat(stops, [d.to || hotel]);   // 나눠 자는 날은 출발·돌아갈 숙소가 다름
+  const legs = []; for(let i = 1; i < pts.length; i++){ const segs = legSegments(pts[i-1], pts[i]);
+    legs.push({ from:pts[i-1], to:pts[i], km:dist(pts[i-1], pts[i]), segs, min:legMinutes(pts[i-1], pts[i], segs), mode:legMode(segs) }); }
   const subs = legs.flatMap(l => l.segs.filter(x => x.kind === 'subway'));
   const outs = legs.flatMap(l => l.segs.filter(x => x.kind === 'out'));
-  return { legs, rides:subs.length, fareA:subs.reduce((t, x) => t + x.fare, 0), fareC:subs.reduce((t, x) => t + childFare(x.fare), 0), outs };
+  return { legs, rides:subs.length, fareA:subs.reduce((t, x) => t + x.fare, 0), fareC:subs.reduce((t, x) => t + childFare(x.fare), 0), outs,
+    travelMin:Math.round(legs.reduce((t, l) => t + l.min, 0) / 5) * 5 };   // 하루 합계는 5분 단위
 }
 
 // 일정 P(logic.plan) 전체 계산. 가장 싼 조합을 날짜 순서대로 찾음(패스는 연속한 날에만)

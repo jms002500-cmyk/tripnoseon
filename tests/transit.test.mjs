@@ -111,3 +111,23 @@ test('일정이 바뀌어도 계산이 일정과 같은 날 수', () => {
   const gd = t.days.find(d => d.legs.some(l => l.to.id === 'ghibli'));
   assert.ok(gd.outs.some(o => o.line === 'JR 주오선'));
 });
+
+test('이동 시간 어림: 걷기·지하철·패스 밖 갈아타기', async () => {
+  const { legMinutes, legMode, minText, dayTrips } = await import('../js/transit.js');
+  const asakusa = { lat:35.7148, lng:139.7967 }, near = { lat:35.7101, lng:139.8107 }, shibuya = { lat:35.6580, lng:139.7016 };
+  const tdl = { lat:35.6329, lng:139.8804, area:'maihama' };
+  const walk = legMinutes(asakusa, { lat:35.7180, lng:139.7967 });
+  assert.ok(walk >= 3 && walk <= 10, `걷기 ${walk}`);
+  assert.equal(legMode([]), '걸어서');
+  const sub = legMinutes(asakusa, shibuya);
+  assert.ok(sub >= 30 && sub <= 50, `아사쿠사→시부야 ${sub}`);
+  const dis = legMinutes(asakusa, tdl);
+  assert.ok(dis >= 40 && dis <= 70, `아사쿠사→디즈니 ${dis}`);
+  assert.equal(sub % 5, 0);
+  assert.equal(minText(45), '45분'); assert.equal(minText(60), '1시간'); assert.equal(minText(75), '1시간 15분');
+  const T = dayTrips({ items:[near, shibuya] }, asakusa);
+  assert.equal(T.legs.length, 3); assert.equal(T.travelMin, Math.round(T.legs.reduce((t, l) => t + l.min, 0) / 5) * 5);
+  // 나눠 자는 날: 출발·돌아갈 숙소가 다름
+  const T2 = dayTrips({ items:[shibuya], from:asakusa, to:tdl }, asakusa);
+  assert.equal(T2.legs[1].to, tdl);
+});

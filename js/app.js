@@ -7,9 +7,9 @@ import { suggestPacking, missingSuggestions, seedItems, customItems } from './pa
 import { swapPlan, undoSwap } from './rain.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
-import { openMap, nearbyFood } from './gmap.js';
+import { openMap, nearbyFood, refreshPlaces } from './gmap.js';
 import { mealSlots, foodKey } from './food.js';
-import { matchKnown, toCustom } from './gplace.js';
+import { matchKnown, toCustom, staleGoogle, applyRefresh } from './gplace.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx, convert } from './prices.js';
@@ -764,7 +764,8 @@ function act(a, v){
     case 'mapopen': openLiveMap(); return;
     case 'wxretry': ensureWeather(true); return;
     case 'hpick': s.hotelPick = s.hotelPick === v ? null : v; break;
-    case 'hdel': s.hotels = s.hotels.filter(h => h.id !== v); if(s.hotelPick === v) s.hotelPick = null; break;
+    case 'hdel': s.hotels = s.hotels.filter(h => h.id !== v); if(s.hotelPick === v) s.hotelPick = null;
+      s.nights = Object.fromEntries(Object.entries(s.nights || {}).filter(([, id]) => id !== v)); break;
     case 'hsort': s.hotelSort = v; break;
     case 'rksearch': rkSearch(v); return;
     case 'rkrefresh': rkRefresh(); return;
@@ -782,14 +783,14 @@ function act(a, v){
     case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
     case 'tfood': s.mode = 'today'; s.tday = +v; save(); render(); { const b = document.getElementById('foodbox'); if(b) b.scrollIntoView({ block:'start' }); } return;
     case 'ffind': {   // 끼니 자리 근처 식당 (구글)
-      const [di, k] = v.split('|').map(Number); const P = plan(s); const d = P.days[di]; const m = d && mealSlots(d, P.hotel)[k]; if(!m) return;
+      const [di, k] = v.split('|').map(Number); const P = plan(s); const d = P.days[di]; const m = d && mealSlots(d, d.from, d.to)[k]; if(!m) return;
       const key = foodKey(m.at); s.sh.food = Object.assign({}, s.sh.food, { [key]:{ busy:true } }); render();
       nearbyFood(m.at).then(items => { state.sh.food[key] = { items }; render(); })
         .catch(e => { console.warn('식당 찾기 실패', e); state.sh.food[key] = { err:e && e.message === 'nokey' ? '구글 지도 키를 넣으면 근처 식당을 찾을 수 있어요. 지금은 아래 \'구글 지도에서 더 보기\'를 써 주세요.' : '식당을 못 불러왔어요. 인터넷 연결을 확인하고 다시 눌러 주세요.' }; render(); });
       return;
     }
     case 'fadd': {   // 찾은 식당을 그날 일정에
-      const [di, k, rid] = v.split('|'); const P = plan(s); const d = P.days[+di]; const m = d && mealSlots(d, P.hotel)[+k];
+      const [di, k, rid] = v.split('|'); const P = plan(s); const d = P.days[+di]; const m = d && mealSlots(d, d.from, d.to)[+k];
       const r = m && ((s.sh.food || {})[foodKey(m.at)] || {}).items; const g = r && r.find(x => x.id === rid); if(!g) return;
       let p = (s.custom || []).find(c => c.gid === g.id);
       if(!p){ p = toCustom({ id:g.id, name:g.name, lat:g.lat, lng:g.lng, types:['restaurant'], periods:g.periods }, 'g' + Date.now().toString(36), Date.now()); s.custom.push(p); }
@@ -836,13 +837,14 @@ function act(a, v){
 function onChange(e){
   const t = e.target; const s = state;
   if(t.dataset.kid != null){ s.kids[+t.dataset.kid] = Math.min(17, Math.max(0, parseInt(t.value, 10) || 0)); }
-  else if(t.dataset.date){ if(!t.value) return; s[t.dataset.date] = t.value; s.fullDay = {}; s.assign = {}; s.dlock = {}; }
+  else if(t.dataset.date){ if(!t.value) return; s[t.dataset.date] = t.value; s.fullDay = {}; s.assign = {}; s.dlock = {}; s.nights = {}; }
   else if(t.dataset.full){
     // 다른 '하루 종일' 장소와 날짜가 겹치면 서로 맞바꿈
     const id = t.dataset.full; const nv = +t.value; const fa = fullAssign(s, buildDays(s)); const prev = fa[id];
     Object.keys(fa).forEach(k => { if(k !== id && fa[k] === nv) s.fullDay[k] = prev; });
     s.fullDay[id] = nv;
   }
+  else if(t.dataset.night){ const k = t.dataset.night; const o = Object.assign({}, s.nights); if(t.value) o[k] = t.value; else delete o[k]; s.nights = o; }
   else if(t.dataset.move){ const id = t.dataset.move; if(t.value === '') delete s.assign[id]; else s.assign[id] = +t.value; }
   else if(t.dataset.import != null){
     const f = t.files && t.files[0]; if(!f) return;
@@ -1016,10 +1018,28 @@ window.addEventListener('online', () => {
   if(state.shareId && !userWatching) startShare();   // 끊긴 채로 앱을 열어 함께 짜기를 못 불러왔으면 다시
 });
 
+/* ---------- 구글에서 담은 곳 새로 받기 (약관: 좌표 등은 30일 넘게 두지 않음, js/gplace.js) ---------- */
+// 앱을 열고 인터넷이 될 때 한 번, 받은 지 25일 지난 곳만 조용히. 함께 짜기 여행이면 고친 값이 가족에게도 감
+let gRefreshing = false;
+async function refreshGoogle(){
+  if(gRefreshing || !navigator.onLine) return;
+  const stale = staleGoogle(state.custom, Date.now()).slice(0, 30); if(!stale.length) return;
+  gRefreshing = true;
+  try{
+    const got = await refreshPlaces(stale.map(p => p.gid)); if(!got.length) return;
+    const now = Date.now(); const by = new Map(got.map(g => [g.id, g]));
+    state.custom = state.custom.map(p => p.src === 'google' && by.has(p.gid) ? applyRefresh(p, by.get(p.gid), now) : p);
+    save(); renderRemote();
+  }catch(e){ console.warn('구글 장소 새로 받기 실패', e); }
+  finally{ gRefreshing = false; }
+}
+window.addEventListener('online', () => setTimeout(refreshGoogle, 3000));
+
 // 여행 중 그날 처음 열면 오늘 하루 화면부터 (계획으로 돌아가면 그날은 다시 안 띄움)
 { const td = ymd(new Date()); if(shouldAutoOpen(state, td)){ state.mode = 'today'; state.tday = null; state.todayOpened = td; saveLocal(); } }
 render();
 if(state.step === VAULT_STEP) refreshUsage();
+setTimeout(refreshGoogle, 4000);   // 첫 화면을 먼저 그린 뒤
 
 // 오프라인 사용(홈 화면 앱). localhost 개발 중에는 캐시 때문에 헷갈리지 않게 등록하지 않음
 if('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)){
