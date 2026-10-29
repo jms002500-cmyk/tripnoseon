@@ -762,7 +762,7 @@ export function vVault(s){
   return `<section class="step">
     <p class="eyebrow">Step 8 · 보관함</p>
     <h1>예약과 티켓을 한곳에</h1>
-    <p class="lead">항공권·숙소·입장권·${REGION.key === 'tokyo' ? '입국 QR' : '입국카드'}을 모아 두면 공항·호텔·입구에서 인터넷 없이 바로 꺼내 보여 줄 수 있어요.</p>
+    <p class="lead">항공권·숙소·입장권·${REGION.key === 'tokyo' ? '입국 QR을' : '입국카드를'} 모아 두면 공항·호텔·입구에서 인터넷 없이 바로 꺼내 보여 줄 수 있어요.</p>
     <div class="box tip"><p>보관함은 <b>이 기기에만</b> 저장돼요. 예약번호·QR은 민감한 정보라 함께 짜기로 공유하지 않아요. 가족에게 줄 티켓은 사진을 열어 '보내기'로 전해 주세요.${s.sh && s.sh.vusage ? ` 이 앱이 기기에서 쓰는 저장 공간은 약 ${sizeText(s.sh.vusage)}이에요.` : ''}</p></div>
     ${miss.length ? `<div class="box"><h2>아직 보관함에 없는 예약<small>${miss.length}가지</small></h2>
       <ul class="implist">${miss.map((m, i) => `<li class="imp"><div class="sbody"><b>${kindOf(m.kind).icon} ${esc(m.title)}</b><span>${esc(m.why)}</span></div>
