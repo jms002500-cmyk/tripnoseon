@@ -1,7 +1,7 @@
 // 여행 지역 약도(SVG). 도쿄는 야마노테선·게이요선, 다른 지역은 데이터의 LINES를 그림. 실제 지도 타일 없이 위경도를 단순 투영해서 위치 관계만 보여줌.
 // 구글 지도 JS API를 붙이면 이 파일을 교체하면 됨.
 import { AREAS, YAMANOTE, KEIYO, DAY_COLORS, REGION, LINES } from './data.js';
-import { allPlaces, pickedPlaces, rankAreas } from './logic.js';
+import { allPlaces, pickedPlaces, rankAreas, buildDays, nightHotel } from './logic.js';
 import { esc } from './ui.js';
 
 // 지역마다 약도 범위가 다름 (data.js REGIONS의 bounds). mapSVG가 그릴 때마다 지금 지역으로 맞춤
@@ -44,9 +44,11 @@ export function mapSVG(mode, s, P){
 
   if(mode === 'stay'){
     const ranked = rankAreas(s); const chosen = s.hotelArea;
+    // 밤마다 자는 동네 (나눠 자면 여러 곳을 강조)
+    const sleep = new Set(buildDays(s).slice(0, -1).map(d => nightHotel(s, d.key).key)); const multi = sleep.size > 1;
     pickedPlaces(s).forEach(p => { const [x, y] = px(p); g += `<circle cx="${x}" cy="${y}" r="11" class="m-on"/>`; });
     ranked.forEach((r, i) => {
-      const [x, y] = px(r.a); const hi = chosen ? r.key === chosen : i === 0;
+      const [x, y] = px(r.a); const hi = chosen ? r.key === chosen : multi ? sleep.has(r.key) : i === 0;
       g += `<rect x="${x-19}" y="${y-19}" width="38" height="38" rx="8" class="m-hotel${hi ? ' best' : ''}"/><text x="${x}" y="${y+8}" text-anchor="middle" class="m-htext${hi ? ' best' : ''}">${i+1}</text>`;
     });
     // 숙소 후보: 마름모. 정한 숙소는 채워서 크게
@@ -60,9 +62,11 @@ export function mapSVG(mode, s, P){
   }
 
   if(mode === 'plan' && P){
-    const [hx, hy] = px(P.hotel);
+    // 날마다 그날 출발 숙소(d.from)에서 선을 그음 (나눠 자면 숙소가 여러 곳)
+    const homes = new Map(); P.days.forEach(d => [d.from, d.to].forEach(h => { if(h) homes.set(h.lat + ',' + h.lng, h); }));
+    if(!homes.size) homes.set('h', P.hotel);
     P.days.forEach(d => {
-      const col = DAY_COLORS[d.i % DAY_COLORS.length];
+      const col = DAY_COLORS[d.i % DAY_COLORS.length]; const [hx, hy] = px(d.from || P.hotel);
       if(d.full){
         const [x, y] = px(d.full);
         g += `<path d="M${hx} ${hy} L${x} ${y}" fill="none" stroke="${col}" stroke-width="5" stroke-dasharray="4 10" stroke-linecap="round"/>`;
@@ -80,7 +84,8 @@ export function mapSVG(mode, s, P){
         g += `<circle cx="${x}" cy="${y}" r="15" fill="${col}" stroke="#FFFFFF" stroke-width="3"/><text x="${x}" y="${y+6}" text-anchor="middle" class="m-num">${j+1}</text>`;
       });
     });
-    g += `<rect x="${hx-20}" y="${hy-20}" width="40" height="40" rx="8" class="m-hotel best"/><text x="${hx}" y="${hy+8}" text-anchor="middle" class="m-htext best">숙</text>`;   // 숙소 후보를 정했으면 그 호텔 위치
+    homes.forEach(h => { const [hx, hy] = px(h);
+      g += `<rect x="${hx-20}" y="${hy-20}" width="40" height="40" rx="8" class="m-hotel best"/><text x="${hx}" y="${hy+8}" text-anchor="middle" class="m-htext best">숙</text>`; });   // 그날 숙소(숙소 후보를 정했으면 그 호텔 위치)
     legend = P.days.map(d => `<span class="lg"><i style="background:${DAY_COLORS[d.i % DAY_COLORS.length]}"></i>${d.i+1}일차</span>`).join('')
       + `<span class="lg"><i style="background:var(--ink);border-radius:3px"></i>숙소</span>`;
   }

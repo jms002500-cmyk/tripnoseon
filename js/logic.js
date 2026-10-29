@@ -256,6 +256,8 @@ export function plan(s){
   const days = buildDays(s); const dh = dayHotels(s, days);
   const res = days.map((d, i) => ({ ...d, full:null, items:[], used:0, locked:isLocked(s, d), from:dh[i].from, to:dh[i].to }));
   const hotel = hotelOf(s); const fa = fullAssign(s, days); const unassigned = []; const auto = []; const dc = dayCities(s, days);
+  // 짐 들고 국경을 넘는 날(홍콩 → 선전 숙소)은 체크아웃·출입국에 2시간쯤 빼고 계산
+  res.forEach(d => { if(dc[d.i].size > 1){ d.cap = Math.max(2, d.cap - 2); d.cross = true; } });
   pickedPlaces(s).forEach(p => {
     if(p.full){
       const di = fa[p.id];
