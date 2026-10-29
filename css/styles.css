@@ -329,6 +329,20 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .ltx{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
 .ltx li{display:flex; align-items:center; gap:6px; flex-wrap:wrap; background:var(--accent-soft); border-radius:8px; padding:8px 10px}
 .ltx li span{margin-left:auto; font:600 15px var(--f-mono); color:var(--accent-ink)}
+/* 예산: 넘어도 빨간색 대신 진한 주황으로 부드럽게 */
+.bnums{margin:0; font-size:14px}
+.bnums b{font:600 24px/1.2 var(--f-mono)}
+.bmeter span{background:var(--accent)}
+.bmeter.bover span{background:var(--accent-ink)}
+.bnote{margin:0; font-size:14px}
+.bnote.bsoft{background:var(--accent-soft); color:var(--accent-ink); border-radius:8px; padding:8px 10px; font-weight:600}
+.bnote.bsoft .fine{color:var(--accent-ink); font-weight:400}
+.bcats li{grid-template-columns:5.5em 1fr auto}
+.bcats b.bsoftk{color:var(--accent-ink)}
+.bcatin{border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; min-width:0}
+.bcatin legend{font-size:13px; color:var(--muted); padding:0; margin-bottom:4px}
+.bcatin label{display:grid; grid-template-columns:6.5em 1fr; align-items:center; gap:10px; font-size:13.5px}
+.bcatin input{padding:7px 9px; border:1.5px solid var(--rule); border-radius:8px; background:var(--paper); color:var(--ink); font:inherit; width:100%; min-width:0; max-width:200px}
 .lrate{display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted)}
 .lrate input{padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--paper); color:var(--ink); font:inherit; width:100%; max-width:200px}
 .llist{list-style:none; margin:0; padding:0 14px; background:var(--surface); border:1px solid var(--rule); border-radius:14px}
