@@ -5,12 +5,11 @@
 //   2) 구글 테이크아웃 '지도(내 장소)'의 Saved Places.json (GeoJSON) — 좌표가 있을 수도 있음([0,0]이면 없음)
 //   3) 붙여넣은 글: 한 줄에 장소 이름 또는 구글 지도 링크 하나
 // 좌표가 없는 곳은 이름으로 위치 후보를 찾아(geocode.js) 사용자가 확인한 뒤 담음
-import { AREAS } from './data.js';
+import { AREAS, REGION } from './data.js';
 import { dist, nearestArea } from './logic.js';
 export { nearestArea };
 
-const TOKYO = { lat:35.6812, lng:139.7671 };
-export const MAX_KM = 80;     // 도쿄역에서 이보다 멀면 잘못 찾은 위치로 봄 (가마쿠라·닛코 정도까지 허용)
+export const MAX_KM = 80;     // 도쿄역에서 이보다 멀면 잘못 찾은 위치로 봄 (가마쿠라·닛코 정도까지 허용). 다른 지역은 REGIONS의 radiusKm
 export const FAR_KM = 6;      // 가장 가까운 동네 중심에서 이보다 멀면 '동네 밖' 안내
 
 // 따옴표·줄바꿈이 들어간 칸까지 처리하는 CSV 파서
@@ -137,7 +136,7 @@ export function queryVariants(name){
 }
 
 // 도쿄 범위 안의 좌표인지 (이름 검색이 엉뚱한 지역을 찾았을 때 거르기)
-export function nearTokyo(pt){ return !!pt && okPt(pt.lat, pt.lng) && dist(TOKYO, pt) <= MAX_KM; }
+export function nearTokyo(pt){ return !!pt && okPt(pt.lat, pt.lng) && dist(REGION.center, pt) <= (REGION.radiusKm || MAX_KM); }   // 이름은 옛 그대로: 지금 여행 지역 범위 안인지
 
 // 가져오기 대기 목록의 한 줄 (상태 저장용). st: ok 위치 있음 | need 찾아야 함 | fail 못 찾음
 export function toRow(x, k){

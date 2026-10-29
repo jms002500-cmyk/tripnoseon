@@ -1,6 +1,6 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
-import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS } from './data.js';
+import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, disneyArea } from './data.js';
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as sosHotel, kidCardJa } from './safety.js';
@@ -14,10 +14,10 @@ import { nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, ful
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
-import { SITES, siteUrl, priceOptions } from './prices.js';
+import { SITES, siteUrl, priceOptions, sitesFor } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
 import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText, bookings, receiptOf } from './vault.js';
-import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDates, ledgerSummary, ledgerHint, money as lmoney, personUsed } from './ledger.js';
+import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDates, ledgerSummary, ledgerHint, money as lmoney, personUsed, mainCur, ratesOf, rateOf, CUR_NAME } from './ledger.js';
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
@@ -132,17 +132,17 @@ export function vWho(s){
 /* Step 2 · 여행지 */
 export function vWhere(s){
   const days = buildDays(s);
-  const countries = [['jp','일본',true],['kr','한국',false],['vn','베트남',false],['th','태국',false]];
-  const cities = [['tokyo','도쿄',true],['osaka','오사카',false],['fukuoka','후쿠오카',false],['sapporo','삿포로',false]];
+  const regions = [['tokyo','🇯🇵 도쿄',true],['hksz','🇭🇰 홍콩·🇨🇳 선전',true],['osaka','오사카',false],['fukuoka','후쿠오카',false]];
   const opt = (act, cur) => ([k, l, on]) => chip(act, k, on ? l : `${l}<span class="soon">준비 중</span>`, cur === k, !on);
+  const sh = s.sh || {};
   return `<section class="step">
     <p class="eyebrow">Step 2 · 여행지</p>
     <h1>어디로, 언제 가나요?</h1>
-    <p class="lead">큰 지역부터 정하고, 도쿄 안의 동네는 장소를 담으면서 자연스럽게 정해져요.</p>
-    <h2>나라</h2>
-    <div class="chips">${countries.map(opt('country', s.country)).join('')}</div>
-    <h2>도시</h2>
-    <div class="chips">${cities.map(opt('city', s.city)).join('')}</div>
+    <p class="lead">큰 지역부터 정하고, 그 안의 동네는 장소를 담으면서 자연스럽게 정해져요.</p>
+    <h2>여행 지역</h2>
+    <div class="chips">${regions.map(opt('city', s.city)).join('')}</div>
+    ${sh.cityMsg ? `<p class="warnline">${esc(sh.cityMsg)}</p>` : ''}
+    ${s.city === 'hksz' ? '<p class="fine">홍콩과 선전을 한 여행으로 짜요. 국경을 넘는 날은 이동 시간에 출입국 시간을 더하고, 숙소 동네 단계에서 밤마다 홍콩·선전 숙소를 나눠 정할 수 있어요.</p>' : ''}
     <h2>날짜</h2>
     <div class="dates">
       <label for="dstart">가는 날<input id="dstart" type="date" value="${s.start}" data-date="start"></label>
@@ -181,7 +181,7 @@ function weatherBox(s){
   </div>`;
 }
 
-const CITY_NAME = { tokyo:'도쿄' };
+const CITY_NAME = { tokyo:'도쿄', hksz:'홍콩·선전' };
 
 // 종류 거르기 칩. 목록에 있는 종류만, 개수와 함께
 function kindChips(act, cur, items){
@@ -351,11 +351,11 @@ function money(s, v){ return CURRENCY[s.hotelCur].sign + Math.round(v).toLocaleS
 
 // 숙소 카드 안 '사이트별 가격 비교': 사이트 열기(숙소 이름 복사) + 본 가격 적기 + 가장 싼 곳 표시
 function priceCompare(h, s, r){
-  const opts = priceOptions(h, s.hotelCur, s.fx && s.fx.rate);
+  const opts = priceOptions(h, s.hotelCur, ratesOf(s));
   const best = r.best; const filled = Object.values(h.prices || {}).filter(p => p.v > 0).length;
   const curOpts = cur => Object.entries(CURRENCY).map(([k, v]) => `<option value="${k}"${cur === k ? ' selected' : ''}>${v.sign}</option>`).join('');
   const base = opts.find(o => o.key === 'base');
-  const rows = SITES.map(site => { const p = (h.prices || {})[site.key] || {}; const isBest = best && best.key === site.key;
+  const rows = sitesFor(s).map(site => { const p = (h.prices || {})[site.key] || {}; const isBest = best && best.key === site.key;
     return `<li class="pcrow${isBest ? ' best' : ''}">
       <a class="link" href="${esc(siteUrl(site, h, s))}" target="_blank" rel="noopener noreferrer" data-copy="${esc(h.name)}">${esc(site.label)} ↗</a>
       <div class="pcin"><select data-hpcur="${esc(h.id)}|${site.key}" aria-label="${esc(site.label)} 통화">${curOpts(p.cur || site.cur)}</select><input type="number" min="0" step="1" inputmode="numeric" data-hprice="${esc(h.id)}|${site.key}" value="${p.v > 0 ? p.v : ''}" placeholder="1박" aria-label="${esc(site.label)} 1박 가격"></div>
@@ -365,7 +365,7 @@ function priceCompare(h, s, r){
     <summary>사이트별 가격 비교${filled ? ` · ${filled}곳 입력` : ''}${best ? ` · 최저 ${esc(best.label)}` : ''}</summary>
     ${base ? `<p class="fine">${esc(base.label)}: ${money(s, base.value)}${best && best.key === 'base' ? ' · 최저 ✓' : ''}</p>` : ''}
     <ul class="pclist">${rows}</ul>
-    <p class="fine">사이트 이름을 누르면 숙소 이름이 복사되고 그 사이트가 열려요. 검색창에 붙여넣어 같은 숙소를 찾은 뒤, 객실 1개·세금 포함 <b>1박</b> 가격을 적어 주세요. 날짜·인원은 ${SITES.filter(x => !x.home).map(x => x.label).join('·')}에 미리 채워져요(아이 인원은 사이트에서 한 번 더 확인).</p>
+    <p class="fine">사이트 이름을 누르면 숙소 이름이 복사되고 그 사이트가 열려요. 검색창에 붙여넣어 같은 숙소를 찾은 뒤, 객실 1개·세금 포함 <b>1박</b> 가격을 적어 주세요. 날짜·인원은 ${sitesFor(s).filter(x => !x.home).map(x => x.label).join('·')}에 미리 채워져요(아이 인원은 사이트에서 한 번 더 확인).</p>
   </details>`;
 }
 
@@ -461,9 +461,9 @@ function hotelSection(s, areaKey){
       <p class="fine">${esc(AREAS[areaKey].name)}에서 찾아보기</p>
       ${hotelSearchLinks(s, areaKey)}
     </div>
-    ${rakutenBox(s, areaKey)}
+    ${REGION.key === 'tokyo' ? rakutenBox(s, areaKey) : ''}   ${''/* 라쿠텐 트래블 API는 일본 숙소만 */}
     ${s.hotelMsg ? `<p class="warnline">${esc(s.hotelMsg)}</p>` : ''}
-    ${s.fx ? `<p class="fine">환율 1엔 ≈ ${s.fx.rate.toFixed(2)}원 (${esc(s.fx.date)}, ${esc(s.fx.src)}). 통화가 다른 가격은 이 환율로 바꿔 비교해요.</p>` : ''}
+    ${s.fx && rateOf(s) > 0 ? `<p class="fine">환율 1${(CURRENCY[mainCur(s)] || {}).label || '엔'} ≈ ${rateOf(s).toFixed(2)}원 (${esc(s.fx.date)}, ${esc(s.fx.src)}). 통화가 다른 가격은 이 환율로 바꿔 비교해요.</p>` : ''}
     ${c.rows.length > 1 ? `<div class="chips" role="group" aria-label="정렬">${chip('hsort', 'place', '위치 좋은 순', s.hotelSort !== 'price')}${chip('hsort', 'price', '1박 싼 순', s.hotelSort === 'price')}</div>` : ''}
     ${c.rows.length ? `<div class="list">${c.rows.map((r, i) => hotelCard(r, i, s, c)).join('')}</div>` : ''}
     ${c.noLoc.length ? `<div class="box"><h2>위치를 확인할 후보</h2><ul class="implist">${c.noLoc.map(h => hotelNoLoc(h, s)).join('')}</ul>
@@ -491,7 +491,7 @@ function nightsBox(s, hasDisney){
   const nightsList = days.slice(0, -1); const pick = cands.find(h => h.id === s.hotelPick);
   const count = {}; nightsList.forEach(d => { const n = nightHotel(s, d.key).name; count[n] = (count[n] || 0) + 1; });
   const moves = days.slice(1, -1).filter((d, i) => nightHotel(s, nightsList[i].key).name !== nightHotel(s, d.key).name).map(d => d.label);
-  const disneyHint = hasDisney && cands.some(h => (h.area || '') === 'maihama' || /마이하마|舞浜|디즈니|ディズニー/.test(h.name));
+  const disneyHint = hasDisney && cands.some(h => (h.area || '') === disneyArea() || /마이하마|舞浜|디즈니|ディズニー|迪士尼|Disney/i.test(h.name));
   return `<div class="box" id="nightsbox">
     <h2>밤마다 어디서 잘까요?<small>나눠 자기</small></h2>
     <p class="fine">정하지 않은 밤은 ${pick ? `정한 숙소(${esc(pick.name)})` : '1순위 동네'}에서 자요. 숙소를 바꾸면 그날 일정·오늘 하루·교통패스·식당 찾기가 출발·돌아갈 숙소를 따라가요.${disneyHint ? ' 디즈니 가는 날 전날 밤만 마이하마 숙소로 정하면 아침 이동이 없어져요.' : ''}</p>
@@ -506,7 +506,7 @@ function nightsBox(s, hasDisney){
 /* Step 5 · 숙소 동네 */
 export function vStay(s){
   const ranked = rankAreas(s); const picked = pickedPlaces(s); const dayPicks = picked.filter(p => !p.full);
-  const hasDisney = picked.some(p => p.full && p.area === 'maihama'); const best = ranked[0]; const chosen = s.hotelArea;
+  const hasDisney = picked.some(p => p.full && p.area === disneyArea()); const best = ranked[0]; const chosen = s.hotelArea;
   const card = (r, i) => { const a = r.a; const on = chosen === r.key;
     return `<article class="acard${i < 3 ? ' top' : ''}${on ? ' on' : ''}">
       <div class="ahead"><span class="rank">${i+1}</span><div><h3>${esc(a.name)}</h3><p class="ja">${esc(a.station)} 주변</p></div></div>
@@ -527,7 +527,7 @@ export function vStay(s){
     <p class="lead">호텔을 고르기 전에 동네부터 정해요. 담은 장소 ${dayPicks.length}곳과의 거리${hasDisney ? ', 디즈니 가는 시간' : ''}을 같이 따져 순서를 매겼어요.</p>
     ${dayPicks.length < 3 ? `<div class="box tip"><p>장소를 3곳 이상 담으면 추천이 더 정확해져요.</p><div><button type="button" class="ghost small" data-act="go" data-v="3">장소 더 담으러 가기</button></div></div>` : ''}
     ${mapSVG('stay', s)}
-    ${hasDisney && best.key !== 'maihama' ? `<div class="box tip"><h2>나눠 자는 방법도 있어요</h2><p>디즈니 가는 날 전날 1박만 마이하마에서 자고, 나머지는 ${esc(best.a.name)}에서 자면 디즈니 아침 이동이 없어져요. 대신 짐을 한 번 옮겨야 해요.</p></div>` : ''}
+    ${hasDisney && best.key !== disneyArea() ? `<div class="box tip"><h2>나눠 자는 방법도 있어요</h2><p>디즈니 가는 날 전날 1박만 ${esc((AREAS[disneyArea()] || {}).name || '디즈니 근처')}에서 자고, 나머지는 ${esc(best.a.name)}에서 자면 디즈니 아침 이동이 없어져요. 대신 짐을 한 번 옮겨야 해요.</p></div>` : ''}
     <div class="list">${ranked.slice(0, 3).map(card).join('')}</div>
     ${ranked.length > 3 ? `<details class="more"><summary>다른 동네 ${ranked.length-3}곳 더 보기</summary><div class="list">${ranked.slice(3).map((r, i) => card(r, i + 3)).join('')}</div></details>` : ''}
     <p class="fine">거리는 직선거리 기준이에요. 이동 시간과 가격대는 시제품용 대략값이라 실제와 다를 수 있어요.</p>
@@ -628,7 +628,7 @@ export function vPlan(s){
         ${d.locked ? `<p class="fine">확정한 날이에요. 다시 짜기·비 오는 날 바꾸기·다른 장소 자동 배치가 이날을 바꾸지 않아요.${s.shareId ? ' 함께 짜는 가족에게도 확정으로 보여요.' : ''}</p>` : ''}
         ${d.full ? '' : `<div class="meter${d.used > d.cap ? ' over' : ''}"><span style="width:${pct}%"></span></div>`}
       </article>`; }).join('')}
-    ${transitBox(s, P)}
+    ${REGION.key === 'tokyo' ? transitBox(s, P) : ''}
     ${P.unassigned.length ? `<div class="box"><h2>아직 일정에 못 넣은 곳</h2><ol class="stops">${P.unassigned.map(u => `<li><span class="num" style="--day:var(--muted)">·</span><div class="sbody"><b>${esc(u.p.name)}</b><span>${esc(u.why)}</span></div>${u.p.full ? '' : moveSelect(u.p, P.days, s.assign[u.p.id])}</li>`).join('')}</ol></div>` : ''}
     ${anyItems ? '<p class="fine">이동 시간은 직선거리로 어림한 값이에요(구글은 일본 대중교통 경로를 다른 앱에 주지 않아요). 정확한 시간·노선은 길찾기를 눌러 구글 지도에서 보세요.</p>' : '<p class="empty">담은 장소가 없어요. 장소 담기 단계에서 몇 곳을 담아 주세요.</p>'}
   </section>`;
@@ -798,7 +798,7 @@ function ledgerRow(s, e, L, armed){
 
 function ledgerDetail(s, editing, today){
   const party = partyOf(s); const ds = tripDates(s);
-  const e = editing || { d:defaultDay(s, today, 'food'), amt:'', cur:s.country === 'jp' ? 'JPY' : 'KRW', what:'', cat:'food', pay:'', by:defaultPayer(s), split:null };
+  const e = editing || { d:defaultDay(s, today, 'food'), amt:'', cur:mainCur(s), what:'', cat:'food', pay:'', by:defaultPayer(s), split:null };
   const dopts = [['before', '여행 전']].concat(ds.map(d => [d, dayLabel(s, d)]), [['after', '여행 후']]);
   if(e.d && !dopts.some(o => o[0] === e.d)) dopts.push([e.d, dayLabel(s, e.d)]);
   const split = e.split && e.split.length ? e.split : party.map(p => p.id);
@@ -810,7 +810,7 @@ function ledgerDetail(s, editing, today){
     </div>
     <div class="row2">
       <label for="lamt">금액<input id="lamt" type="number" inputmode="decimal" min="1" step="any" required value="${esc(String(e.amt))}"></label>
-      <label for="lcur">통화<select id="lcur">${Object.entries(CURRENCY).map(([k, v]) => `<option value="${k}"${e.cur === k ? ' selected' : ''}>${v.label} (${k})</option>`).join('')}</select></label>
+      <label for="lcur">통화<select id="lcur">${[...new Set(REGION.curs.concat(['KRW'], [e.cur]))].map(k => `<option value="${k}"${e.cur === k ? ' selected' : ''}>${(CURRENCY[k] || { label:k }).label} (${k})</option>`).join('')}</select></label>
     </div>
     <label for="lwhat">내용<input id="lwhat" type="text" maxlength="40" value="${esc(e.what || '')}" placeholder="예: 라멘"></label>
     <div class="row2">
@@ -874,7 +874,9 @@ export function vLedger(s){
   const editing = sh.ledit && (s.spend || {})[sh.ledit] ? Object.assign({ id:sh.ledit }, s.spend[sh.ledit]) : null;
   const name = id => esc((party.find(p => p.id === id) || {}).name || '?');
   const members = shared ? Object.values(sh.trip.members || {}).map(m => m.name).filter(n => n && !party.some(p => p.name === n)) : [];
-  const fx = L.rate > 0 ? `1엔 = ${L.rate.toFixed(2)}원${s.lrate > 0 ? ' (직접 넣은 환율)' : s.fx && s.fx.src ? ` (${esc(s.fx.src)} ${esc(s.fx.date || '')})` : ''}` : '';
+  const mc = mainCur(s), unit = (CURRENCY[mc] || { label:'엔' }).label, r0 = rateOf(s);
+  const other = REGION.curs.filter(c => c !== mc && ratesOf(s)[c] > 0).map(c => `1${CURRENCY[c].label} = ${ratesOf(s)[c].toFixed(2)}원`).join(', ');
+  const fx = r0 > 0 ? `1${unit} = ${r0.toFixed(2)}원${other ? `, ${other}` : ''}${s.lrate > 0 ? ' (직접 넣은 환율)' : s.fx && s.fx.src ? ` (${esc(s.fx.src)} ${esc(s.fx.date || '')})` : ''}` : '';
   return `<section class="step">
     <p class="eyebrow">Step 9 · 가계부</p>
     <h1>함께 쓰는 가계부</h1>
@@ -883,7 +885,7 @@ export function vLedger(s){
     <form class="box" id="ledgerform" autocomplete="off">
       <h2>한 줄로 적기</h2>
       <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="예: 라멘 1200엔" aria-label="지출을 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
-      <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today, cur:s.country === 'jp' ? 'JPY' : 'KRW' }))}</p>
+      <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today, cur:mainCur(s) }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
       <p class="fine lex">이렇게도 돼요: ${LEX.map(x => `<button type="button" class="link" data-act="lex" data-v="${esc(x)}">${esc(x)}</button>`).join(' · ')}</p>
       <p class="fine">어제·그제, '2일차', '3/8', '여행 전', 사람 이름, 카드·현금, '따로'(혼자 부담), '3그릇 980엔씩'을 알아들어요.${sh.lmore || editing ? '' : ' <button type="button" class="link" data-act="lmore">자세히 적기</button>'}</p>
@@ -893,8 +895,8 @@ export function vLedger(s){
     ${L.count ? `<div class="box">
       <h2>지금까지 쓴 돈<small>${L.count}건</small></h2>
       <p class="ltotal">${lmoney(L.total, L.base)}</p>
-      <p class="fine">${[L.byCur.JPY ? lmoney(L.byCur.JPY, 'JPY') : '', L.byCur.KRW ? lmoney(L.byCur.KRW, 'KRW') : ''].filter(Boolean).join(' + ')}${party.length > 1 ? ` · ${party.length}명이면 1인당 ${lmoney(L.total / party.length, L.base)}` : ''}</p>
-      ${L.missing ? `<p class="warnline">환율을 아직 못 받아서 엔화 지출 ${L.missing}건은 합계에 넣지 못했어요. 아래에 정산 환율을 넣어 주세요.</p>` : ''}
+      <p class="fine">${Object.entries(L.byCur).filter(([, v]) => v).map(([c, v]) => lmoney(v, c)).join(' + ')}${party.length > 1 ? ` · ${party.length}명이면 1인당 ${lmoney(L.total / party.length, L.base)}` : ''}</p>
+      ${L.missing ? `<p class="warnline">환율을 아직 못 받아서 외국 돈 지출 ${L.missing}건은 합계에 넣지 못했어요. 아래에 정산 환율을 넣어 주세요.</p>` : ''}
       <ul class="lcats">${L.byCat.map(c => `<li><span>${c.icon} ${esc(c.label)}</span><span class="meter"><span style="width:${Math.max(3, c.value / L.total * 100)}%"></span></span><b>${lmoney(c.value, L.base)}</b></li>`).join('')}</ul>
       ${L.byPay.cash || L.byPay.card || L.byPay.ic ? `<p class="fine">${[['cash', '현금'], ['card', '카드'], ['ic', '교통카드']].filter(([k]) => L.byPay[k]).map(([k, l]) => `${l} ${lmoney(L.byPay[k], L.base)}`).join(' · ')}</p>` : ''}
       <div class="pfoot"><button type="button" class="ghost small" data-act="lexport">엑셀로 내보내기</button></div>
@@ -912,7 +914,7 @@ export function vLedger(s){
       ${party.length < 2 ? '<p class="fine">두 명 이상이면 1인당 금액과 \'누가 누구에게 얼마\'를 계산해요. 아이처럼 돈을 안 내는 사람은 넣지 않아도 돼요.</p>'
         : L.transfers.length ? `<ul class="ltx">${L.transfers.map(t => `<li><b>${name(t.from)}</b> → <b>${name(t.to)}</b><span>${lmoney(t.amt, L.base)}</span></li>`).join('')}</ul>`
         : L.count ? '<p class="fine">모두 자기 몫만큼 냈어요. 보낼 돈이 없어요.</p>' : ''}
-      <label class="lrate">정산 환율 (1엔 = ?원)<input type="number" inputmode="decimal" min="0" step="0.01" data-lrate value="${s.lrate > 0 ? esc(String(s.lrate)) : ''}" placeholder="${L.rate > 0 && !(s.lrate > 0) ? esc(L.rate.toFixed(2)) : '예: 9.35'}"></label>
+      <label class="lrate">정산 환율 (1${unit} = ?원)<input type="number" inputmode="decimal" min="0" step="0.01" data-lrate value="${s.lrate > 0 ? esc(String(s.lrate)) : ''}" placeholder="${r0 > 0 && !(s.lrate > 0) ? esc(r0.toFixed(2)) : (mc === 'JPY' ? '예: 9.35' : '예: 175')}"></label>
       <p class="fine">${fx ? `지금 ${fx}로 계산해요. ` : ''}실제로 환전한 환율로 나누려면 숫자를 넣고, 비우면 받아 온 환율을 써요.</p>
     </div>
     ${L.groups.length ? L.groups.map(g => `<h2 class="vday">${esc(g.d ? dayLabel(s, g.d) : '날짜 없음')}<small>${lmoney(g.total, L.base)}</small></h2>
@@ -1133,7 +1135,7 @@ export function vToday(s){
       ${g ? `<ul class="tspend">${g.items.map(e => `<li><span>${catOf(e.cat).icon} ${esc(e.what || catOf(e.cat).label)}</span><b>${lmoney(e.amt, e.cur)}</b></li>`).join('')}</ul>` : ''}
       ${lp ? `<p class="lat">📍 <b>${esc(lp.name)}</b>에서 쓴 돈으로 적어요. 금액만 써도 돼요. <button type="button" class="link" data-act="lplacex">장소 빼기</button></p>` : ''}
       <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="${lp ? '예: 3000엔 또는 기념품 1500엔' : '예: 라멘 1200엔'}" aria-label="이날 쓴 돈 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
-      <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:s.country === 'jp' ? 'JPY' : 'KRW' }))}</p>
+      <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:mainCur(s) }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
     </form>
     <div class="pfoot"><button type="button" class="ghost small" data-act="go" data-v="${STEP('일정')}">전체 일정</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('준비물')}">준비물</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('보관함')}">보관함</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('가계부')}">가계부·정산</button><button type="button" class="ghost small" data-act="sos">긴급 정보</button></div>

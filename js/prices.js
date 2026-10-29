@@ -3,8 +3,11 @@
 // 사이트마다 주소에 넣을 수 있는 값이 달라서(2026-10-26 직접 확인) 아래 표에 정리.
 // 위쪽은 순수 함수(테스트 대상), 맨 아래 loadFx만 네트워크를 씀.
 
-// 도시별 사이트 내부 번호 (지금은 도쿄만)
-export const SITE_CITY = { tokyo:{ agoda:'5085', trip:'228', rakutenKr:'cnt_japan/sub_tokyo' } };
+// 지역별 사이트 내부 번호. 홍콩·선전은 홍콩 번호로 열고(선전 숙소는 사이트에서 도시를 바꿔 검색), 라쿠텐 한국어 사이트는 일본만이라 뺌
+//   홍콩 번호(아고다 16808, 트립닷컴 58)는 2026-10-29 각 사이트 홍콩 도시 페이지 주소 기준
+export const SITE_CITY = { tokyo:{ agoda:'5085', trip:'228', rakutenKr:'cnt_japan/sub_tokyo' }, hksz:{ agoda:'16808', trip:'58' } };
+// 이 지역에서 쓸 수 있는 사이트 (도시 번호가 필요한데 없는 사이트는 뺌)
+export const sitesFor = s => SITES.filter(x => x.home || x.byName || !x.url.length || (SITE_CITY[s.city] || SITE_CITY.tokyo)[x.key] != null || x.key === 'booking');
 
 // 박 수 (logic.js의 nights와 같은 값. logic.js가 이 파일을 불러오므로 고리를 만들지 않으려고 여기서 셈)
 const parseDate = str => { const [y, m, d] = str.split('-').map(Number); return new Date(y, m-1, d); };
@@ -40,12 +43,14 @@ export const SITES = [
 
 export function siteUrl(site, h, s){ const c = SITE_CITY[s.city] || SITE_CITY.tokyo; return site.url(h, s, c); }
 
-// 통화 바꾸기. rate = 1엔당 원. 같은 통화면 그대로, 환율이 없으면 null
+// 통화 바꾸기. rate = 통화별 원화 환율 { JPY, HKD, CNY }(1단위당 원) 또는 옛 방식 숫자(1엔당 원).
+// 같은 통화면 그대로, 환율이 없으면 null. 원화를 거쳐 바꿈(홍콩달러 → 위안도 됨)
+const krwPer = (cur, rate) => cur === 'KRW' ? 1 : typeof rate === 'number' ? (cur === 'JPY' && rate > 0 ? rate : 0) : (rate && rate[cur] > 0 ? rate[cur] : 0);
 export function convert(v, from, to, rate){
   if(!(v > 0)) return null;
   if(from === to) return v;
-  if(!(rate > 0)) return null;
-  return from === 'JPY' && to === 'KRW' ? v * rate : from === 'KRW' && to === 'JPY' ? v / rate : null;
+  const a = krwPer(from, rate), b = krwPer(to, rate);
+  return a && b ? v * a / b : null;
 }
 
 // 숙소 하나의 가격 후보들 → 기준 통화(cur)로 바꿔 가장 싼 것
@@ -66,16 +71,19 @@ export function bestPrice(h, cur, rate){
 
 // 환율 받아오기: 유럽중앙은행 기준(frankfurter) → 안 되면 exchangerate-api. 하루 한 번
 const FX_KEY = 'tripnoseon-fx';
+export const FX_CURS = ['JPY', 'HKD', 'CNY'];
 export async function loadFx(today){
-  try{ const c = JSON.parse(localStorage.getItem(FX_KEY) || 'null'); if(c && c.checked === today) return c; }catch(e){}
+  try{ const c = JSON.parse(localStorage.getItem(FX_KEY) || 'null'); if(c && c.checked === today && c.rates) return c; }catch(e){}
   let fx = null;
+  // 원화 1원당 각 통화 → 뒤집어서 1단위당 원
+  const flip = r => { const o = {}; FX_CURS.forEach(k => { if(r && r[k] > 0) o[k] = 1 / r[k]; }); return Object.keys(o).length ? o : null; };
   try{
-    const r = await fetch('https://api.frankfurter.dev/v1/latest?base=JPY&symbols=KRW'); const j = await r.json();
-    if(j.rates && j.rates.KRW > 0) fx = { rate:j.rates.KRW, date:j.date, src:'유럽중앙은행 기준' };
+    const r = await fetch(`https://api.frankfurter.dev/v1/latest?base=KRW&symbols=${FX_CURS.join(',')}`); const j = await r.json();
+    const rates = flip(j.rates); if(rates) fx = { rates, rate:rates.JPY || 0, date:j.date, src:'유럽중앙은행 기준' };
   }catch(e){}
   if(!fx) try{
-    const r = await fetch('https://open.er-api.com/v6/latest/JPY'); const j = await r.json();
-    if(j.rates && j.rates.KRW > 0) fx = { rate:j.rates.KRW, date:String(j.time_last_update_utc || '').slice(5, 16), src:'ExchangeRate-API' };
+    const r = await fetch('https://open.er-api.com/v6/latest/KRW'); const j = await r.json();
+    const rates = flip(j.rates); if(rates) fx = { rates, rate:rates.JPY || 0, date:String(j.time_last_update_utc || '').slice(5, 16), src:'ExchangeRate-API' };
   }catch(e){}
   if(fx){ fx.checked = today; try{ localStorage.setItem(FX_KEY, JSON.stringify(fx)); }catch(e){} }
   return fx;

@@ -90,7 +90,7 @@ export function describeChange(prev, next){
 
 // 공유 여행 기본 제목: '도쿄 3/7~3/11'
 export function defaultTitle(s){
-  const city = { tokyo:'도쿄' }[s.city] || '여행';
+  const city = { tokyo:'도쿄', hksz:'홍콩·선전' }[s.city] || '여행';
   if(!s.start || !s.end) return `${city} 여행`;
   const f = d => { const [, m, dd] = d.split('-').map(Number); return `${m}/${dd}`; };
   return `${city} ${f(s.start)}~${f(s.end)}`;

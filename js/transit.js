@@ -13,6 +13,7 @@
 //     (그래서 실제로는 패스가 조금 더 이득일 수 있음)
 //   어린이: 6살 미만(미취학)은 어른 1명당 2명까지 무료로 봄
 import { dist } from './logic.js';
+import { BORDER, AREAS } from './data.js';
 
 export const CHECKED = '2026-10-29';
 
@@ -55,8 +56,21 @@ function bestHub(z, inside, other){
 
 // 한 구간(A → B)을 걷기·지하철·패스 밖으로 나눔
 //   → [{ kind:'subway', km, fare } | { kind:'out', km, line, at }] (걷는 거리면 빈 배열)
+// 홍콩·선전: 'hk' | 'sz' (동네 데이터의 city). 도쿄는 ''
+const cityOf = p => (p && (p.city || (AREAS[p.area || p.key] || {}).city)) || '';
 export function legSegments(a, b){
-  const km = dist(a, b); if(km <= WALK_KM) return [];
+  const km = dist(a, b);
+  // 홍콩↔선전: 가장 덜 돌아가는 국경 통과 지점을 거쳐 (출입국 시간은 그 지점의 minutes)
+  const ca = cityOf(a), cb = cityOf(b);
+  if(ca && cb && ca !== cb && BORDER.length){
+    const bp = BORDER.reduce((m, x) => { const c = dist(a, x) + dist(x, b); return !m || c < m.c ? { x, c } : m; }, null).x;
+    const out = [];
+    if(dist(a, bp) > WALK_KM) out.push({ kind:'subway', km:dist(a, bp), fare:0 });
+    out.push({ kind:'border', km:0, line:`국경(${bp.name})`, at:bp.name, minutes:+bp.minutes || 45 });
+    if(dist(bp, b) > WALK_KM) out.push({ kind:'subway', km:dist(bp, b), fare:0 });
+    return out;
+  }
+  if(km <= WALK_KM) return [];
   const za = zoneOf(a), zb = zoneOf(b);
   if(za && za === zb) return [{ kind:'out', km, line:za.line, at:'' }];
   const segs = []; let from = a, to = b; const tail = [];
@@ -71,15 +85,17 @@ export function legSegments(a, b){
 // 정확한 시간·경로는 구글 지도 길찾기 링크로 봄
 export const WALK_KMH = 4.5;     // 걷기
 export const RAIL_KMH = 28;      // 지하철·전철 평균 (정차 포함)
+export const FAST_KMH = 45;     // 15km 넘게 가는 구간은 급행·교외선(홍콩 동철선 등)으로 봄
 export const STATION_MIN = 10;   // 역까지 걷기·기다리기·역에서 나와 걷기
 export function legMinutes(a, b, segs){
   segs = segs || legSegments(a, b);
   if(!segs.length) return Math.max(3, Math.round(dist(a, b) * ROUTE_FACTOR / WALK_KMH * 60));
   let m = STATION_MIN;
-  segs.forEach((x, i) => { const rk = x.km * ROUTE_FACTOR; m += rk / RAIL_KMH * 60; if(i) m += 5; if(x.kind === 'subway' && rk > 8) m += 4; });   // 갈아타기
+  segs.forEach((x, i) => { if(x.kind === 'border'){ m += x.minutes; return; } const rk = x.km * ROUTE_FACTOR; m += rk / (rk > 15 ? FAST_KMH : RAIL_KMH) * 60; if(i) m += 5; if(x.kind === 'subway' && rk > 8) m += 4; });   // 갈아타기·국경
   return Math.max(5, Math.round(m / 5) * 5);
 }
 export const legMode = segs => !segs || !segs.length ? '걸어서' : segs.map(x => x.kind === 'subway' ? '지하철' : x.line).join(' → ');
+export const crossesBorder = segs => (segs || []).some(x => x.kind === 'border');
 export const minText = m => m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}`;
 
 // 동행 → 요금 낼 사람: 어른(13살 이상), 아이(6~12살, 초등학생), 무료(6살 미만, 어른 1명당 2명까지)

@@ -40,7 +40,7 @@ test('통화가 하나뿐이면 금액 칸에도 합계, 환율이 없으면 엔
   assert.deepEqual(rows[1].slice(4, 7), [2800, '엔', '']);
   const sum = rows[rows.length - 1];
   assert.deepEqual(sum.slice(4, 7), [4000, '엔', '']);
-  assert.equal(sum[3], '2건 · 환율이 없어 엔화 2건은 원화 합계에서 빠짐');
+  assert.equal(sum[3], '2건 · 환율이 없어 외국 돈 2건은 원화 합계에서 빠짐');
 });
 
 test('한 사람이면 누구 몫 칸은 비움, 지출이 없어도 머리줄과 합계', () => {

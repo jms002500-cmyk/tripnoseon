@@ -3,7 +3,7 @@
 //
 // s.budget = { total: 원(0이면 안 정함), cats: { food: 원, ... } }   (옛 데이터엔 없음 → 안 정함)
 // 엔으로 적은 지출은 가계부 합계와 같은 환율(rateOf: 정산 환율 > 받아 온 환율)로 원화로 바꿔 셈
-import { CATS, entries, rateOf, tripDates } from './ledger.js';
+import { CATS, entries, ratesOf, tripDates } from './ledger.js';
 import { convert } from './prices.js';
 
 const MAX = 1e10;
@@ -49,7 +49,7 @@ export function budgetView(s, today){
   const b = budgetOf(s); const catSum = Object.values(b.cats).reduce((n, v) => n + v, 0);
   const total = b.total || catSum;
   if(!total) return { on:false };
-  const rate = rateOf(s); const days = tripDates(s);
+  const rate = ratesOf(s); const days = tripDates(s);
   let spent = 0, missing = 0, todaySpent = 0; const byCat = {};
   entries(s).forEach(e => {
     const v = convert(e.amt, e.cur, 'KRW', rate); if(v == null){ missing++; return; }

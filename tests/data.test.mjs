@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PLACES, AREAS, KINDS, STYLES } from '../js/data.js';
-import { MW, MH, px } from '../js/map.js';
+import { MW, mapHeight, px } from '../js/map.js';
 
 test('장소 데이터: id 중복 없음, 동네·종류·취향 값이 목록 안에 있음', () => {
   const ids = PLACES.map(p => p.id);
@@ -22,7 +22,7 @@ test('장소 데이터: 비 오는 날 기준 실내 표시가 모두 있음', (
 });
 
 test('모든 장소가 도쿄 약도 안에 그려짐', () => {
-  PLACES.forEach(p => { const [x, y] = px(p); assert.ok(x >= 0 && x <= MW && y >= 0 && y <= MH, `${p.id} (${x}, ${y})`); });
+  PLACES.forEach(p => { const [x, y] = px(p); assert.ok(x >= 0 && x <= MW && y >= 0 && y <= mapHeight(), `${p.id} (${x}, ${y})`); });
 });
 
 test('꼭 갈 곳 후보가 여러 종류에 걸쳐 있음', () => {

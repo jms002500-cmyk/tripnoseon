@@ -43,7 +43,7 @@ export function suggestPacking(s, wx){
   const m = month(s); const cl = wx && wx.climate; const lo = cl && cl.lo != null ? Math.round(cl.lo) : null;
   const jp = s.country === 'jp'; const kids = kidsOf(s); const ids = new Set(pickedPlaces(s).map(p => p.id));
   const winter = (lo != null && lo <= 8) || [12, 1, 2].includes(m);
-  const city = { tokyo:'도쿄' }[s.city] || '여행지';
+  const city = { tokyo:'도쿄', hksz:'홍콩·선전' }[s.city] || '여행지';
 
   // 서류·돈
   add('passport', 'doc', '여권', '만료일이 여행 끝나는 날보다 넉넉한지 확인하세요.');

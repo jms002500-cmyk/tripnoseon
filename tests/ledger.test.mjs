@@ -168,3 +168,22 @@ test('장소에서 바로 적은 지출', () => {
   assert.equal(d.cat, 'food'); assert.equal(d.what, '라멘');
   assert.equal(atPlace(null, p), null);
 });
+
+test('홍콩·선전 통화: 홍콩달러·위안 읽기와 원화 합계', async () => {
+  const { curOfSym, ratesOf, mainCur } = await import('../js/ledger.js');
+  const HK = { today:'2027-03-09', cur:'HKD', by:'p1' };
+  const s = trip({ city:'hksz', country:'hk' });
+  assert.equal(mainCur(s), 'HKD');
+  assert.equal(parseLine('딤섬 180', s, HK).e.cur, 'HKD');
+  assert.equal(parseLine('딤섬 180홍콩달러', s, HK).e.amt, 180);
+  const c = parseLine('밀크티 25위안', s, HK).e; assert.deepEqual([c.cur, c.amt], ['CNY', 25]);
+  assert.equal(parseLine('택시 ¥40', s, HK).e.cur, 'CNY');        // 홍콩·선전에서 ¥는 위안
+  assert.equal(parseLine('라멘 ¥1200', trip(), ON).e.cur, 'JPY');   // 도쿄에서 ¥는 엔
+  assert.equal(parseLine('옥토퍼스 충전 HK$200', s, HK).e.cur, 'HKD');
+  assert.equal(curOfSym('元'), 'CNY'); assert.equal(curOfSym('달러'), 'HKD');
+  assert.equal(money(1200, 'HKD'), 'HK$1,200'); assert.equal(money(25, 'CNY'), '25위안');
+  const t2 = trip({ city:'hksz', fx:{ rates:{ HKD:175, CNY:200, JPY:9 } }, lrate:180, spend:{
+    a:{ d:'2027-03-08', amt:100, cur:'HKD', cat:'food', by:'p1' }, b:{ d:'2027-03-09', amt:50, cur:'CNY', cat:'food', by:'p2' } } });
+  assert.deepEqual(ratesOf(t2), { HKD:180, CNY:200, JPY:9 });     // 정산 환율은 기본 통화(홍콩달러)에
+  const L = ledgerSummary(t2); assert.equal(L.base, 'KRW'); assert.equal(L.total, 100 * 180 + 50 * 200);
+});

@@ -3,7 +3,7 @@
 //
 // 지출 하나(spend[id])
 //   d      'YYYY-MM-DD' | 'before'(여행 전) | 'after'(여행 후)
-//   amt    금액(그 통화 기준 정수) / cur: 'JPY' | 'KRW'
+//   amt    금액(그 통화 기준 정수) / cur: 'JPY' | 'KRW' | 'HKD'(홍콩달러) | 'CNY'(위안)
 //   what   내용 / cat: CATS 키 / pay: '' | 'cash' | 'card' | 'ic'
 //   by     낸 사람(party id) / split: 나눌 사람 id 목록 (null이면 모두)
 //   at     적은 때(ms, 같은 날 안에서 순서)
@@ -133,13 +133,13 @@ export function parseLine(text, s, ctx){
        .replace(/(\d+(?:\.\d+)?)\s*천원/g, (m, a) => `${Math.round(a * 1000)}원`);
 
   // 금액 후보: 통화를 붙인 것 > 만 단위 > 가장 큰 수. '4장', '2명' 같은 개수는 빼고 기억
-  const AMT = /([¥₩]|jpy|krw)?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(§)?\s*(엔|円|원|yen|jpy|krw|won)?(\s*씩)?/gi;
+  const AMT = /([¥₩元]|hk\$|hkd|cny|rmb|jpy|krw)?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(§)?\s*(엔|円|위안|元|콰이|홍콩\s*달러|홍딸|달러|불|원|yen|jpy|krw|won|hkd|hk\$|cny|rmb)?(\s*씩)?/gi;
   const cands = []; let count = 0; let m;
   while((m = AMT.exec(t))){
     const v = parseFloat(m[2].replace(/,/g, '')); const sym = (m[1] || m[4] || '').toLowerCase();
     if(!sym && !m[3] && COUNT.test(t.slice(m.index + m[0].length))){ if(!count) count = v; continue; }
     if(!(v > 0)) continue;
-    const cur = /[¥엔円]|yen|jpy/.test(sym) ? 'JPY' : /[₩원]|krw|won/.test(sym) ? 'KRW' : m[3] ? 'KRW' : '';
+    const cur = curOfSym(sym, c.cur) || (m[3] ? 'KRW' : '');
     cands.push({ v, cur, rank:sym ? 2 : m[3] ? 1 : 0, each:!!m[5], at:m.index, len:m[0].length });
   }
   if(!cands.length) return { ok:false, error:'금액을 못 찾았어요. "라멘 1200엔"처럼 숫자를 넣어 주세요.' };
@@ -168,12 +168,36 @@ export function atPlace(e, p){
   return out;
 }
 
+// 통화 표시 → 통화. '¥'는 일본 여행이면 엔, 홍콩·선전 여행(기본 통화가 HKD·CNY)이면 위안. '달러·불'은 홍콩달러
+export function curOfSym(sym, cur){
+  const t = String(sym || '').toLowerCase().replace(/\s/g, '');
+  if(!t) return '';
+  if(/위안|元|콰이|cny|rmb/.test(t)) return 'CNY';
+  if(/홍콩달러|홍딸|hk\$|hkd|달러|불/.test(t)) return 'HKD';
+  if(/엔|円|yen|jpy/.test(t)) return 'JPY';
+  if(t === '¥') return cur === 'HKD' || cur === 'CNY' ? 'CNY' : 'JPY';
+  if(/[₩원]|krw|won/.test(t)) return 'KRW';
+  return '';
+}
+export const CUR_NAME = { JPY:'엔화', KRW:'원화', HKD:'홍콩달러', CNY:'위안화' };
+
 /* ---------- 금액 보여 주기 ---------- */
 export function money(v, cur){
   const n = Math.round(v).toLocaleString('ko-KR');
-  return cur === 'JPY' ? `¥${n}` : `${n}원`;
+  return cur === 'JPY' ? `¥${n}` : cur === 'HKD' ? `HK$${n}` : cur === 'CNY' ? `${n}위안` : `${n}원`;
 }
-export const rateOf = s => (s.lrate > 0 ? s.lrate : s.fx && s.fx.rate > 0 ? s.fx.rate : 0);
+// 통화별 원화 환율 { JPY, HKD, CNY } (1단위당 원). 받아 온 환율 위에 직접 넣은 정산 환율(lrate: 이 지역 기본 통화, lrates: 통화별)을 얹음
+export function ratesOf(s){
+  const fx = s.fx || {}; const out = Object.assign({}, fx.rates || {});
+  if(fx.rate > 0 && !(out.JPY > 0)) out.JPY = fx.rate;   // 옛 환율 칸(엔만)
+  Object.entries(s.lrates || {}).forEach(([k, v]) => { if(v > 0) out[k] = v; });
+  if(s.lrate > 0) out[mainCur(s)] = s.lrate;
+  return out;
+}
+// 이 여행 지역의 기본 통화 (정산 환율 칸·한 줄 입력 기본값)
+export const mainCur = s => ({ tokyo:'JPY', hksz:'HKD' })[s && s.city] || (s && s.country === 'jp' ? 'JPY' : 'KRW');
+// 기본 통화 환율(숫자, 없으면 0)
+export const rateOf = s => ratesOf(s)[mainCur(s)] || 0;
 
 // 한 줄 미리보기: '식비 · 라멘 · ¥1,200 · 3/7 (일) · 1일차 · 나 · 카드'
 export function previewText(s, e){
@@ -185,7 +209,7 @@ export function previewText(s, e){
 // 한 줄 칸 아래 안내: 아무것도 안 쓰면 어떻게 적히는지
 export function ledgerHint(s, ctx){
   const p = partyOf(s); const who = p.length > 1 ? (p.find(x => x.id === (ctx.by || defaultPayer(s))) || p[0]).name : '';
-  return `날짜를 안 쓰면 ${dayLabel(s, defaultDay(s, ctx.today, 'food'))}, 통화를 안 쓰면 ${ctx.cur === 'JPY' ? '엔화' : '원화'}${who ? `, 낸 사람을 안 쓰면 ${who}` : ''}로 적어요.`;
+  return `날짜를 안 쓰면 ${dayLabel(s, defaultDay(s, ctx.today, 'food'))}, 통화를 안 쓰면 ${CUR_NAME[ctx.cur] || '원화'}${who ? `, 낸 사람을 안 쓰면 ${who}` : ''}로 적어요.`;
 }
 
 /* ---------- 합계·정산 ---------- */
@@ -197,11 +221,12 @@ export function entries(s){
 
 // 합계 통화: 환율이 있으면 원화, 없으면 지출이 모두 엔화일 때만 엔화(원화와 섞이면 바꿀 수 없는 것은 따로 셈)
 export function ledgerSummary(s){
-  const list = entries(s); const rate = rateOf(s);
-  const base = rate > 0 || !list.length || list.some(e => e.cur === 'KRW') ? 'KRW' : 'JPY';
+  const list = entries(s); const rate = ratesOf(s); const curs = [...new Set(list.map(e => e.cur))];
+  // 합계 통화: 원화로 바꿀 수 있거나 원화가 섞였으면 원화, 아니면 지출이 한 통화뿐일 때 그 통화
+  const base = Object.values(rate).some(v => v > 0) || !list.length || curs.includes('KRW') || curs.length > 1 ? 'KRW' : curs[0];
   const val = e => convert(e.amt, e.cur, base, rate);
   const party = partyOf(s); const ids = party.map(p => p.id);
-  const byCur = { JPY:0, KRW:0 }; const byCat = {}; const byPay = {}; const paid = {}; const owe = {};
+  const byCur = {}; const byCat = {}; const byPay = {}; const paid = {}; const owe = {};
   ids.forEach(id => { paid[id] = 0; owe[id] = 0; });
   let total = 0, missing = 0;
   list.forEach(e => {

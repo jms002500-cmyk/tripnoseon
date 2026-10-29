@@ -1,5 +1,6 @@
 // 계산만 하는 순수 함수 모음 (DOM을 건드리지 않음 → tests/에서 바로 테스트 가능)
-import { AREAS, PLACES, PACE, WD } from './data.js';
+import { AREAS, PLACES, PACE, WD, REGION, disneyArea } from './data.js';
+import { ratesOf } from './ledger.js';
 import { bestPrice } from './prices.js';
 
 export function clone(o){ return JSON.parse(JSON.stringify(o)); }
@@ -20,7 +21,9 @@ export function centroid(items){
 // 'YYYY-MM-DD'를 현지 날짜로 (UTC로 해석하면 하루 밀리는 문제를 피함)
 export function parseDate(str){ const [y,m,d] = str.split('-').map(Number); return new Date(y, m-1, d); }
 
-export function allPlaces(s){ return PLACES.concat(s.custom || []); }
+// 지금 여행 지역 범위 안인지 (지역을 바꿔도 전에 담은 다른 지역 장소·숙소 후보는 지우지 않고 숨김)
+export function inRegion(pt){ return !!pt && pt.lat != null && dist(REGION.center, pt) <= (REGION.radiusKm || 80); }
+export function allPlaces(s){ return PLACES.concat((s.custom || []).filter(inRegion)); }
 export function pickedPlaces(s){ return allPlaces(s).filter(p => s.picked[p.id]); }
 export function closedText(p){ return p.closed && p.closed.length ? p.closed.map(w => WD[w]).join('·') + '요일 휴무' : ''; }
 export function kindLabel(k){ return { arrive:'도착하는 날', depart:'돌아오는 날', full:'온종일', single:'당일' }[k]; }
@@ -113,7 +116,7 @@ export function capacity(s){
 // 숙소 동네 순위: 담은 곳까지 평균 직선거리 + (디즈니가 있으면) 디즈니 이동 시간 가중
 export function rankAreas(s){
   const picked = pickedPlaces(s); const dayPicks = picked.filter(p => !p.full);
-  const hasDisney = picked.some(p => p.full && p.area === 'maihama');
+  const hasDisney = picked.some(p => p.full && p.area === disneyArea());
   return Object.entries(AREAS).filter(([, a]) => a.hotel).map(([key, a]) => {
     const ds = dayPicks.map(p => dist(a, p));
     const avg = ds.length ? ds.reduce((x,y) => x+y, 0)/ds.length : 0;
@@ -133,9 +136,9 @@ export function nearestArea(pt){
 // 일정의 출발점. 숙소 후보를 정했으면 그 호텔 위치, 아니면 정한 동네(없으면 1순위 동네) 중심
 const hotelPt = h => { const k = h.area || nearestArea(h).key; return { ...AREAS[k], key:k, name:h.name, lat:h.lat, lng:h.lng, cand:true, hid:h.id }; };
 export function hotelOf(s){
-  const h = (s.hotels || []).find(x => x.id === s.hotelPick && x.lat != null);
+  const h = (s.hotels || []).find(x => x.id === s.hotelPick && x.lat != null && inRegion(x));
   if(h) return hotelPt(h);
-  const k = s.hotelArea || rankAreas(s)[0].key; return { key:k, ...AREAS[k] };
+  const k = s.hotelArea && AREAS[s.hotelArea] ? s.hotelArea : rankAreas(s)[0].key; return { key:k, ...AREAS[k] };
 }
 
 // 담은 곳(하루 종일 쓰는 곳 제외)까지 평균 직선거리. 담은 곳이 없으면 null
@@ -169,18 +172,19 @@ export function partySize(s){ return !s.who ? 0 : s.who === 'solo' ? 1 : s.who =
 //   위치를 아직 모르는 후보는 noLoc으로 따로 돌려줌
 export function compareHotels(s, sort){
   const picked = pickedPlaces(s); const dayPicks = picked.filter(p => !p.full);
-  const hasDisney = picked.some(p => p.full && p.area === 'maihama');
+  const hasDisney = picked.some(p => p.full && p.area === disneyArea());
   const n = nights(s); const ppl = partySize(s);
   const rows = []; const noLoc = [];
   (s.hotels || []).forEach(h => {
     if(h.lat == null){ noLoc.push(h); return; }
+    if(!inRegion(h)) return;   // 다른 지역 숙소 후보는 숨김
     const area = h.area || nearestArea(h).key; const a = AREAS[area];
     const ds = dayPicks.map(p => dist(h, p));
     const avg = ds.length ? ds.reduce((x,y) => x+y, 0)/ds.length : 0;
     const near = ds.filter(x => x <= 2.5).length;
     const disneyMin = a.disneyMin != null ? a.disneyMin : 60;
     const score = avg + (hasDisney ? disneyMin/12 : 0);
-    const best = bestPrice(h, s.hotelCur, s.fx && s.fx.rate);
+    const best = bestPrice(h, s.hotelCur, ratesOf(s));
     const price = best ? best.value : null;
     const total = price && n ? price * n : null;
     rows.push({ h, area, a, avg, near, score, best, price, total, per: total && ppl ? Math.round(total / ppl) : null });
