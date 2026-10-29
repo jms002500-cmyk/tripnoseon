@@ -732,6 +732,7 @@ function act(a, v){
       s.picked[p.id] = true; s.assign[p.id] = +di; toast(`'${p.name}'을(를) ${+di + 1}일차에 넣었어요.`); break;
     }
     case 'ropen': s.sh.ropen = s.sh.ropen === +v ? null : +v; break;
+    case 'tpass': s.sh.tpass = !s.sh.tpass; break;
     case 'rswap': {   // 비 오는 날: 실외 장소는 빼두고 실내 장소를 그날에 (함께 짜기 여행이면 가족 일정도 바뀜)
       const [outId, inId, di] = v.split('|'); const all = allPlaces(s); const name = id => (all.find(p => p.id === id) || {}).name || '';
       s.sh.rundo = Object.assign(swapPlan(s, outId, inId, +di), { day:+di, outName:name(outId), inName:name(inId) }); break;

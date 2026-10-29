@@ -5,6 +5,7 @@ import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } fr
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as sosHotel, kidCardJa } from './safety.js';
 import { mealSlots, rankFood, moreFoodUrl, foodKey, walkMin } from './food.js';
+import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHECKED as FARE_CHECKED } from './transit.js';
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
 import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
@@ -536,6 +537,29 @@ function rainBox(s, P, d){
   </div>`;
 }
 
+// 교통패스 (일정 단계 아래): 지하철 낱개 표 vs Tokyo Subway Ticket
+function transitBox(s, P){
+  if(!P.days.some(d => d.full || d.items.length)) return '';
+  const t = transitPlan(s, P); const pp = t.people; const open = s.sh && s.sh.tpass;
+  const who = pp.guess ? '동행을 안 정해서 어른 1명 기준' : [`어른 ${pp.adults}`, pp.children ? `아이 ${pp.children}` : '', pp.free ? `무료 ${pp.free}` : ''].filter(Boolean).join(' · ');
+  const passOf = i => t.blocks.find(b => b.pass && i >= b.from && i <= b.to);
+  const segText = x => x.kind === 'subway' ? `지하철 ${tyen(x.fare)}` : `<span class="tout">패스 밖 ${esc(x.line)}${x.at ? `(${esc(x.at)}에서)` : ''}</span>`;
+  const days = t.days.map(d => { const b = passOf(d.i);
+    return `<div class="tday"><h3>${d.i + 1}일차 · ${esc(d.label)}</h3>
+      <p class="fine">${d.legs.length ? (d.rides ? `지하철 ${d.rides}번 · 낱개 어른 ${tyen(d.fareA)}${pp.children ? ` · 아이 ${tyen(d.fareC)}` : ''}${b ? ` · ${esc(b.pass.label)}(${transitRange(b)})` : ''}` : '지하철은 안 타요.') : '일정이 비어 있어요.'}</p>
+      ${d.legs.length ? `<ul class="tlegs">${d.legs.map(l => `<li>${esc(l.from.name)} → ${esc(l.to.name)} · ${l.segs.length ? `약 ${l.km.toFixed(1)}km · ${l.segs.map(segText).join(' + ')}` : '걸어서'}</li>`).join('')}</ul>` : ''}
+    </div>`; }).join('');
+  return `<div class="box" id="transitbox">
+    <h2>🚇 교통패스<small>${esc(who)}</small></h2>
+    <p class="pnote"><b>${esc(transitTip(t))}</b></p>
+    <p class="pnote">${t.saving > 0 ? `패스를 쓰면 모두 약 ${tyen(t.best)}, 낱개로는 약 ${tyen(t.single)}이에요.` : `낱개로 모두 약 ${tyen(t.single)}이에요.`}</p>
+    <p class="fine">대략값이에요. 거리는 직선거리로 어림했고(실제 경로 아님), 1km 안은 걸어서 간다고 봤어요. 공항 오가는 길과 패스 밖 노선(디즈니 가는 JR 게이요선, 오다이바 유리카모메 등) 요금은 빼고 셌어요.</p>
+    <p class="fine">Tokyo Subway Ticket은 도쿄 메트로·도에이 지하철 전 노선, 처음 탄 때부터 시간을 세요. 외국인 여행자용이라 살 때 여권이 필요해요. 값: ${PASSES.map(p => `${p.label} ${tyen(p.adult)}(아이 ${tyen(p.child)})`).join(' · ')}. 요금 확인 ${FARE_CHECKED} (도쿄 메트로·도에이 공식 누리집)</p>
+    <div><button type="button" class="link" data-act="tpass" aria-expanded="${!!open}">${open ? '날짜별 자세히 닫기' : '날짜별 자세히 보기'}</button></div>
+    ${open ? days : ''}
+  </div>`;
+}
+
 /* Step 6 · 일정 */
 function moveSelect(p, days, cur){
   const opts = [`<option value="">자동</option>`]
@@ -574,9 +598,10 @@ export function vPlan(s){
         <div><button type="button" class="link" data-act="tfood" data-v="${d.i}">🍜 이날 점심·저녁 식당 찾기</button></div>
         ${d.full ? '' : `<div class="meter${d.used > d.cap ? ' over' : ''}"><span style="width:${pct}%"></span></div>`}
       </article>`; }).join('')}
+    ${transitBox(s, P)}
     ${P.unassigned.length ? `<div class="box"><h2>아직 일정에 못 넣은 곳</h2><ol class="stops">${P.unassigned.map(u => `<li><span class="num" style="--day:var(--muted)">·</span><div class="sbody"><b>${esc(u.p.name)}</b><span>${esc(u.why)}</span></div>${u.p.full ? '' : moveSelect(u.p, P.days, s.assign[u.p.id])}</li>`).join('')}</ol></div>` : ''}
     ${anyItems ? '' : '<p class="empty">담은 장소가 없어요. 장소 담기 단계에서 몇 곳을 담아 주세요.</p>'}
-    <div class="box"><h2>다음에 붙일 기능</h2><p class="pnote">동선 위에서 점심·저녁 식당 찾기, 날짜별 이동 경로와 교통패스 계산, 실제 호텔 가격 비교를 하나씩 붙여 갈 거예요.</p></div>
+    <div class="box"><h2>다음에 붙일 기능</h2><p class="pnote">날짜별 실제 이동 경로와 시간, 날짜마다 다른 숙소에서 나눠 자기를 하나씩 붙여 갈 거예요.</p></div>
   </section>`;
 }
 
