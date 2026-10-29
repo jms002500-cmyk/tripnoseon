@@ -1,5 +1,5 @@
 // 계산만 하는 순수 함수 모음 (DOM을 건드리지 않음 → tests/에서 바로 테스트 가능)
-import { AREAS, PLACES, PACE, WD, REGION, disneyArea, cityOfArea } from './data.js';
+import { AREAS, PLACES, PACE, WD, REGION, disneyArea, cityOfArea, CITY_KO } from './data.js';
 import { ratesOf } from './ledger.js';
 import { bestPrice } from './prices.js';
 
@@ -23,7 +23,18 @@ export function parseDate(str){ const [y,m,d] = str.split('-').map(Number); retu
 
 // 지금 여행 지역 범위 안인지 (지역을 바꿔도 전에 담은 다른 지역 장소·숙소 후보는 지우지 않고 숨김)
 export function inRegion(pt){ return !!pt && pt.lat != null && dist(REGION.center, pt) <= (REGION.radiusKm || 80); }
-export function allPlaces(s){ return PLACES.concat((s.custom || []).filter(inRegion)); }
+// 이번 여행에서 가는 도시들 (AREAS에 적힌 순서, 홍콩 → 선전). 홍콩만·선전만 고르면 그 도시 하나, 도쿄는 []
+export function tripCities(s){
+  const all = [...new Set(Object.values(AREAS).map(a => a.city).filter(Boolean))];
+  return s && s.cityOnly && all.includes(s.cityOnly) ? [s.cityOnly] : all;
+}
+// 한 도시만 가면 그 도시 키, 아니면 ''
+export const onlyCity = s => { const c = tripCities(s); return s && s.cityOnly && c.length === 1 ? c[0] : ''; };
+// 홍콩만·선전만이면 다른 도시 장소는 숨김 (담은 표시는 지우지 않아서 다시 둘 다로 바꾸면 돌아옴)
+export function allPlaces(s){
+  const all = PLACES.concat((s.custom || []).filter(inRegion)); const c = onlyCity(s);
+  return c ? all.filter(p => placeCity(p) === c) : all;
+}
 export function pickedPlaces(s){ return allPlaces(s).filter(p => s.picked[p.id]); }
 export function closedText(p){ return p.closed && p.closed.length ? p.closed.map(w => WD[w]).join('·') + '요일 휴무' : ''; }
 export function kindLabel(k){ return { arrive:'도착하는 날', depart:'돌아오는 날', full:'온종일', single:'당일' }[k]; }
@@ -91,7 +102,6 @@ export function keepLockedAssign(s){
 
 // 날마다 출발·돌아갈 숙소가 있는 도시 (홍콩·선전처럼 도시가 둘인 지역만, 아니면 빈 집합)
 const dayCities = (s, days) => dayHotels(s, days).map(h => new Set([h.from, h.to].map(x => x && x.key ? cityOfArea(x.key) : '').filter(Boolean)));
-const CITY_KO = { hk:'홍콩', sz:'선전' };
 // 그날 자는 도시가 아닌 곳이면 true (국경을 왕복해야 함)
 const offCity = (dc, p) => { const c = placeCity(p); return !!c && dc.size > 0 && !dc.has(c); };
 
@@ -125,7 +135,7 @@ export const placeCity = p => cityOfArea(p.area && AREAS[p.area] ? p.area : near
 
 // 숙소 동네 순위: 담은 곳까지 평균 직선거리 + (디즈니가 있으면) 디즈니 이동 시간 가중
 //   city를 주면 그 도시 동네만, 그 도시에 담은 곳만으로 따짐 (나눠 자기 추천용)
-export function rankAreas(s, city){
+export function rankAreas(s, city = onlyCity(s)){
   const picked = pickedPlaces(s); let dayPicks = picked.filter(p => !p.full);
   const hasDisney = picked.some(p => p.full && p.area === disneyArea()) && (!city || cityOfArea(disneyArea()) === city);
   if(city) dayPicks = dayPicks.filter(p => placeCity(p) === city);
@@ -142,7 +152,7 @@ export function rankAreas(s, city){
 //   도시마다 최소 1박, 순서는 AREAS에 적힌 도시 순서(홍콩 → 선전). 한 도시뿐이거나 2박 미만이면 null
 export function suggestSplit(s){
   const n = nights(s); if(n < 2) return null;
-  const order = [...new Set(Object.values(AREAS).map(a => a.city).filter(Boolean))]; if(order.length < 2) return null;
+  const order = tripCities(s); if(order.length < 2) return null;
   const hrs = {}; const dayH = PACE[s.pace].hours;
   pickedPlaces(s).forEach(p => { const c = placeCity(p); if(c) hrs[c] = (hrs[c] || 0) + (p.full ? dayH : p.hours); });
   const cities = order.filter(c => hrs[c] > 0); if(cities.length < 2 || cities.length > n) return null;

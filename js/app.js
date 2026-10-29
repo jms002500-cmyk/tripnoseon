@@ -1,6 +1,6 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
-import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights } from './logic.js';
+import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
 import { VIEWS, SHEET, vToday, vSafety } from './views.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
@@ -765,6 +765,16 @@ function act(a, v){
         save(); render();
       });
       return;
+    }
+    case 'cityonly': {   // 홍콩만·선전만·둘 다. 다른 도시에 정해 둔 숙소 동네·숙소·밤은 풀어 둠 (담은 장소는 숨기기만)
+      s.cityOnly = v === 'hk' || v === 'sz' ? v : '';
+      const c = onlyCity(s); if(!c) break;
+      if(s.hotelArea && cityOfArea(s.hotelArea) !== c) s.hotelArea = null;
+      const hp = (s.hotels || []).find(h => h.id === s.hotelPick); if(hp && hp.lat != null && placeCity(hp) !== c) s.hotelPick = null;
+      Object.keys(s.nights || {}).forEach(k => { const id = s.nights[k]; const h = String(id).startsWith('area:') ? { area:id.slice(5) } : (s.hotels || []).find(x => x.id === id);
+        if(!h || (h.area ? cityOfArea(h.area) : h.lat != null ? placeCity(h) : c) !== c) delete s.nights[k]; });
+      s.areaFilter = 'all';
+      break;
     }
     case 'anchor': if(s.must[v]) unpick(s, v); else { s.must[v] = true; s.picked[v] = true; } break;
     case 'pick': if(s.picked[v]) unpick(s, v); else s.picked[v] = true; break;

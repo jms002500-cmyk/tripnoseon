@@ -1,6 +1,6 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
-import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, disneyArea } from './data.js';
+import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, disneyArea, CITY_KO, CITY_FLAG } from './data.js';
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as sosHotel, kidCardJa } from './safety.js';
@@ -11,7 +11,7 @@ import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHEC
 // 한 구간 이동 시간 한 줄: '약 15분 · 지하철' (직선거리 어림)
 const legText = (a, b) => { const segs = legSegments(a, b); return `약 ${minText(legMinutes(a, b, segs))} · ${legMode(segs)}`; };
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
-import { nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf } from './logic.js';
+import { nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf, tripCities, onlyCity, placeCity, dist } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
@@ -143,7 +143,9 @@ export function vWhere(s){
     <h2>여행 지역</h2>
     <div class="chips">${regions.map(opt('city', s.city)).join('')}</div>
     ${sh.cityMsg ? `<p class="warnline">${esc(sh.cityMsg)}</p>` : ''}
-    ${s.city === 'hksz' ? '<p class="fine">홍콩과 선전을 한 여행으로 짜요. 국경을 넘는 날은 이동 시간에 출입국 시간을 더하고, 숙소 동네 단계에서 밤마다 홍콩·선전 숙소를 나눠 정할 수 있어요.</p>' : ''}
+    ${s.city === 'hksz' ? `<h2>어느 도시에 가나요?</h2>
+    <div class="chips">${[['', '🇭🇰 홍콩 + 🇨🇳 선전'], ['hk', '🇭🇰 홍콩만'], ['sz', '🇨🇳 선전만']].map(([k, l]) => chip('cityonly', k, l, (s.cityOnly || '') === k)).join('')}</div>
+    <p class="fine">${onlyCity(s) ? `${CITY_KO[onlyCity(s)]}만 가는 여행으로 짜요. 꼭 갈 곳·장소·숙소 동네에 ${CITY_KO[onlyCity(s)]}만 보여 드려요.` : '홍콩과 선전을 한 여행으로 짜요. 국경을 넘는 날은 이동 시간에 출입국 시간을 더하고, 숙소 동네 단계에서 밤마다 홍콩·선전 숙소를 나눠 정할 수 있어요.'}</p>` : ''}
     <h2>날짜</h2>
     <div class="dates">
       <label for="dstart">가는 날<input id="dstart" type="date" value="${s.start}" data-date="start"></label>
@@ -169,7 +171,7 @@ function weatherBox(s){
     <ol class="daystrip">${w.forecast.map(f => { const d = parseDate(f.date);
       return `<li><span class="wxd">${d.getMonth()+1}/${d.getDate()}</span><div><b>${esc(f.text || '—')} · ${f.lo}° / ${f.hi}°</b><span>비 올 확률 ${f.rain != null ? f.rain + '%' : '—'}</span></div></li>`; }).join('')}</ol>` : '';
   return `<div class="box wx">
-    <div class="row"><h2>이맘때 ${esc(CITY_NAME[s.city] || '')} 날씨</h2><span class="fine">지난 ${c ? c.years : 10}년 같은 날짜 평균</span></div>
+    <div class="row"><h2>이맘때 ${esc(onlyCity(s) ? CITY_KO[onlyCity(s)] : CITY_NAME[s.city] || '')} 날씨</h2><span class="fine">지난 ${c ? c.years : 10}년 같은 날짜 평균</span></div>
     ${c ? `<ul class="facts">
       <li><span>낮 최고 / 아침 최저</span><b>${c.hi}° / ${c.lo}°</b></li>
       <li><span>평균 습도</span><b>${c.hum}%</b></li>
@@ -205,34 +207,44 @@ function daySelect(p, days, fa, s){
 
 export function vMust(s){
   const days = buildDays(s); const fa = fullAssign(s, days);
-  const allAnchors = PLACES.filter(p => p.anchor);
-  const anchors = allAnchors.filter(p => s.anchorKind === 'all' || p.kind === s.anchorKind || s.must[p.id]);
+  const allAnchors = allPlaces(s).filter(p => p.anchor);
+  const cities = tripCities(s); const multi = cities.length > 1;
+  // 도시가 둘이면 도시별로 묶어서 (홍콩 → 선전), 목록 순서 = 지도 번호
+  const shown = allAnchors.filter(p => s.anchorKind === 'all' || p.kind === s.anchorKind || s.must[p.id]);
+  const groups = multi ? cities.map(c => ({ c, list:shown.filter(p => placeCity(p) === c) })).filter(g => g.list.length) : [{ c:'', list:shown }];
+  const anchors = groups.flatMap(g => g.list);
   const noDay = pickedPlaces(s).filter(p => p.full && fa[p.id] == null);
+  // 목록에서 가장 가까운 다른 곳 (같은 도시 안에서) — 지도 없이도 둘이 가까운지 먼지 알 수 있게
+  const nearest = p => { let best = null, bd = Infinity; anchors.forEach(q => { if(q.id === p.id || (multi && placeCity(q) !== placeCity(p))) return; const d = dist(p, q); if(d < bd){ bd = d; best = q; } }); return best ? { q:best, km:bd } : null; };
+  const nearText = n => n ? `가장 가까운 곳: ${anchors.indexOf(n.q) + 1}번 ${esc(n.q.name)} · ${n.km < 1 ? Math.round(n.km * 10) * 100 + 'm' : n.km.toFixed(1) + 'km'}${n.km <= 1.2 ? ` (걸어서 약 ${walkMin(n.km * 1.3)}분)` : ''}` : '';
+  const card = p => { const on = !!s.must[p.id]; const n = anchors.indexOf(p) + 1;
+      return `<article class="pcard${on ? ' on' : ''}">
+        <div class="ptop"><div><h3><span class="pnum">${n}</span>${esc(p.name)}</h3><p class="ja">${esc(p.ja)}</p></div>
+          <button type="button" class="mustbtn" data-act="anchor" data-v="${p.id}" aria-pressed="${on}">${on ? '꼭 갈 곳 ✓' : '꼭 갈 곳으로'}</button></div>
+        <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
+        ${anchors.length > 1 ? `<p class="near">${nearText(nearest(p))}</p>` : ''}
+        ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
+        ${on && p.full && fa[p.id] != null ? daySelect(p, days, fa, s) : ''}
+      </article>`; };
   return `<section class="step">
     <p class="eyebrow">Step 3 · 꼭 갈 곳</p>
     <h1>이번 여행에서 꼭 갈 곳이 있나요?</h1>
     <p class="lead">꼭 갈 곳을 먼저 박아두면 숙소와 나머지 일정이 그 주변으로 짜여요.</p>
     ${kindChips('akind', s.anchorKind, allAnchors)}
+    ${anchors.length ? mapSVG('must', s, null, anchors) : ''}
     ${noDay.length ? `<p class="warnline">${days.length ? `${noDay.map(p => esc(p.name)).join(', ')}을(를) 넣을 온종일 날짜가 모자라요. 날짜를 늘리거나 하나를 빼 주세요.` : '여행 날짜를 정하면 하루 종일 쓰는 곳을 어느 날 갈지 정해 드려요.'}</p>` : ''}
-    <div class="list">${anchors.map(p => { const on = !!s.must[p.id];
-      return `<article class="pcard${on ? ' on' : ''}">
-        <div class="ptop"><div><h3>${esc(p.name)}</h3><p class="ja">${esc(p.ja)}</p></div>
-          <button type="button" class="mustbtn" data-act="anchor" data-v="${p.id}" aria-pressed="${on}">${on ? '꼭 갈 곳 ✓' : '꼭 갈 곳으로'}</button></div>
-        <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
-        ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
-        ${on && p.full && fa[p.id] != null ? daySelect(p, days, fa, s) : ''}
-      </article>`; }).join('')}</div>
+    ${groups.map(g => `${g.c ? `<h2 class="cityhead">${CITY_FLAG[g.c]} ${CITY_KO[g.c]}<small>${g.list.length}곳</small></h2>` : ''}<div class="list">${g.list.map(card).join('')}</div>`).join('')}
     <p class="fine">목록에 없는 곳은 다음 단계에서 직접 추가할 수 있어요.</p>
   </section>`;
 }
 
 /* Step 4 · 장소 담기 */
-function placeCard(p, s){
+function placeCard(p, s, n){
   const on = !!s.picked[p.id]; const must = !!s.must[p.id]; const f = fitScore(p, s);
   return `<article class="pcard${on ? ' on' : ''}">
-    <div class="ptop"><div><h3>${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}</div>
+    <div class="ptop"><div><h3>${n ? `<span class="pnum">${n}</span>` : ''}${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
-    <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
+    <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
     ${(f.why.length || f.neg.length) ? `<div class="why">${f.why.map(w => `<span>${esc(w)}</span>`).join('')}${f.neg.map(w => `<span class="neg">${esc(w)}</span>`).join('')}</div>` : ''}
     ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
     ${on ? voteBar(s, p) : ''}
@@ -312,11 +324,15 @@ export function vPick(s){
   if(s.kindFilter !== 'all') list = list.filter(x => x.p.kind === s.kindFilter);
   list.sort((a, b) => b.sc - a.sc);
   const counts = {}; allPlaces(s).forEach(p => { counts[p.area] = (counts[p.area] || 0) + 1; });
+  // 동네·종류로 거르면 그곳만 번호를 달아 지도에 (너무 많으면 번호 없이 전체 약도)
+  const focus = (s.areaFilter !== 'all' || s.kindFilter !== 'all') && list.length && list.length <= 40 ? list.map(x => x.p) : null;
+  const cities = tripCities(s); const areaKeys = Object.keys(AREAS).filter(k => !cities.length || cities.includes(AREAS[k].city));
   return `<section class="step">
     <p class="eyebrow">Step 4 · 장소 담기</p>
     <h1>가고 싶은 곳을 담아요</h1>
     <p class="lead">고민은 나중에 하고 일단 담으세요. ${esc(partyText(s))}에게 맞는 순서로 보여드려요.</p>
-    ${mapSVG('pick', s)}
+    ${mapSVG('pick', s, null, focus)}
+    ${focus ? '' : '<p class="fine">아래에서 동네나 종류를 고르면 그곳만 번호를 달아 지도에 보여 드려요.</p>'}
     <div class="box">
       <div class="statline"><span>담은 곳 <b>${pickedPlaces(s).length}</b>곳</span><span>필요한 시간 <b>${cap.used}</b> / 쓸 수 있는 시간 <b>${cap.total}</b>시간</span></div>
       <div class="meter${over && cap.total ? ' over' : ''}"><span style="width:${pct}%"></span></div>
@@ -331,11 +347,11 @@ export function vPick(s){
     ${importBox(s)}
     <div class="scroller" role="group" aria-label="동네로 거르기">
       ${chip('filter', 'all', '추천순 전체', s.areaFilter === 'all')}
-      ${Object.entries(AREAS).map(([k, a]) => chip('filter', k, `${a.name} ${counts[k] || 0}`, s.areaFilter === k)).join('')}
+      ${areaKeys.map(k => chip('filter', k, `${cities.length > 1 ? CITY_FLAG[AREAS[k].city] + ' ' : ''}${AREAS[k].name} ${counts[k] || 0}`, s.areaFilter === k)).join('')}
     </div>
     ${kindChips('kfilter', s.kindFilter, byArea)}
     ${list.length ? '' : '<p class="empty">이 조건에 맞는 곳이 없어요. 다른 동네나 종류를 골라 보세요.</p>'}
-    <div class="list">${list.map(x => placeCard(x.p, s)).join('')}</div>
+    <div class="list">${list.map((x, i) => placeCard(x.p, s, focus ? i + 1 : 0)).join('')}</div>
     <form class="box" id="customform">
       <h2>목록에 없는 곳 추가</h2>
       <label for="cname">장소 이름<input id="cname" type="text" required maxlength="40" placeholder="예: 구글 지도에서 찾은 라멘집"></label>

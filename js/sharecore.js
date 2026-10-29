@@ -5,7 +5,7 @@ import { allPlaces } from './logic.js';
 import { money } from './ledger.js';
 import { budgetOf } from './budget.js';
 
-export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'start', 'end',
+export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'cityOnly', 'start', 'end',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
   'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
@@ -90,7 +90,7 @@ export function describeChange(prev, next){
 
 // 공유 여행 기본 제목: '도쿄 3/7~3/11'
 export function defaultTitle(s){
-  const city = { tokyo:'도쿄', hksz:'홍콩·선전' }[s.city] || '여행';
+  const city = s.city === 'hksz' && s.cityOnly ? ({ hk:'홍콩', sz:'선전' }[s.cityOnly] || '홍콩·선전') : ({ tokyo:'도쿄', hksz:'홍콩·선전' }[s.city] || '여행');
   if(!s.start || !s.end) return `${city} 여행`;
   const f = d => { const [, m, dd] = d.split('-').map(Number); return `${m}/${dd}`; };
   return `${city} ${f(s.start)}~${f(s.end)}`;

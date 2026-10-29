@@ -169,6 +169,12 @@ p{margin:0}
 .m-htext{fill:var(--ink); font:600 22px var(--f-mono)}
 .m-htext.best{fill:var(--surface)}
 .m-num{fill:#FFFFFF; font:600 18px var(--f-mono)}
+.m-num.dark{fill:var(--ink)}
+.m-num-off{fill:var(--surface); stroke:var(--accent); stroke-width:4}
+.m-scale{fill:none; stroke:var(--muted); stroke-width:4; stroke-linejoin:round}
+.cityhead{display:flex; align-items:baseline; gap:8px; margin-top:22px}
+.pnum{display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 5px; margin-right:6px; border-radius:11px; background:var(--accent); color:#FFFFFF; font:600 12px var(--f-mono); vertical-align:2px}
+.near{font-size:13px; color:var(--muted); margin:4px 0 0}
 
 /* stay */
 .acard{background:var(--surface); border:1.5px solid var(--rule); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px}
