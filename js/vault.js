@@ -14,6 +14,16 @@ export const VAULT_KINDS = [
 ];
 export const kindOf = k => VAULT_KINDS.find(x => x.key === k) || VAULT_KINDS[VAULT_KINDS.length - 1];
 
+// 가계부 영수증 사진도 보관함 항목으로 둠(kind 'receipt', spendId: 지출 id) → 첨부 저장·크게 보기·백업을 그대로 씀.
+// 이 기기에만(보관함과 같음). 보관함 목록·예약 제안·오늘 꺼낼 예약에는 안 보임
+export const isReceipt = it => !!it && it.kind === 'receipt';
+export const bookings = vault => (vault || []).filter(it => !isReceipt(it));
+export const receiptOf = (vault, spendId) => (vault || []).find(it => isReceipt(it) && it.spendId === spendId) || null;
+export function newReceipt(spendId, e, id){
+  return { id, kind:'receipt', spendId, title:`영수증 · ${(e && e.what) || ''}`.trim().slice(0, 60), date:e && /^\d{4}-\d{2}-\d{2}$/.test(e.d) ? e.d : '',
+    time:'', code:'', link:'', memo:'', placeId:(e && e.pl) || null, files:[] };
+}
+
 // 날짜·시간순, 날짜 없는 것은 맨 뒤(종류 순서대로)
 export function sortVault(items){
   const ord = k => VAULT_KINDS.findIndex(x => x.key === k);

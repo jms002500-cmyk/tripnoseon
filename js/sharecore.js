@@ -7,9 +7,9 @@ import { budgetOf } from './budget.js';
 
 export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'start', 'end',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
-  'spend', 'party', 'lrate', 'budget', 'pack', 'safety'];
+  'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
-export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack'];
+export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock'];
 export const DELETE = { __delete:true };   // Firebase deleteField()로 바꿔 보낼 표시
 
 const clone = o => JSON.parse(JSON.stringify(o === undefined ? null : o));
@@ -82,6 +82,7 @@ export function describeChange(prev, next){
   if(!same(prev.party, next.party)) parts.push('정산할 사람 바꿈');
   if(!same(prev.safety, next.safety)) parts.push('긴급 정보(숙소 주소·만날 장소) 고침');
   if(prev.lrate !== next.lrate) parts.push('정산 환율 바꿈');
+  if(!same(prev.dlock || {}, next.dlock || {})) parts.push(Object.keys(next.dlock || {}).length > Object.keys(prev.dlock || {}).length ? '일정 확정' : '일정 확정 풀기');
   if(!same(budgetOf(prev), budgetOf(next))) parts.push('예산 바꿈');
   if(!parts.length && !same(prev, next)) parts.push('일정 수정');
   return parts.join(' · ').slice(0, 190);

@@ -1,6 +1,6 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT } from './data.js';
-import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan } from './logic.js';
+import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign } from './logic.js';
 import { VIEWS, SHEET, vToday, vSafety } from './views.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
@@ -14,10 +14,10 @@ import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx, convert } from './prices.js';
 import { planTripleImport, applyTripleImport } from './ledgerimport.js';
-import { parseLine, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, personUsed, catOf } from './ledger.js';
+import { atPlace, parseLine, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, personUsed, catOf } from './ledger.js';
 import { parseWon, setBudget } from './budget.js';
 import { ledgerCsv, ledgerCsvName } from './ledgerexport.js';
-import { missingBookings } from './vault.js';
+import { missingBookings, bookings, receiptOf, newReceipt } from './vault.js';
 import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } from './vaultdb.js';
 import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blobToB64, b64ToBlob } from './backup.js';
 import { sizeText } from './vault.js';
@@ -359,6 +359,30 @@ function hydrateThumbs(){
 }
 async function refreshUsage(){ const u = await usage(); if(state.sh.vusage !== u){ state.sh.vusage = u; if(state.step === VAULT_STEP) render(); } }
 
+// 고른 파일을 줄여서 IndexedDB에 넣고 항목 첨부 목록에 더함 → 못 넣은 파일 이름들
+async function storeFiles(it, list){
+  const skipped = [];
+  for(const f of list){
+    const blob = await shrinkImage(f);
+    if(blob.size > MAX_FILE){ skipped.push(f.name); continue; }
+    const fid = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    try{ await putFile(fid, { blob, name:f.name.slice(0, 80), type:blob.type || f.type, size:blob.size }); it.files.push({ fid, name:f.name.slice(0, 80), type:blob.type || f.type, size:blob.size }); }
+    catch(e){ skipped.push(f.name); }
+  }
+  return skipped;
+}
+
+// 지출에 영수증 사진 붙이기 (보관함 항목 kind 'receipt'로, 이 기기에만)
+async function addReceipt(spendId, list){
+  const s = state; const e = (s.spend || {})[spendId]; if(!e || !list.length) return;
+  let it = receiptOf(s.vault, spendId);
+  if(!it){ it = newReceipt(spendId, e, 'v' + Date.now().toString(36)); s.vault.push(it); }
+  const skipped = await storeFiles(it, list);
+  keepStorage(); save(); render(); refreshUsage();
+  toast(skipped.length ? '사진이 너무 크거나 저장 공간이 모자라 넣지 못했어요 (파일 하나 15MB까지).'
+    : `영수증을 붙였어요.${s.shareId ? ' 사진은 이 기기에만 있어요.' : ''}`);
+}
+
 async function saveVault(){
   const s = state, g = id => document.getElementById(id);
   const title = g('vtitle').value.trim(); if(!title) return;
@@ -368,14 +392,7 @@ async function saveVault(){
   Object.assign(it, { kind:g('vkind').value, title:title.slice(0, 60), date:g('vdate').value, time:g('vtime').value,
     code:g('vcode').value.trim().slice(0, 40), link:safeHttpsUrl(g('vlink').value), memo:g('vmemo').value.trim().slice(0, 300),
     placeId:g('vplace').value || it.placeId || null });
-  const skipped = [];
-  for(const f of picked){
-    const blob = await shrinkImage(f);
-    if(blob.size > MAX_FILE){ skipped.push(f.name); continue; }
-    const fid = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    try{ await putFile(fid, { blob, name:f.name.slice(0, 80), type:blob.type || f.type, size:blob.size }); it.files.push({ fid, name:f.name.slice(0, 80), type:blob.type || f.type, size:blob.size }); }
-    catch(e){ skipped.push(f.name); }
-  }
+  const skipped = await storeFiles(it, picked);
   if(!editing) s.vault.push(it);
   s.vedit = null; s.vdraft = null;
   keepStorage(); save(); render(); refreshUsage();
@@ -422,7 +439,7 @@ function vaultAct(a, v){
   const s = state;
   switch(a){
     case 'vnew': s.vedit = null; s.vdraft = null; render(); focusVaultForm(); return;
-    case 'vaddq': { const m = missingBookings(s, s.vault)[+v]; if(!m) return; s.vedit = null; s.vdraft = m; render(); focusVaultForm(); return; }
+    case 'vaddq': { const m = missingBookings(s, bookings(s.vault))[+v]; if(!m) return; s.vedit = null; s.vdraft = m; render(); focusVaultForm(); return; }
     case 'vedit': s.vedit = v; s.vdraft = null; render(); focusVaultForm(); return;
     case 'vcancel': s.vedit = null; s.vdraft = null; render(); return;
     case 'vcopy': { const it = s.vault.find(x => x.id === v); if(it && it.code) copyText(it.code, `예약번호 ${it.code}을(를) 복사했어요.`); return; }
@@ -521,15 +538,22 @@ function updatePreview(){
   const i = document.getElementById('lline'), p = document.getElementById('lprev'); if(!i || !p) return;
   const s = state; const ctx = ledgerCtx();
   if(!i.value.trim()){ p.textContent = ledgerHint(s, ctx); p.classList.remove('bad'); return; }
-  const r = parseLine(i.value, s, ctx);
+  const r = withPlace(parseLine(i.value, s, ctx));
   p.textContent = r.ok ? `→ ${previewText(s, r.e)}` : r.error; p.classList.toggle('bad', !r.ok);
 }
 document.addEventListener('input', e => { if(e.target.id === 'lline') updatePreview(); });
 
+// 오늘 하루 화면에서 장소의 '여기서 쓴 돈'을 눌렀으면 그 장소를 단 지출로
+function withPlace(r){
+  const id = state.sh.lplace; if(!r.ok || !id) return r;
+  const p = allPlaces(state).find(x => x.id === id); return p ? Object.assign({}, r, { e:atPlace(r.e, p) }) : r;
+}
+
 function addFromLine(){
   const s = state, sh = s.sh; const inp = document.getElementById('lline');
-  const r = parseLine(inp ? inp.value : '', s, ledgerCtx());
+  const r = withPlace(parseLine(inp ? inp.value : '', s, ledgerCtx()));
   if(!r.ok){ updatePreview(); focusLine(); return; }
+  sh.lplace = null;   // 장소는 한 번 적을 때만
   const id = newSpendId(); s.spend[id] = Object.assign(r.e, { at:Date.now() });   // 한 줄에 쓴 이름은 그 지출에만 (기본 낸 사람은 자세히 적기에서 고를 때만 바뀜)
   sh.lmsg = `적었어요 · ${spentText(r.e)}`; sh.lerr = false; sh.lundo = id;
   save(); render(); focusLine();   // 이어서 다음 지출을 적을 수 있게
@@ -545,6 +569,7 @@ function saveDetail(){
   const e = { d:g('ldate').value, amt, cur:g('lcur').value === 'KRW' ? 'KRW' : 'JPY', what:g('lwhat').value.trim().slice(0, 40) || catOf(cat).label, cat,
     pay:g('lpay').value, by:ids.includes(g('lby').value) ? g('lby').value : ids[0],
     split:on.length && on.length < ids.length ? on : null, at:editing ? (editing.at || Date.now()) : Date.now() };
+  if(editing && editing.pl) e.pl = editing.pl;   // 장소에서 적은 지출은 고쳐도 장소를 그대로
   const id = editing ? sh.ledit : newSpendId();
   s.spend[id] = e; s.lby = e.by;
   sh.lmsg = `${editing ? '고쳤어요' : '적었어요'} · ${spentText(e)}`; sh.lerr = false; sh.lundo = editing ? null : id; sh.ledit = null; sh.lmore = false;
@@ -566,7 +591,9 @@ function ledgerAct(a, v){
     case 'lundo': if(sh.lundo && s.spend[sh.lundo]){ delete s.spend[sh.lundo]; sh.lmsg = '방금 적은 지출을 지웠어요.'; } sh.lundo = null; break;
     case 'ldel':
       if(sh.ldel !== v){ sh.ldel = v; render(); setTimeout(() => { if(state.sh.ldel === v){ state.sh.ldel = null; render(); } }, 4000); return; }
-      sh.ldel = null; delete s.spend[v]; if(sh.ledit === v) sh.ledit = null; if(sh.lundo === v) sh.lundo = null; break;
+      sh.ldel = null; delete s.spend[v]; if(sh.ledit === v) sh.ledit = null; if(sh.lundo === v) sh.lundo = null;
+      { const rc = receiptOf(s.vault, v); if(rc) deleteVault(rc.id); }   // 붙인 영수증 사진도 같이
+      break;
     case 'lpadd': { const p = partyOf(s).map(x => Object.assign({}, x)); if(p.length >= 12) return;
       p.push({ id:newPersonId(), name:`사람 ${p.length + 1}` }); s.party = p; break; }
     case 'lpdel': if(personUsed(s, v) || partyOf(s).length < 2) return; s.party = partyOf(s).filter(p => p.id !== v); if(s.lby === v) s.lby = null; break;
@@ -693,7 +720,12 @@ function act(a, v){
     case 'tclose': s.mode = null; s.sh.sbig = null; scroll = true; break;
     case 'sos': s.mode = s.mode === 'sos' ? null : 'sos'; s.sh.sbig = null; scroll = true; break;
     case 'sbig': s.sh.sbig = v || null; if(v && s.mode !== 'sos') s.mode = 'sos'; break;   // 크게 보여 주기 (직원·택시 기사에게)
-    case 'tday': s.tday = +v; break;
+    case 'tday': s.tday = +v; s.sh.lplace = null; break;
+    case 'tspend': {   // 장소에서 바로 비용 적기: 아래 '이날 쓴 돈' 칸에 그 장소를 달아 둠
+      s.sh.lplace = v; render();
+      const f = document.getElementById('ledgerform'); if(f) f.scrollIntoView({ block:'center' }); focusLine(); updatePreview(); return;
+    }
+    case 'lplacex': s.sh.lplace = null; render(); focusLine(); return;
     case 'tdone': {   // 다녀옴 표시: 오늘 화면에서 보고 있는 날짜 기준
       const k = doneKey(shownDate(s, ymd(new Date())), v); s.tdone = Object.assign({}, s.tdone);
       if(s.tdone[k]) delete s.tdone[k]; else s.tdone[k] = true; break;
@@ -715,7 +747,9 @@ function act(a, v){
     case 'autopick': autoPickIds(s).forEach(id => { s.picked[id] = true; }); break;
     case 'customdel': s.custom = s.custom.filter(c => c.id !== v); unpick(s, v); break;
     case 'hotel': s.hotelArea = s.hotelArea === v ? null : v; break;
-    case 'replan': s.assign = {}; break;
+    case 'replan': s.assign = keepLockedAssign(s); break;
+    case 'dlock': lockDay(s, +v); toast(`${+v + 1}일차를 확정했어요. 이날 장소는 자동으로 바뀌지 않아요.`); break;
+    case 'dunlock': unlockDay(s, +v); break;
     case 'impfind': findLocations(); return;
     case 'hfind': findHotelLocations(); return;
     case 'mapopen': openLiveMap(); return;
@@ -793,7 +827,7 @@ function act(a, v){
 function onChange(e){
   const t = e.target; const s = state;
   if(t.dataset.kid != null){ s.kids[+t.dataset.kid] = Math.min(17, Math.max(0, parseInt(t.value, 10) || 0)); }
-  else if(t.dataset.date){ if(!t.value) return; s[t.dataset.date] = t.value; s.fullDay = {}; s.assign = {}; }
+  else if(t.dataset.date){ if(!t.value) return; s[t.dataset.date] = t.value; s.fullDay = {}; s.assign = {}; s.dlock = {}; }
   else if(t.dataset.full){
     // 다른 '하루 종일' 장소와 날짜가 겹치면 서로 맞바꿈
     const id = t.dataset.full; const nv = +t.value; const fa = fullAssign(s, buildDays(s)); const prev = fa[id];
@@ -827,6 +861,7 @@ function onChange(e){
     return;
   }
   else if(t.dataset.lrate != null){ s.lrate = Math.max(0, Math.round((+t.value || 0) * 100) / 100); }
+  else if(t.dataset.rcpt != null){ const list = Array.from(t.files || []); const id = t.dataset.rcpt; t.value = ''; addReceipt(id, list); return; }
   else if(t.dataset.limport != null){
     const f = t.files && t.files[0]; t.value = ''; if(!f) return;
     f.text().then(text => {

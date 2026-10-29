@@ -156,6 +156,18 @@ export function parseLine(text, s, ctx){
   return { ok:true, e:{ d:fitTrip(s, d || defaultDay(s, c.today, cat)), amt, cur, what, cat, pay, by, split:personal ? [by] : null } };
 }
 
+// 장소에서 바로 적은 지출: 장소 id(pl)를 달고, 내용이 비었으면(분류 이름뿐이면) 장소 이름으로,
+// 분류를 못 정했으면 장소 종류로 (테마파크·전망대 → 입장권, 먹거리 → 식비, 쇼핑·거리 → 쇼핑)
+const KIND_CAT = { '테마파크':'ticket', '전망대':'ticket', '박물관·미술관':'ticket', '수족관·동물원':'ticket', '체험·캐릭터':'ticket',
+  '먹거리':'food', '쇼핑':'shop', '거리·시장':'shop' };
+export function atPlace(e, p){
+  if(!e || !p) return e;
+  const out = Object.assign({}, e, { pl:p.id });
+  if(out.cat === 'etc' && KIND_CAT[p.kind]) out.cat = KIND_CAT[p.kind];
+  if(!e.what || e.what === catOf(e.cat).label) out.what = String(p.name || '').slice(0, 40) || catOf(out.cat).label;
+  return out;
+}
+
 /* ---------- 금액 보여 주기 ---------- */
 export function money(v, cur){
   const n = Math.round(v).toLocaleString('ko-KR');

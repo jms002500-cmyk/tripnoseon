@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT } from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { parseLine, defaultDay, dayLabel, ledgerSummary, settle, categorize, money, partyOf, personUsed, previewText, tripDates, newPersonId, newSpendId } from '../js/ledger.js';
+import { parseLine, defaultDay, dayLabel, ledgerSummary, settle, categorize, money, partyOf, personUsed, previewText, tripDates, newPersonId, newSpendId, atPlace } from '../js/ledger.js';
 import { SHARED_KEYS, MAP_KEYS, diffShared, sharedOf, describeChange } from '../js/sharecore.js';
 
 // 지어낸 여행: 2027-03-07 ~ 03-11, 엄마·아빠·민지
@@ -153,4 +153,18 @@ test('함께 짜기: 가계부는 공유하고, 지출은 한 건씩 따로 보�
   assert.equal(describeChange(sharedOf(a), sharedOf(b)), '지출 적음: 크레페 ¥600');
   const c = clone(b); delete c.spend.x1; delete c.spend.x2;
   assert.equal(describeChange(sharedOf(b), sharedOf(c)), '지출 2건 지움');
+});
+
+test('장소에서 바로 적은 지출', () => {
+  const s = trip();
+  const p = { id:'sensoji', name:'센소지', kind:'신사·절' };
+  const a = atPlace(parseLine('1200엔', s, { today:'2027-03-08' }).e, p);
+  assert.equal(a.pl, 'sensoji'); assert.equal(a.what, '센소지'); assert.equal(a.cat, 'etc');
+  const b = atPlace(parseLine('오마모리 800엔', s, { today:'2027-03-08' }).e, p);
+  assert.equal(b.what, '오마모리'); assert.equal(b.pl, 'sensoji');
+  const c = atPlace(parseLine('3000엔', s, { today:'2027-03-08' }).e, { id:'tl', name:'팀랩 플래닛', kind:'체험·캐릭터' });
+  assert.equal(c.cat, 'ticket'); assert.equal(c.what, '팀랩 플래닛');
+  const d = atPlace(parseLine('라멘 1200엔', s, { today:'2027-03-08' }).e, { id:'x', name:'시부야', kind:'거리·시장' });
+  assert.equal(d.cat, 'food'); assert.equal(d.what, '라멘');
+  assert.equal(atPlace(null, p), null);
 });
