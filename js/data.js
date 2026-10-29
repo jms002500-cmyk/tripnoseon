@@ -136,6 +136,7 @@ export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'no
   rkOn:false, rk:null, rkBusy:false,   // rkOn: 라쿠텐 키가 이 기기에 있는지(키 자체는 상태에 넣지 않음), rk: 마지막 빈방 검색 결과
   wx:null, wxBusy:false, fx:null,      // wx: 여행 날짜 날씨(이맘때 평균·예보), fx: 환율 { rate: 1엔당 원, date, src }
   vault:[], vedit:null, vdraft:null, lastBackup:'',   // vault: 예약 보관함(이 기기에만, 공유 안 함), vedit: 고치는 항목 id, vdraft: 제안에서 채운 새 항목
+  dlock:{},   // 일차별 확정 { 'YYYY-MM-DD': true } (js/logic.js lockDay, 함께 짜기로 공유)
   spend:{}, party:[], lrate:0, lby:null, budget:{ total:0, cats:{} },
   pack:{}, pfilter:'all',
   safety:{ hname:'', addr:'', tel:'', meet:'' }, sphone:'',   // 긴급 정보(js/safety.js): safety 숙소 일본어 이름·주소·전화·만날 장소(함께 짜기로 공유), sphone 부모 연락처(이 기기에만)   // 준비물(js/packing.js): pack {id: 준비물}(함께 짜기로 공유), pfilter 화면 거르기

@@ -13,7 +13,7 @@ import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
 import { SITES, siteUrl, priceOptions } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
-import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText } from './vault.js';
+import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText, bookings, receiptOf } from './vault.js';
 import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDates, ledgerSummary, ledgerHint, money as lmoney, personUsed } from './ledger.js';
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
@@ -517,6 +517,7 @@ export function vStay(s){
 const ymdStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 function rainBox(s, P, d){
   const sh = s.sh || {}; const date = ymdStr(d.date); const r = dayRain(s.wx, date);
+  if(d.locked) return r && r.rainy ? `<p class="fine">☔ 비 예보 ${r.prob != null ? r.prob + '%' : ''} · 확정한 날이라 바꾸지 않았어요. 바꾸려면 확정을 풀어 주세요.</p>` : '';
   const open = (r && r.rainy) || sh.ropen === d.i;
   const undo = sh.rundo && sh.rundo.day === d.i ? `<p class="lmsg" role="status">'${esc(sh.rundo.outName)}' 대신 '${esc(sh.rundo.inName)}'(으)로 바꿨어요. <button type="button" class="link" data-act="rundo">되돌리기</button></p>` : '';
   if(!open) return `${undo}<div><button type="button" class="link" data-act="ropen" data-v="${d.i}">☔ 비 오면?</button></div>`;
@@ -564,7 +565,7 @@ function transitBox(s, P){
 /* Step 6 · 일정 */
 function moveSelect(p, days, cur){
   const opts = [`<option value="">자동</option>`]
-    .concat(days.filter(d => !d.full).map(d => `<option value="${d.i}"${cur === d.i ? ' selected' : ''}>${d.i+1}일차로</option>`))
+    .concat(days.filter(d => !d.full && !d.locked).map(d => `<option value="${d.i}"${cur === d.i ? ' selected' : ''}>${d.i+1}일차로</option>`))
     .concat([`<option value="-1"${cur === -1 ? ' selected' : ''}>빼두기</option>`]);
   return `<select data-move="${esc(p.id)}" aria-label="${esc(p.name)} 날짜 옮기기">${opts.join('')}</select>`;
 }
@@ -590,13 +591,15 @@ export function vPlan(s){
         : d.items.length
           ? `<ol class="stops">${d.items.map((p, j) => { const cl = p.closed && p.closed.includes(d.wd);
               const prev = j ? d.items[j-1] : P.hotel;
-              return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a>${voteBar(s, p)}</div>${moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
+              return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a>${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
-      return `<article class="day" style="--day:${col}">
-        <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${(r => r ? ` · 예보 ${esc(r.text || '')}${r.prob != null ? ` ${r.prob}%` : ''}` : '')(dayRain(s.wx, ymdStr(d.date)))}</p></div></header>
+      return `<article class="day${d.locked ? ' locked' : ''}" style="--day:${col}">
+        <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${(r => r ? ` · 예보 ${esc(r.text || '')}${r.prob != null ? ` ${r.prob}%` : ''}` : '')(dayRain(s.wx, ymdStr(d.date)))}</p></div></header>
         ${body}
         ${rainBox(s, P, d)}
-        <div><button type="button" class="link" data-act="tfood" data-v="${d.i}">🍜 이날 점심·저녁 식당 찾기</button></div>
+        <div class="tacts"><button type="button" class="link" data-act="tfood" data-v="${d.i}">🍜 이날 점심·저녁 식당 찾기</button>${d.full || d.items.length ? (d.locked
+          ? `<button type="button" class="link" data-act="dunlock" data-v="${d.i}">확정 풀기</button>` : `<button type="button" class="link" data-act="dlock" data-v="${d.i}">🔒 이날 확정</button>`) : ''}</div>
+        ${d.locked ? `<p class="fine">확정한 날이에요. 다시 짜기·비 오는 날 바꾸기·다른 장소 자동 배치가 이날을 바꾸지 않아요.${s.shareId ? ' 함께 짜는 가족에게도 확정으로 보여요.' : ''}</p>` : ''}
         ${d.full ? '' : `<div class="meter${d.used > d.cap ? ' over' : ''}"><span style="width:${pct}%"></span></div>`}
       </article>`; }).join('')}
     ${transitBox(s, P)}
@@ -707,7 +710,7 @@ function backupBox(s){
 }
 
 export function vVault(s){
-  const items = s.vault || []; const miss = missingBookings(s, items);
+  const items = bookings(s.vault); const miss = missingBookings(s, items);
   const editing = s.vedit ? items.find(x => x.id === s.vedit) : null;
   const d = editing || s.vdraft || {};
   const groups = groupVault(items);
@@ -753,11 +756,16 @@ function ledgerRow(s, e, L, armed){
   const conv = e.cur !== L.base ? L.val(e) : null;
   const pay = e.pay ? (PAYS.find(x => x.key === e.pay) || {}).label : '';
   const sp = e.split && e.split.length ? (e.split.length === 1 && e.split[0] === e.by ? '혼자 부담' : `${e.split.map(id => (partyOf(s).find(x => x.id === id) || {}).name).filter(Boolean).join('·')} 몫`) : '';
-  const meta = [p ? `${p.name} 냄` : '', pay, sp, e.src === 'triple' ? '트리플에서 가져옴' : ''].filter(Boolean).join(' · ');
+  const pl = e.pl ? allPlaces(s).find(x => x.id === e.pl) : null; const rc = receiptOf(s.vault, e.id);
+  const meta = [pl && pl.name !== e.what ? `📍${pl.name}` : '', p ? `${p.name} 냄` : '', pay, sp, e.src === 'triple' ? '트리플에서 가져옴' : ''].filter(Boolean).join(' · ');
   return `<li class="lrow">
     <span class="licon" aria-hidden="true">${c.icon}</span>
     <div class="sbody"><b>${esc(e.what || c.label)}</b><span>${esc(c.label)}${meta ? ' · ' + esc(meta) : ''}</span>
+      ${rc && rc.files.length ? `<span class="vfiles">${rc.files.map(f => /^image\//.test(f.type)
+        ? `<button type="button" class="vthumb rthumb" data-act="vview" data-v="${esc(rc.id)}|${esc(f.fid)}" aria-label="영수증 크게 보기"><img data-fid="${esc(f.fid)}" alt=""></button>`
+        : `<button type="button" class="vpdf" data-act="vview" data-v="${esc(rc.id)}|${esc(f.fid)}">📄 ${esc(f.name)}</button>`).join('')}</span>` : ''}
       <span class="lacts"><button type="button" class="link" data-act="ledit" data-v="${esc(e.id)}">고치기</button>
+      <label class="link rcadd">🧾 ${rc && rc.files.length ? '영수증 더' : '영수증 사진'}<input type="file" accept="image/*,application/pdf" data-rcpt="${esc(e.id)}" hidden></label>
       <button type="button" class="link${armed === e.id ? ' warnlink' : ''}" data-act="ldel" data-v="${esc(e.id)}">${armed === e.id ? '한 번 더 누르면 지워져요' : '지우기'}</button></span></div>
     <div class="lamt"><b>${lmoney(e.amt, e.cur)}</b>${conv != null ? `<span>≈ ${lmoney(conv, L.base)}</span>` : ''}</div>
   </li>`;
@@ -1008,15 +1016,17 @@ export function vToday(s){
   const col = DAY_COLORS[i % DAY_COLORS.length]; const hotel = P.hotel;
   const stops = d.items; const nx = nextStopIndex(stops, date, s.tdone);
   const isDone = p => !!(s.tdone || {})[doneKey(date, p.id)];
-  const vault = dayVault(s.vault, date, stops.map(p => p.id).concat(d.full ? [d.full.id] : []));
+  const vault = dayVault(bookings(s.vault), date, stops.map(p => p.id).concat(d.full ? [d.full.id] : []));
   const L = ledgerSummary(s); const g = L.groups.find(x => x.d === date);
   const closed = p => p.closed && p.closed.includes(d.wd);
+  const lp = sh.lplace ? allPlaces(s).find(p => p.id === sh.lplace) : null;   // '여기서 쓴 돈'을 누른 장소
 
   let next;
   if(d.full) next = `<div class="tnext" style="--day:${col}">
       <span class="fine">하루 종일</span><b>${esc(d.full.name)}</b><span class="meta">${esc(d.full.note || '')}</span>
       ${(d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 문 여는 시간보다 일찍 가면 좋아요.</p>' : ''}
       <a class="primary tgo" href="${esc(gdir(hotel, d.full))}" target="_blank" rel="noopener">숙소에서 길찾기 ↗</a>
+      <button type="button" class="ghost small" data-act="tspend" data-v="${esc(d.full.id)}">💴 여기서 쓴 돈 적기</button>
     </div>`;
   else if(stops.length && nx >= 0){ const p = stops[nx];
     next = `<div class="tnext" style="--day:${col}">
@@ -1046,7 +1056,7 @@ export function vToday(s){
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${esc(hotel.name)}</b><span>숙소에서 출발</span></div></li>
         ${stops.map((p, j) => `<li class="${isDone(p) ? 'done' : ''}${j === nx ? ' nx' : ''}"><span class="num">${j + 1}</span>
           <div class="sbody"><b>${esc(p.name)}</b><span>약 ${p.hours}시간${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
-            <a class="link" href="${esc(gdir(fromFor(stops, j, hotel), p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a></div>
+            <span class="tacts"><a class="link" href="${esc(gdir(fromFor(stops, j, hotel), p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a><button type="button" class="link" data-act="tspend" data-v="${esc(p.id)}">💴 여기서 쓴 돈</button></span></div>
           <button type="button" class="tchk" data-act="tdone" data-v="${esc(p.id)}" aria-pressed="${isDone(p)}" aria-label="${esc(p.name)} 다녀옴">✓</button></li>`).join('')}
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>숙소로 돌아가기</b><a class="link" href="${esc(gdir(stops[stops.length - 1], hotel))}" target="_blank" rel="noopener">마지막 장소에서 길찾기 ↗</a></div></li>
       </ol></div>` : ''}
@@ -1057,7 +1067,8 @@ export function vToday(s){
       <h2>이날 쓴 돈<small>${g ? lmoney(g.total, L.base) : '아직 없음'}</small></h2>
       ${(bv => bv.on && bv.level !== 'over' && bv.phase === 'during' && date === today && bv.perDay > 0 ? `<p class="fine">${bv.todayLeft >= 0 ? `오늘 쓸 수 있는 돈 <b>${manwon(bv.todayLeft)}</b> 남았어요` : `오늘은 하루 몫보다 ${manwon(-bv.todayLeft)} 더 썼어요`} (하루 ${manwon(bv.perDay)})</p>` : '')(budgetView(s, today))}
       ${g ? `<ul class="tspend">${g.items.map(e => `<li><span>${catOf(e.cat).icon} ${esc(e.what || catOf(e.cat).label)}</span><b>${lmoney(e.amt, e.cur)}</b></li>`).join('')}</ul>` : ''}
-      <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="예: 라멘 1200엔" aria-label="이날 쓴 돈 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
+      ${lp ? `<p class="lat">📍 <b>${esc(lp.name)}</b>에서 쓴 돈으로 적어요. 금액만 써도 돼요. <button type="button" class="link" data-act="lplacex">장소 빼기</button></p>` : ''}
+      <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="${lp ? '예: 3000엔 또는 기념품 1500엔' : '예: 라멘 1200엔'}" aria-label="이날 쓴 돈 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
       <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:s.country === 'jp' ? 'JPY' : 'KRW' }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
     </form>

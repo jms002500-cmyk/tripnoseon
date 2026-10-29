@@ -41,7 +41,7 @@ export function indoorAlternatives(s, P, dayIndex, place, limit){
 export function betterFullDay(P, wx, dayIndex){
   const cur = P.days[dayIndex]; if(!cur || !cur.full) return null;
   const date = d => { const x = d.date; return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
-  const opts = P.days.filter(d => d.i !== dayIndex && !d.full && (d.kind === 'full' || d.kind === 'single'))
+  const opts = P.days.filter(d => d.i !== dayIndex && !d.full && !d.locked && (d.kind === 'full' || d.kind === 'single'))
     .map(d => ({ d, r:dayRain(wx, date(d)) })).filter(x => x.r && !x.r.rainy)
     .sort((a, b) => (a.r.prob ?? 100) - (b.r.prob ?? 100) || (a.d.wd >= 1 && a.d.wd <= 5 ? 0 : 1) - (b.d.wd >= 1 && b.d.wd <= 5 ? 0 : 1));
   return opts.length ? { i:opts[0].d.i, prob:opts[0].r.prob, label:opts[0].d.label } : null;

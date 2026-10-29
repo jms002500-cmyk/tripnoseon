@@ -36,7 +36,8 @@ export function buildDays(s){
   return dates.map((d, i) => {
     const kind = dates.length === 1 ? 'single' : i === 0 ? 'arrive' : i === dates.length-1 ? 'depart' : 'full';
     const cap = (kind === 'arrive' || kind === 'depart') ? Math.max(2, Math.round(base/2)) : base;
-    return { i, date:d, wd:d.getDay(), kind, cap, label:`${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})` };
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { i, date:d, key, wd:d.getDay(), kind, cap, label:`${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})` };
   });
 }
 
@@ -64,6 +65,27 @@ export function fitScore(p, s){
 }
 
 // 하루 종일 쓰는 곳(디즈니 등)을 어느 날에 둘지. 사용자가 고른 날 우선, 없으면 평일 온종일 날
+// 일차별 확정: s.dlock { 'YYYY-MM-DD': true } (함께 짜기로 공유). 확정한 날은 장소를 고정(assign·fullDay)해 두고
+// 자동 배치·다시 짜기·비 오는 날 바꾸기가 그날을 건드리지 않음. 날짜를 바꾸면 풀림
+export const isLocked = (s, d) => !!(d && s.dlock && s.dlock[d.key]);
+export function lockDay(s, i){
+  const P = plan(s); const d = P.days[i]; if(!d) return s;
+  d.items.forEach(p => { s.assign[p.id] = i; });
+  if(d.full) s.fullDay = Object.assign({}, s.fullDay, { [d.full.id]:i });
+  s.dlock = Object.assign({}, s.dlock, { [d.key]:true });
+  return s;
+}
+export function unlockDay(s, i){
+  const d = buildDays(s)[i]; if(!d || !s.dlock) return s;
+  const o = Object.assign({}, s.dlock); delete o[d.key]; s.dlock = o; return s;
+}
+// '다시 짜기': 확정한 날에 고정한 장소만 남기고 손으로 옮긴 것을 지움
+export function keepLockedAssign(s){
+  const days = buildDays(s); const out = {};
+  Object.entries(s.assign || {}).forEach(([id, di]) => { if(di >= 0 && isLocked(s, days[di])) out[id] = di; });
+  return out;
+}
+
 export function fullAssign(s, days){
   const res = {}; const used = new Set();
   const fulls = pickedPlaces(s).filter(p => p.full);
@@ -72,7 +94,7 @@ export function fullAssign(s, days){
   fulls.forEach(p => { const w = s.fullDay[p.id]; if(w != null && pool.includes(w) && !used.has(w)){ res[p.id] = w; used.add(w); } });
   fulls.forEach(p => {
     if(res[p.id] != null) return;
-    const free = pool.filter(i => !used.has(i)); if(!free.length){ res[p.id] = null; return; }
+    const free = pool.filter(i => !used.has(i) && !isLocked(s, days[i])); if(!free.length){ res[p.id] = null; return; }   // 확정한 날에는 자동으로 안 넣음
     const wk = free.filter(i => days[i].wd >= 1 && days[i].wd <= 5);
     const pick = (wk.length ? wk : free)[0]; res[p.id] = pick; used.add(pick);
   });
@@ -167,7 +189,7 @@ export function orderNN(items, start){
 //  2) 사용자가 직접 옮긴 곳(s.assign) 배치 (-1은 빼두기)
 //  3) 나머지는 동네끼리 묶어서, 시간·휴무일을 지키며 가까운 날에 배치
 export function plan(s){
-  const days = buildDays(s); const res = days.map(d => ({ ...d, full:null, items:[], used:0 }));
+  const days = buildDays(s); const res = days.map(d => ({ ...d, full:null, items:[], used:0, locked:isLocked(s, d) }));
   const hotel = hotelOf(s); const fa = fullAssign(s, days); const unassigned = []; const auto = [];
   pickedPlaces(s).forEach(p => {
     if(p.full){
@@ -188,7 +210,7 @@ export function plan(s){
   auto.forEach(p => {
     let best = null, bestCost = Infinity, blockedByClosed = false;
     res.forEach(d => {
-      if(d.full) return;
+      if(d.full || d.locked) return;
       if(d.used + p.hours > d.cap + 0.01) return;
       if(p.closed && p.closed.includes(d.wd)){ blockedByClosed = true; return; }
       let c;

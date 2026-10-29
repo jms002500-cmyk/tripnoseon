@@ -43,3 +43,14 @@ test('사진 줄이기 크기와 용량 표시', () => {
   assert.equal(sizeText(512), '1KB'); assert.equal(sizeText(2.5 * 1048576), '2.5MB');
   assert.equal(kindOf('nope').key, 'etc');
 });
+
+test('영수증 사진은 보관함 항목이지만 보관함 목록에는 안 보임', async () => {
+  const { isReceipt, bookings, receiptOf, newReceipt } = await import('../js/vault.js');
+  const r = newReceipt('s1', { what:'라멘', d:'2027-03-08', pl:'sensoji' }, 'v1');
+  assert.deepEqual([r.kind, r.spendId, r.title, r.date, r.placeId], ['receipt', 's1', '영수증 · 라멘', '2027-03-08', 'sensoji']);
+  assert.equal(newReceipt('s2', { what:'유심', d:'before' }, 'v2').date, '');
+  const vault = [{ id:'a', kind:'ticket', files:[] }, r];
+  assert.ok(isReceipt(r)); assert.ok(!isReceipt(vault[0]));
+  assert.deepEqual(bookings(vault).map(x => x.id), ['a']);
+  assert.equal(receiptOf(vault, 's1'), r); assert.equal(receiptOf(vault, 'zz'), null);
+});

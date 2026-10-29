@@ -74,3 +74,23 @@ test('처음 연 상태(기본값)는 비어 있고 화면 계산이 깨지지 �
   assert.equal(plan(s).days.length, 0);
   assert.equal(fitScore(byId('omoide'), s).score, 0);   // 동행을 안 정했으면 점수를 깎지도 더하지도 않음
 });
+
+test('일차별 확정: 확정한 날은 자동 배치·다시 짜기가 안 바꿈', async () => {
+  const { lockDay, unlockDay, keepLockedAssign, isLocked } = await import('../js/logic.js');
+  const s = demo(); PLACES.filter(p => !p.full && p.area === 'asakusa').slice(0, 3).forEach(p => { s.picked[p.id] = true; });
+  const P = plan(s);
+  const di = P.days.findIndex(d => !d.full && d.items.length); assert.ok(di >= 0);
+  const before = P.days[di].items.map(p => p.id);
+  lockDay(s, di);
+  const key = buildDays(s)[di].key; assert.equal(s.dlock[key], true);
+  before.forEach(id => assert.equal(s.assign[id], di));
+  // 새로 담은 곳은 확정한 날로 자동으로 안 들어감
+  const extra = PLACES.find(p => !p.full && !s.picked[p.id] && p.area === P.days[di].items[0].area);
+  if(extra){ s.picked[extra.id] = true; const Q = plan(s); assert.ok(!Q.days[di].items.some(p => p.id === extra.id)); assert.ok(Q.days[di].locked); }
+  // 다시 짜기: 확정한 날 고정만 남김
+  const other = PLACES.find(p => !p.full && s.picked[p.id] && s.assign[p.id] == null);
+  if(other) s.assign[other.id] = -1;
+  const kept = keepLockedAssign(s);
+  assert.deepEqual(Object.keys(kept).sort(), before.slice().sort());
+  unlockDay(s, di); assert.ok(!isLocked(s, buildDays(s)[di])); assert.ok(!plan(s).days[di].locked);
+});
