@@ -8,7 +8,7 @@ export const VAULT_KINDS = [
   { key:'hotel', label:'숙소', icon:'🏨' },
   { key:'ticket', label:'입장권·예약', icon:'🎟️' },
   { key:'transport', label:'교통', icon:'🚆' },
-  { key:'entry', label:'입국 (Visit Japan Web 등)', icon:'🛂' },
+  { key:'entry', label:'입국 (입국 QR·입국카드)', icon:'🛂' },
   { key:'insurance', label:'여행자 보험', icon:'🛡️' },
   { key:'etc', label:'기타', icon:'📎' }
 ];

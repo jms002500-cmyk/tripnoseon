@@ -54,11 +54,11 @@ export function convert(v, from, to, rate){
 }
 
 // 숙소 하나의 가격 후보들 → 기준 통화(cur)로 바꿔 가장 싼 것
-//   base: 카드에 넣은 가격(라쿠텐 자동 또는 직접 입력, s.hotelCur 기준)
+//   base: 카드에 넣은 가격(라쿠텐 자동 또는 직접 입력). 넣을 때 통화 h.pcur(없으면 옛 데이터라 지금 통화 cur로 봄)
 //   prices: 사이트별로 적은 가격 { site: { v, cur, at } }
 export function priceOptions(h, cur, rate){
   const out = [];
-  if(h.price > 0) out.push({ key:'base', label:h.src === 'rakuten' ? '라쿠텐 (일본어 사이트·자동)' : '직접 넣은 가격', v:h.price, cur, value:h.price });
+  if(h.price > 0){ const bc = h.pcur || cur; out.push({ key:'base', label:h.src === 'rakuten' ? '라쿠텐 (일본어 사이트·자동)' : '직접 넣은 가격', v:h.price, cur:bc, value:convert(h.price, bc, cur, rate) }); }
   Object.entries(h.prices || {}).forEach(([key, p]) => {
     const site = SITES.find(x => x.key === key); if(!site || !(p.v > 0)) return;
     out.push({ key, label:site.label, v:p.v, cur:p.cur, value:convert(p.v, p.cur, cur, rate), at:p.at });

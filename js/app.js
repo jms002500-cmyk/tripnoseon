@@ -67,7 +67,7 @@ async function rkRefresh(){
   else {
     const by = new Map((res.items || []).map(it => [it.hotelNo, it])); const at = stamp();
     targets.slice(0, 15).forEach(h => { const it = by.get(h.hotelNo);
-      if(it){ if(s.hotelCur === 'JPY') h.price = it.price; h.priceAt = at; h.soldOut = false; if(!h.ko && it.ko) h.ko = it.ko; } else { h.soldOut = true; h.priceAt = at; } });
+      if(it){ if(s.hotelCur === 'JPY'){ h.price = it.price; h.pcur = 'JPY'; } h.priceAt = at; h.soldOut = false; if(!h.ko && it.ko) h.ko = it.ko; } else { h.soldOut = true; h.priceAt = at; } });
     s.hotelMsg = targets.length > 15 ? '라쿠텐 후보는 한 번에 15곳까지만 확인해요.' : '';
   }
   save(); render();
@@ -81,7 +81,7 @@ function rkAdd(hotelNo){
   if(!wonInUse) s.hotelCur = 'JPY';
   const has = it.lat != null && nearTokyo(it);
   const memo = [it.station ? `${it.station}역` : '', it.breakfast ? '조식 포함 플랜' : '', wonInUse ? `라쿠텐 1박 ¥${it.price.toLocaleString('ko-KR')}` : ''].filter(Boolean).join(', ');
-  s.hotels.push({ id:'h' + Date.now().toString(36), name:it.name, ko:it.ko || '', price:wonInUse ? 0 : it.price, mapUrl:'', bookUrl:safeHttpsUrl(it.url), memo,
+  s.hotels.push({ id:'h' + Date.now().toString(36), name:it.name, ko:it.ko || '', price:wonInUse ? 0 : it.price, pcur:'JPY', mapUrl:'', bookUrl:safeHttpsUrl(it.url), memo,
     lat:has ? it.lat : null, lng:has ? it.lng : null, area:has ? nearestArea(it).key : '', st:has ? 'ok' : 'need', src:'rakuten', approx:false, label:'',
     hotelNo:it.hotelNo, priceAt:s.rk.at, soldOut:false });
   s.hotelMsg = wonInUse ? '가격 통화가 원이라 라쿠텐 엔화 요금은 메모에 넣었어요.' : '';
@@ -696,7 +696,7 @@ function addHotel(){
   if(mapRaw && !has) msgs.push('구글 지도 주소에서 위치를 못 읽어서 이름으로 찾을게요.');
   if(bookRaw && !safeHttpsUrl(bookRaw)) msgs.push('예약 페이지 주소는 https:// 로 시작하는 주소만 저장해요.');
   s.hotelMsg = msgs.join(' ');
-  s.hotels.push({ id:'h' + Date.now().toString(36), name:name.slice(0, 60), price:Math.max(0, Math.round(+val('hprice') || 0)),
+  s.hotels.push({ id:'h' + Date.now().toString(36), name:name.slice(0, 60), price:Math.max(0, Math.round(+val('hprice') || 0)), pcur:s.hotelCur,
     mapUrl:safeMapUrl(mapRaw), bookUrl:safeHttpsUrl(bookRaw), memo:val('hmemo').slice(0, 80),
     lat:has ? pt.lat : null, lng:has ? pt.lng : null, area:has ? nearestArea(pt).key : '', st:has ? 'ok' : 'need', src:has ? 'link' : '', approx:false, label:'' });
   save(); render();
@@ -825,7 +825,8 @@ function act(a, v){
     case 'tpass': s.sh.tpass = !s.sh.tpass; break;
     case 'rswap': {   // 비 오는 날: 실외 장소는 빼두고 실내 장소를 그날에 (함께 짜기 여행이면 가족 일정도 바뀜)
       const [outId, inId, di] = v.split('|'); const all = allPlaces(s); const name = id => (all.find(p => p.id === id) || {}).name || '';
-      s.sh.rundo = Object.assign(swapPlan(s, outId, inId, +di), { day:+di, outName:name(outId), inName:name(inId) }); break;
+      const keep = ((plan(s).days[+di] || {}).items || []).map(p => p.id);
+      s.sh.rundo = Object.assign(swapPlan(s, outId, inId, +di, keep), { day:+di, outName:name(outId), inName:name(inId) }); break;
     }
     case 'rundo': if(s.sh.rundo){ undoSwap(s, s.sh.rundo); s.sh.rundo = null; } break;
     case 'rfull': {   // 하루 종일 장소를 비 안 오는 날로 (겹치는 다른 하루 종일 장소와는 날을 맞바꿈)
