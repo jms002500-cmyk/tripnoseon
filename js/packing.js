@@ -5,6 +5,7 @@
 //   t      이름 / c: PACK_CATS 키 / who: '' 공용 | 나누는 사람 id(가계부와 같은 사람 목록)
 //   done   챙김 / doneBy: 챙긴 사람 이름(함께 짜기 중일 때) / at: 넣은 때(ms)
 //   src    추천에서 온 것이면 추천 키(지워도 '숨김'으로 남겨 다시 추천하지 않음) / hide: 숨김
+import { packingFor } from './regions/hksz-guide.js';
 import { pickedPlaces } from './logic.js';
 
 export const PACK_CATS = [
@@ -42,7 +43,8 @@ export function suggestPacking(s, wx){
   const out = []; const add = (key, c, t, why) => out.push({ key, c, t, why:why || '' });
   const m = month(s); const cl = wx && wx.climate; const lo = cl && cl.lo != null ? Math.round(cl.lo) : null;
   const jp = s.country === 'jp'; const kids = kidsOf(s); const ids = new Set(pickedPlaces(s).map(p => p.id));
-  const winter = (lo != null && lo <= 8) || [12, 1, 2].includes(m);
+  const hksz = s.city === 'hksz';
+  const winter = (lo != null && lo <= 8) || (!hksz && [12, 1, 2].includes(m));   // 홍콩·선전 12월은 아침 15° 안팎이라 기온으로만
   const city = { tokyo:'도쿄', hksz:'홍콩·선전' }[s.city] || '여행지';
 
   // 서류·돈
@@ -53,6 +55,8 @@ export function suggestPacking(s, wx){
   add('card', 'doc', '해외 결제 카드', '수수료가 적은 카드를 하나 챙기면 좋아요.');
   if(jp) add('ic', 'doc', '교통카드 (Suica·PASMO 또는 휴대폰 교통카드)', kids.some(a => a >= 6 && a <= 12) ? '초등학생은 어린이 요금 카드가 따로 있어요(역 창구에서 만들어요).' : '지하철·버스·편의점에서 찍고 다녀요.');
   add('insurance', 'doc', '여행자 보험', '');
+  // 홍콩·선전: 플러그·알리페이·입국카드·로밍·옥토퍼스 등 (공식 출처로 확인한 안내, js/regions/hksz-guide.js)
+  if(hksz) packingFor('hk').concat(packingFor('sz')).forEach(x => { if(!out.some(o => o.key === x.key)) out.push(x); });
   // 전자기기
   if(jp) add('plug', 'tech', '일본용 11자 어댑터(돼지코)', '일본은 100V에 납작한 두 핀 콘센트예요. 휴대폰 충전기는 대부분 그대로 써요. 사람 수만큼 있으면 편해요.');
   add('charger', 'tech', '충전기·케이블', '');
