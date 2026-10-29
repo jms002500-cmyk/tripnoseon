@@ -87,9 +87,30 @@ export async function setVote(id, user, placeId, v){
 export async function setTitle(id, title){ await F.fs.updateDoc(tripRef(id), { title }); }
 export async function setOpen(id, open){ await F.fs.updateDoc(tripRef(id), { open }); }
 export async function removeMember(id, uid){
+  try{ await F.fs.deleteDoc(locRef(id, uid)); }catch(e){}   // 빠지는 사람의 위치도 지움
   await F.fs.updateDoc(tripRef(id), { memberUids:F.fs.arrayRemove(uid), [`members.${uid}`]:F.fs.deleteField() });
 }
-export async function deleteTrip(id){ await F.fs.deleteDoc(tripRef(id)); }
+export async function deleteTrip(id){
+  // 남은 위치부터 지움 (주인은 규칙상 참여자 위치를 지울 수 있음). 실패해도 여행은 지움
+  try{ const snap = await F.fs.getDocs(F.fs.collection(F.db, 'trips', id, 'locs')); await Promise.all(snap.docs.map(d => F.fs.deleteDoc(d.ref))); }catch(e){}
+  await F.fs.deleteDoc(tripRef(id));
+}
+
+// 위치 공유 (켜는 사람만, js/loc.js). 자기 위치 문서 하나를 덮어씀
+const locRef = (id, uid) => F.fs.doc(F.db, 'trips', id, 'locs', uid);
+export async function setLoc(id, user, l, until){
+  await load();
+  const [y, m, d] = until.split('-').map(Number);
+  await F.fs.setDoc(locRef(id, user.uid), { uid:user.uid, name:user.name, lat:l.lat, lng:l.lng, acc:l.acc, at:F.fs.serverTimestamp(), until,
+    expireAt:F.fs.Timestamp.fromDate(new Date(y, m - 1, d + 2)) });   // Firestore TTL을 켜 두면 여행 이틀 뒤 서버가 저절로 지움
+}
+export async function clearLoc(id, uid){ await load(); await F.fs.deleteDoc(locRef(id, uid)); }
+// 참여자 위치들. cb([{ uid, name, lat, lng, acc, at(ms), until }])
+export function watchLocs(id, cb){
+  return F.fs.onSnapshot(F.fs.collection(F.db, 'trips', id, 'locs'),
+    snap => cb(snap.docs.map(d => { const x = d.data(); const at = d.get('at', { serverTimestamps:'estimate' }); return Object.assign({}, x, { at:at && at.toMillis ? at.toMillis() : Date.now(), expireAt:undefined }); })),
+    () => cb([]));
+}
 
 // 의견: 장소별(placeId) 또는 여행 전체(placeId:null). 최근 300개
 export function watchComments(id, cb){

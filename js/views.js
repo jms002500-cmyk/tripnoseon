@@ -5,6 +5,7 @@ import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } fr
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as sosHotel, kidCardJa } from './safety.js';
 import { mealSlots, rankFood, moreFoodUrl, foodKey, walkMin } from './food.js';
+import { canShareLoc, locList, kmText, locMapUrl } from './loc.js';
 import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHECKED as FARE_CHECKED } from './transit.js';
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
 import { parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks } from './logic.js';
@@ -1004,6 +1005,42 @@ function todayWeatherLine(w){
   return `<p class="twx">${w.kind === 'forecast' ? '예보' : '평년'} · ${esc(t)}${w.kind === 'climate' && w.mean != null ? `<span class="fine">${esc(clothesTip(w.mean))}</span>` : ''}</p>`;
 }
 
+// 가족 위치 (켜는 사람만, js/loc.js). 함께 짜기 여행에서만
+function locBox(s, today){
+  const sh = s.sh || {};
+  if(!s.shareId) return s.start ? `<p class="fine">📍 가족끼리 서로 위치를 보려면 '함께 짜기'로 여행을 공유해 주세요. 켜는 사람만, 여행 마지막 날까지만 보여요.</p>` : '';
+  const can = canShareLoc(s, today);
+  const L = locList(sh.locs, { myUid:sh.user && sh.user.uid, today, now:Date.now(), me:sh.locMe });
+  if(!can && !L.length) return '';
+  const others = Object.entries((sh.trip && sh.trip.members) || {}).filter(([uid]) => !sh.user || uid !== sh.user.uid).map(([, m]) => m.name);
+  const endTxt = s.end ? `${+s.end.slice(5, 7)}/${+s.end.slice(8, 10)}` : '';
+  const row = l => `<li${l.stale ? ' class="stale"' : ''}><div class="sbody"><b>${l.mine ? '나' : esc(l.name)}</b>
+      <span>${esc(l.ageText)}${l.stale ? ' · 오래된 위치' : ''}${l.km != null ? ` · 나와 ${kmText(l.km)}` : ''}${l.acc > 100 ? ` · 오차 약 ${l.acc}m` : ''}</span></div>
+      <a class="link" href="${esc(locMapUrl(l))}" target="_blank" rel="noopener">지도에서 보기 ↗</a></li>`;
+  let mine;
+  if(!sh.user) mine = `<p class="fine">함께 짜기에 로그인하면 쓸 수 있어요.</p>`;
+  else if(s.locOn) mine = `<p class="lat">내 위치를 보여 주는 중이에요 · ${esc(endTxt)}까지 <button type="button" class="link" data-act="locoff">끄기</button></p>
+      <p class="fine">앱을 열어 둔 동안만 올라가요. 화면을 끄거나 앱을 닫으면 그 자리에서 멈춰요.</p>`;
+  else if(!can) mine = '';
+  else if(sh.locAsk) mine = `<div class="locask">
+      <p><b>내 위치를 이렇게 보여 줘요</b></p>
+      <ul>
+        <li>보는 사람: 이 여행을 함께 짜는 ${others.length ? esc(others.join(', ')) : '사람(아직 나뿐이에요)'}만</li>
+        <li>언제까지: 여행 마지막 날(${esc(endTxt)})까지. 지나면 저절로 꺼지고 서버에 있던 위치도 지워요</li>
+        <li>언제 올라가나: 앱을 열어 둔 동안만, 움직이면 바로·아니면 2분마다. 화면을 끄면 멈춰요</li>
+        <li>얼마나 자세히: 약 10m 단위. 끄면 바로 지워요</li>
+      </ul>
+      <div class="pfoot"><button type="button" class="primary small" data-act="locon">위치 보여 주기 켜기</button><button type="button" class="ghost small" data-act="loccancel">그만두기</button></div>
+    </div>`;
+  else mine = `<div><button type="button" class="ghost small" data-act="locask">📍 내 위치 보여 주기</button></div>`;
+  return `<div class="box" id="locbox">
+    <h2>📍 가족 위치<small>켜는 사람만</small></h2>
+    ${L.length ? `<ul class="loclist">${L.map(row).join('')}</ul>` : '<p class="fine">아직 위치를 보여 주는 사람이 없어요.</p>'}
+    ${sh.locMsg ? `<p class="lmsg" role="status">${esc(sh.locMsg)}</p>` : ''}
+    ${mine}
+  </div>`;
+}
+
 export function vToday(s){
   const sh = s.sh || {}; const today = sh.today || '';
   const ph = phaseOf(s, today);
@@ -1050,6 +1087,7 @@ export function vToday(s){
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
     ${next}
+    ${locBox(s, today)}
     ${rainBox(s, P, d)}
     ${stops.length ? `<div class="box"><h2>이날 동선<small>${stops.filter(isDone).length}/${stops.length}곳 다녀옴</small></h2>
       <ol class="stops tstops" style="--day:${col}">
