@@ -332,6 +332,7 @@ function render(){
     : s.step < STEPS.length-1
     ? `<button type="button" class="ghost" data-act="prev"${s.step === 0 ? ' disabled' : ''}>이전</button><button type="button" class="primary" data-act="next">다음 · ${STEPS[s.step+1]}</button>`
     : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`;
+  devBar();
   const rb = document.getElementById('resetBtn');
   rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터';
   rb.classList.toggle('armed', resetArmed);
@@ -1087,7 +1088,8 @@ if(hasKey(DEV_KEY)){
   let ver = '';
   if('caches' in window) caches.keys().then(k => { ver = (k.find(x => x.startsWith('tripnoseon-')) || '').slice(11); }).catch(() => {});
   const a = document.createElement('a');
-  a.className = 'devchat'; a.href = 'https://claude.ai/code'; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '💬 Claude';
+  a.className = 'ghost devchat'; a.href = 'https://claude.ai/code'; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '💬';
+  a.setAttribute('aria-label', 'Claude와 이야기하기');
   // 누르면 지금 화면 정보를 복사해 두고 Claude를 엶 → 대화창에 붙여 넣으면 어느 화면 얘기인지 바로 앎
   a.addEventListener('click', () => {
     const s = state, where = s.mode === 'sos' ? '긴급' : s.mode === 'today' ? '오늘' : STEPS[s.step];
@@ -1095,8 +1097,10 @@ if(hasKey(DEV_KEY)){
     try{ navigator.clipboard.writeText(txt).catch(() => {}); }catch(e){}
     toast('지금 화면 정보를 복사했어요. Claude 대화창에 붙여 넣고 말씀해 주세요.');
   });
-  document.body.appendChild(a);
+  devBar.el = a; devBar();
 }
+// 화면을 가리지 않게 아래 막대(이전·다음) 오른쪽 끝에 둠. 막대는 render()가 매번 새로 그려서 그때마다 다시 붙임
+function devBar(){ if(devBar.el) document.getElementById('bar').appendChild(devBar.el); }
 
 // 오프라인 사용(홈 화면 앱). localhost 개발 중에는 캐시 때문에 헷갈리지 않게 등록하지 않음
 if('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)){

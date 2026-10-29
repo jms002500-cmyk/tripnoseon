@@ -267,8 +267,8 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
   background:var(--ink); color:var(--paper); padding:10px 14px; border-radius:10px; font-size:13.5px; max-width:calc(100% - 32px); transition:opacity .2s, transform .2s; z-index:60}
 .toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
 /* 개발 중에만 보이는 Claude 대화 버튼 (?dev=1) — 상용화 때 지움 */
-.devchat{position:fixed; right:max(12px, env(safe-area-inset-right, 0px)); bottom:calc(84px + env(safe-area-inset-bottom, 0px)); z-index:7;
-  background:var(--ink); color:var(--paper); padding:9px 13px; border-radius:999px; font-size:13px; font-weight:600; text-decoration:none; box-shadow:0 2px 8px rgba(0,0,0,.25); opacity:.92}
+.bar .in:has(.devchat){grid-template-columns:auto 1fr auto}
+.bar .devchat{padding:13px 12px; display:flex; align-items:center; justify-content:center; text-decoration:none; font-size:17px; line-height:1}
 
 /* 함께 짜기 */
 .topbtns{display:flex; gap:6px}
