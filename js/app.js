@@ -23,6 +23,7 @@ import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blo
 import { sizeText } from './vault.js';
 import * as SH from './share.js';
 import { netBanner } from './net.js';
+import { roundLoc, shouldSend, canShareLoc, locExpired } from './loc.js';
 import { sharedOf, diffShared, applyRemote, inviteLink, parseJoin, describeChange, voteSummary, DELETE } from './sharecore.js';
 
 const S_KEY = 'tripnoseon-v1';
@@ -194,10 +195,13 @@ function watchTrip(){
   }));
   unsubs.push(SH.watchComments(id, list => { state.sh.comments = list; renderRemote(); }));
   unsubs.push(SH.watchLog(id, list => { state.sh.log = list; renderRemote(); }));
+  unsubs.push(SH.watchLocs(id, list => { state.sh.locs = list; if(state.mode === 'today') renderRemote(); }));
 }
 
 // 이 기기에서 공유를 끊음 (일정은 마지막 상태 그대로 남김)
 function stopShare(msg){
+  { const id = state.shareId, u = state.sh.user; if(state.locOn && id && u) SH.clearLoc(id, u.uid).catch(() => {}); }
+  state.locOn = false; stopGeo(); state.sh.locs = [];
   unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();
   const s = state; s.shareId = null; s.sh.trip = null; s.sh.votes = {}; s.sh.comments = []; s.sh.log = []; s.sh.cmPlace = null; s.sh.msg = msg || '';
   saveLocal(); render();
@@ -226,7 +230,7 @@ async function shareAct(a, v){
   try{
     switch(a){
       case 'login': await SH.signIn(); break;
-      case 'logout': unwatch(); await SH.signOut(); break;
+      case 'logout': if(s.locOn && id && u){ s.locOn = false; stopGeo(); saveLocal(); SH.clearLoc(id, u.uid).catch(() => {}); } unwatch(); await SH.signOut(); break;
       case 'sharestart': {
         if(!u || sh.busy) return;
         const title = (document.getElementById('sharetitle')?.value || '').trim().slice(0, 40) || '함께 짜는 여행';
@@ -310,7 +314,7 @@ document.addEventListener('focusout', () => { if(renderLater){ renderLater = fal
 
 function render(){
   const s = state;
-  renderNet();
+  renderNet(); locSync();
   document.getElementById('line').innerHTML =
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
@@ -721,6 +725,10 @@ function act(a, v){
     case 'sos': s.mode = s.mode === 'sos' ? null : 'sos'; s.sh.sbig = null; scroll = true; break;
     case 'sbig': s.sh.sbig = v || null; if(v && s.mode !== 'sos') s.mode = 'sos'; break;   // 크게 보여 주기 (직원·택시 기사에게)
     case 'tday': s.tday = +v; s.sh.lplace = null; break;
+    case 'locask': s.sh.locAsk = true; s.sh.locMsg = ''; break;
+    case 'loccancel': s.sh.locAsk = false; break;
+    case 'locon': s.sh.locAsk = false; s.sh.locMsg = ''; s.locOn = true; locLast = null; saveLocal(); render(); return;
+    case 'locoff': locOff('위치 보여 주기를 껐어요. 서버에 있던 내 위치도 지웠어요.'); return;
     case 'tspend': {   // 장소에서 바로 비용 적기: 아래 '이날 쓴 돈' 칸에 그 장소를 달아 둠
       s.sh.lplace = v; render();
       const f = document.getElementById('ledgerform'); if(f) f.scrollIntoView({ block:'center' }); focusLine(); updatePreview(); return;
@@ -949,6 +957,34 @@ document.addEventListener('submit', onSubmit);
     startShare();
   } else if(state.shareId) startShare();
 }
+/* ---------- 위치 공유 (켜는 사람만, js/loc.js) ---------- */
+// 앱을 열어 둔 동안만 위치를 받아(watchPosition) 움직이거나 2분마다 올림. 여행 마지막 날이 지나면 끄고 서버 위치도 지움
+let geoWatch = null, locLast = null;
+function stopGeo(){ if(geoWatch != null){ try{ navigator.geolocation.clearWatch(geoWatch); }catch(e){} geoWatch = null; } locLast = null; }
+function locSync(){
+  const s = state, today = ymd(new Date());
+  if(locExpired(s, today)){ locOff('여행이 끝나서 위치 보여 주기를 껐어요. 서버에 있던 위치도 지웠어요.'); return; }
+  const want = s.locOn && canShareLoc(s, today) && !!s.sh.user && 'geolocation' in navigator;
+  if(want && geoWatch == null) geoWatch = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy:true, maximumAge:30000, timeout:60000 });
+  else if(!want && geoWatch != null) stopGeo();
+}
+function onPos(p){
+  const s = state; const l = roundLoc(p.coords); if(!l || !s.locOn || !s.shareId || !s.sh.user) return;
+  const first = !s.sh.locMe; s.sh.locMe = l;
+  const now = Date.now(); if(!shouldSend(locLast, l, now)){ if(first && s.mode === 'today') renderRemote(); return; }
+  locLast = Object.assign({ t:now }, l);
+  SH.setLoc(s.shareId, s.sh.user, l, s.end).catch(() => { locLast = null; });
+}
+function onPosErr(e){
+  if(e && e.code === 1){ stopGeo(); state.locOn = false; saveLocal(); state.sh.locMsg = '위치 권한이 꺼져 있어요. 휴대폰 설정에서 브라우저(또는 트립노선 앱)의 위치를 허용한 뒤 다시 켜 주세요.'; render(); }
+}
+function locOff(msg){
+  const s = state, id = s.shareId, u = s.sh.user;
+  s.locOn = false; stopGeo(); s.sh.locMe = null; saveLocal(); s.sh.locMsg = msg || '';
+  if(id && u) SH.clearLoc(id, u.uid).catch(() => {});
+  render();
+}
+
 /* ---------- 인터넷 연결 안내 띠 (js/net.js) ---------- */
 const NET_KEY = 'tripnoseon-online-at';   // 마지막으로 연결돼 있던 때 (이 기기에만)
 let netBack = false, netBackTimer = null;

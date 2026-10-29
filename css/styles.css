@@ -400,6 +400,11 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 .lrow .vfiles{margin-top:4px}
 .rthumb{width:44px; height:44px}
 .lockb{font:600 12px var(--f-body); color:var(--accent-ink); background:var(--accent-soft); border-radius:6px; padding:2px 6px; margin-left:4px; white-space:nowrap}
+.loclist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+.loclist li{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+.loclist li.stale{opacity:.6}
+.locask{background:var(--accent-soft); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; font-size:14px}
+.locask ul{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px}
 .tacts{display:flex; flex-wrap:wrap; gap:4px 14px}
 .lat{margin:0; font-size:13.5px; background:var(--accent-soft); color:var(--accent-ink); border-radius:8px; padding:7px 10px}
 .tday{border-top:1px dashed var(--rule); padding-top:8px; display:flex; flex-direction:column; gap:4px}

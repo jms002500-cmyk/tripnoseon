@@ -8,7 +8,7 @@ export const BACKUP_V = 1;
 
 // 다시 받을 수 있거나 화면에서만 쓰는 칸은 백업에서 뺌
 const DROP = ['sh', 'geoBusy', 'hotelBusy', 'rkBusy', 'wxBusy', 'wx', 'fx', 'rk', 'rkOn',
-  'impMsg', 'hotelMsg', 'geoErr', 'hotelErr', 'vedit', 'vdraft', 'mode', 'tday', 'todayOpened', 'pfilter'];
+  'impMsg', 'hotelMsg', 'geoErr', 'hotelErr', 'vedit', 'vdraft', 'mode', 'tday', 'todayOpened', 'pfilter', 'locOn'];
 
 export function stateForBackup(s){
   const o = JSON.parse(JSON.stringify(s, (k, v) => k === 'sh' ? undefined : v));

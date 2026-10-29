@@ -6,6 +6,7 @@ rules_version = '2';
 //   trips/{tripId}            ownerUid, memberUids[], members{uid:{name}}, open, title, p{일정}, votes{장소:{uid:1|-1}}
 //   trips/{tripId}/comments   장소별·전체 의견 (쓴 사람만 지울 수 있음)
 //   trips/{tripId}/log        누가 무엇을 바꿨는지
+//   trips/{tripId}/locs/{uid} 위치 공유(켜는 사람만): 참여자만 읽고, 자기 위치만 쓰고 지움. 주인은 여행을 지울 때 남은 위치를 지움
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
@@ -60,6 +61,22 @@ service cloud.firestore {
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 500;
         allow delete: if signedIn() && resource.data.uid == uid();
+      }
+
+      match /locs/{who} {
+        allow read: if tripMember();
+        allow create, update: if tripMember() && who == uid()
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'lat', 'lng', 'acc', 'at', 'until', 'expireAt'])
+          && request.resource.data.uid == uid()
+          && request.resource.data.name is string && request.resource.data.name.size() <= 40
+          && request.resource.data.lat is number && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+          && request.resource.data.lng is number && request.resource.data.lng >= -180 && request.resource.data.lng <= 180
+          && request.resource.data.acc is number
+          && request.resource.data.until is string && request.resource.data.until.size() == 10
+          && request.resource.data.at == request.time
+          && request.resource.data.expireAt is timestamp;
+        allow delete: if signedIn() && (who == uid()
+          || get(/databases/$(database)/documents/trips/$(tripId)).data.ownerUid == uid());
       }
 
       match /log/{logId} {
