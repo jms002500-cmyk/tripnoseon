@@ -1,12 +1,13 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, recordHead } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, recordHead, moveCtx } from './views.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
 import { askPrompt } from './askai.js';
 import { buildIcs } from './ics.js';
+import { isEmptyMove, vaultDraft } from './moves.js';
 import { catchUp, applyCatchUp } from './catchup.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
@@ -901,6 +902,23 @@ function act(a, v){
     case 'install': if(installEvt){ const e = installEvt; installEvt = null; e.prompt(); e.userChoice.then(c => { if(c && c.outcome === 'accepted'){ state.installHide = true; save(); } render(); }).catch(() => {}); } return;
     case 'installhide': s.installHide = true; break;
     case 'tsize': s.textSize = v === 'big' || v === 'bigger' ? v : ''; break;
+    // 오가는 길 (js/moves.js). 고칠 때마다 새 객체로 바꿔 함께 짜기가 바뀐 걸 알게
+    case 'mvset': case 'mvadd': {
+      const P = plan(s); const tidy = (s.moves || []).filter(m => !isEmptyMove(m));
+      const ex = a === 'mvset' && tidy.find(m => m.k === v);
+      const m = ex || { id:a === 'mvset' ? v : 'm' + Date.now().toString(36), k:a === 'mvset' ? v : 'etc', date:a === 'mvadd' && P.days.length ? P.days[Math.min(1, P.days.length - 1)].key : '',
+        time:'', how:'', min:null, from:'', to:'', booked:false, note:'' };
+      s.moves = ex ? tidy : tidy.concat(m); s.sh.mvEdit = m.id; break;
+    }
+    case 'mvedit': s.moves = (s.moves || []).filter(m => m.id === v || !isEmptyMove(m)); s.sh.mvEdit = v; break;
+    case 'mvdone': s.moves = (s.moves || []).filter(m => !isEmptyMove(m)); s.sh.mvEdit = null; break;
+    case 'mvdel': s.moves = (s.moves || []).filter(m => m.id !== v); s.sh.mvEdit = null; toast('이동을 지웠어요.'); break;
+    case 'mvhow': setMove(s.sh.mvEdit, m => ({ how:m.how === v ? '' : v })); break;
+    case 'mvvault': {   // 예약한 이동의 바우처·예약번호는 보관함(이 기기에만)에
+      const m = (s.moves || []).find(x => x.id === v); if(!m) return;
+      s.moves = s.moves.filter(x => !isEmptyMove(x)); s.sh.mvEdit = null;
+      s.vedit = null; s.vdraft = vaultDraft(s, m, moveCtx(s, plan(s))); s.step = VAULT_STEP; s.mode = null; save(); render(); focusVaultForm(); return;
+    }
     case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
     case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); return;
     case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; render(); return;
@@ -949,9 +967,12 @@ async function addDayPhotos(date, files){
   if(files.length > room) toast(`하루 ${MAX_DAY_PHOTOS}장까지 넣을 수 있어요.`); else if(skipped && skipped.length) toast(`너무 큰 사진은 빼고 넣었어요: ${skipped.join(', ')}`);
 }
 
+/* ---------- 오가는 길 (js/moves.js) ---------- */
+function setMove(id, fn){ state.moves = (state.moves || []).map(m => m.id === id ? Object.assign({}, m, fn(m)) : m); }
+
 /* ---------- 폰 캘린더에 넣기 (js/ics.js) ---------- */
 async function sendIcs(share){
-  const s = state; const text = buildIcs(s, plan(s), bookings(s.vault), new Date());
+  const s = state; const P = plan(s); const text = buildIcs(s, P, bookings(s.vault), new Date(), moveCtx(s, P));
   const name = `tripnoseon-${s.start || 'trip'}.ics`; const file = new File([text], name, { type:'text/calendar' });
   if(share && navigator.canShare && navigator.canShare({ files:[file] })){
     try{ await navigator.share({ files:[file], title:'트립노선 여행 일정' }); return; }catch(e){ if(e && e.name === 'AbortError') return; }
@@ -1003,6 +1024,13 @@ function onChange(e){
     const k = t.dataset.rnote; let it = photoOf(s.vault, k);
     if(!it){ if(!t.value.trim()) return; it = newPhotoItem(k, 'v' + Date.now().toString(36)); s.vault = (s.vault || []).concat(it); }
     it.memo = t.value.trim().slice(0, 100);
+  }
+  else if(t.dataset.mv){
+    const f = t.dataset.mv; const val = f === 'booked' ? t.checked : f === 'min' ? (+t.value > 0 ? Math.min(1440, Math.round(+t.value)) : null)
+      : f === 'from' || f === 'to' ? t.value.trim().slice(0, 40) : f === 'note' ? t.value.trim().slice(0, 80) : t.value;
+    setMove(s.sh.mvEdit, () => ({ [f]:val })); save();
+    setTimeout(() => { const a = document.activeElement; const id = a && a.id; render(); const el = id && document.getElementById(id); if(el) el.focus({ preventScroll:true }); });   // 다음 칸으로 넘어가도 입력이 안 끊기게
+    return;
   }
   else if(t.dataset.flight){ s.flight = Object.assign({ ap:'', arr:'', dep:'' }, s.flight, { [t.dataset.flight]:t.value }); }
   else if(t.dataset.askphoto != null){ const f = t.files && t.files[0]; t.value = ''; if(f){ setAskPhoto(f); render(); } return; }

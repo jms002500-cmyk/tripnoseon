@@ -5,7 +5,7 @@ import { allPlaces } from './logic.js';
 import { money } from './ledger.js';
 import { budgetOf } from './budget.js';
 
-export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'cityOnly', 'start', 'end', 'flight',
+export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'cityOnly', 'start', 'end', 'flight', 'moves',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
   'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게

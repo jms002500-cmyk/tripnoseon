@@ -23,7 +23,8 @@ import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js'
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
 import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
-import { AIRPORTS, koTime, minText as fminText } from './flight.js';
+import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText } from './flight.js';
+import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove } from './moves.js';
 import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
@@ -727,6 +728,83 @@ function transitBox(s, P){
   </div>`;
 }
 
+/* ---------- 오가는 길 (js/moves.js) ---------- */
+// 기본 이름: 도착 공항, 첫날 가는 숙소, 마지막 날 나서는 숙소
+export function moveCtx(s, P){
+  const ap = s.flight && (s.flight.arr || s.flight.dep) ? airportOf(s.city, s.flight.ap) : null; const D = P.days;
+  return { ap:ap ? ap.name : '', inHotel:D.length && D[0].to ? D[0].to.name : '', outHotel:D.length && D[D.length - 1].from ? D[D.length - 1].from.name : '' };
+}
+// 이동 한 줄: 시각 | 수단 · 출발 → 도착 · 걸리는 시간 · 예약함 (+ 작은 글씨)
+function mvLi(time, main, extra, home){
+  return `<li><span class="mvt">${time != null ? koTime(time) : ''}${home && time != null ? '<small>한국 시각</small>' : ''}</span><div><span>${main}</span>${extra ? `<span class="fine">${extra}</span>` : ''}</div></li>`;
+}
+function moveLi(m, ctx, more){
+  return mvLi(toMin(m.time), `${esc(moveText(m, ctx, minText))}${m.booked ? ' <span class="mvok">예약함</span>' : ''}`, [esc(m.note || '')].concat(more || []).filter(Boolean).join(' · '), legOf(m.k).home);
+}
+const guessMin = (m, info) => !moveMin(m) && info ? `약 ${fminText(info.transfer)} 걸린다고 봤어요` : '';
+// 날짜 카드의 이동 줄. part 'start': 집→공항·도착 비행기·공항→숙소·여행 중 이동 / 'end': 숙소→공항·출발 비행기·공항→집
+function dayMoves(s, d, ctx, part){
+  const ms = movesOn(s, d.key).filter(m => !isEmptyMove(m)); const of = k => ms.filter(m => m.k === k); const rows = []; const warn = [];
+  if(part === 'start'){
+    of('go').forEach(m => rows.push(moveLi(m, ctx)));
+    const a = d.arrive;
+    if(a){
+      rows.push(mvLi(a.at, `✈️ ${esc(a.ap.name)} 도착`, `입국·짐 찾기 약 ${fminText(AFTER_LANDING)}`));
+      if(!of('in').length) rows.push(mvLi(a.at + AFTER_LANDING, `🧳 ${esc(a.ap.name)} → ${esc(ctx.inHotel || '숙소')} · 약 ${fminText(a.transfer)}`, '어림 · 위 \'오가는 길\'에서 어떻게 갈지 정할 수 있어요'));
+      if(a.early) warn.push('예약한 차 시각이 입국·짐 찾기(약 1시간)보다 일러요. 비행기가 늦으면 기사님께 꼭 알려 주세요.');
+    }
+    of('in').forEach(m => rows.push(moveLi(m, ctx, [guessMin(m, a)])));
+    of('etc').forEach(m => rows.push(moveLi(m, ctx)));
+    if(a && a.cap > 0) rows.push(mvLi(null, `<b>${koTime(a.ready)}쯤부터 다녀요</b>`, '숙소에 짐 맡기는 30분 포함'));
+  } else {
+    const z = d.depart && d.depart.leave >= 0 ? d.depart : null;
+    if(z && !of('out').length) rows.push(mvLi(z.leave, `🧳 <b>숙소에서 공항으로</b> · 약 ${fminText(z.transfer)}`, '짐 찾는 30분 포함해서 그 전까지만 짰어요'));
+    of('out').forEach(m => rows.push(moveLi(m, ctx, [guessMin(m, z), z ? '짐 찾는 30분 포함해서 그 전까지만 짰어요' : ''])));
+    if(z) rows.push(mvLi(z.at, `✈️ ${esc(z.ap.name)} 출발`, '2시간 30분 전 공항 도착 기준'));
+    if(z && z.late) warn.push('이 시각에 나서면 출발 1시간 30분 전에도 공항에 못 닿을 수 있어요. 더 일찍 나서는 걸 알아보세요.');
+    of('back').forEach(m => rows.push(moveLi(m, ctx)));
+  }
+  return (rows.length ? `<ul class="mvlist">${rows.join('')}</ul>` : '') + warn.map(w => `<p class="warnline">${w}</p>`).join('');
+}
+// 일정 단계 '오가는 길' 칸: 공항 오가는 네 구간 + 여행 중 이동. 고치는 칸은 누른 줄 아래에
+function moveBox(s, P){
+  const ctx = moveCtx(s, P); const mv = s.moves || []; const ed = (s.sh || {}).mvEdit;
+  const dayOf = key => P.days.find(d => d.key === key);
+  const row = (k, m) => { const L = legOf(k); const dd = k === 'etc' && m ? dayOf(m.date) : null; const open = !!m && m.id === ed; const set = !!m && !isEmptyMove(m);
+    const sum = set ? `${toMin(m.time) != null ? `${koTime(toMin(m.time))}${L.home ? '(한국)' : ''} · ` : ''}${esc(moveText(m, ctx, minText))}${m.booked ? ' <span class="mvok">예약함</span>' : ''}` : '<span class="fine">아직 안 정했어요</span>';
+    return `<li${open ? ' class="on"' : ''}><div><b>${L.icon} ${k === 'etc' ? (dd ? `${dd.i + 1}일차 · ${dd.label}` : '날짜 미정') : L.label}</b><span>${sum}</span></div>${open ? ''
+      : `<button type="button" class="ghost small" data-act="${m ? 'mvedit' : 'mvset'}" data-v="${esc(m ? m.id : k)}">${set ? '고치기' : '정하기'}</button>`}</li>${open ? moveForm(s, m, P, ctx) : ''}`; };
+  const etc = mv.filter(m => m.k === 'etc').sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '99').localeCompare(String(b.time || '99')));
+  return `<div class="box" id="movebox">
+    <h2>🚐 오가는 길<small>예약한 차·기차도 일정에 같이</small></h2>
+    <ul class="mvset">${STD_LEGS.map(k => row(k, mv.find(m => m.k === k))).join('')}${etc.map(m => row('etc', m)).join('')}</ul>
+    <div><button type="button" class="ghost small" data-act="mvadd">＋ 여행 중 이동 더하기</button></div>
+    <p class="fine">${REGION.key === 'hksz' ? '예: 홍콩 → 선전 국경 버스, 고속철, 마카오 배, 디즈니 가는 길. ' : '예: 디즈니 셔틀, 신칸센, 하코네 버스. '}넣은 이동은 날짜 카드·오늘 화면·폰 캘린더에 같이 보여요.</p>
+    <p class="fine">예약번호·바우처는 여기 말고 보관함(🚆 교통)에 넣으세요. 여기 적은 건 함께 짜는 가족에게도 보여요.</p>
+  </div>`;
+}
+function moveForm(s, m, P, ctx){
+  const L = legOf(m.k); const ph = moveEnds({ k:m.k }, ctx); const D = P.days; const last = D[D.length - 1];
+  const defMin = m.k === 'in' && D[0] && D[0].arrive ? D[0].arrive.transfer : m.k === 'out' && last && last.depart ? last.depart.transfer : '';
+  return `<li class="mvform">
+    <p class="fine">어떻게 가요?</p>
+    <div class="chips">${MOVE_HOW.map(h => chip('mvhow', h.k, `${h.icon} ${h.label}`, m.how === h.k)).join('')}</div>
+    ${m.k === 'etc' ? `<label class="shlabel" for="mvdate">날짜<select id="mvdate" data-mv="date">${D.map(d => `<option value="${d.key}"${m.date === d.key ? ' selected' : ''}>${d.i + 1}일차 · ${d.label}</option>`).join('')}</select></label>` : ''}
+    <div class="dates">
+      <label for="mvtime">${L.timeLabel}${L.home ? ' (한국 시각)' : ''}<input id="mvtime" type="time" value="${esc(m.time || '')}" data-mv="time"></label>
+      <label for="mvmin">걸리는 시간(분)<input id="mvmin" type="number" inputmode="numeric" min="0" max="1440" step="5" value="${moveMin(m) || ''}" placeholder="${defMin ? `어림 ${defMin}` : '예: 60'}" data-mv="min"></label>
+    </div>
+    <div class="dates">
+      <label for="mvfrom">출발<input id="mvfrom" type="text" maxlength="40" value="${esc(m.from || '')}" placeholder="${esc(ph.from)}" data-mv="from"></label>
+      <label for="mvto">도착<input id="mvto" type="text" maxlength="40" value="${esc(m.to || '')}" placeholder="${esc(ph.to)}" data-mv="to"></label>
+    </div>
+    <label class="chk"><input type="checkbox" data-mv="booked"${m.booked ? ' checked' : ''}> 예약했어요</label>
+    <label class="shlabel" for="mvnote">메모<input id="mvnote" type="text" maxlength="80" value="${esc(m.note || '')}" placeholder="${m.k === 'in' ? '예: 도착층 A출구 앞에서 기사님 대기' : '예: 타는 곳, 짐 개수'}" data-mv="note"></label>
+    ${m.k === 'in' || m.k === 'out' ? `<p class="fine">${s.flight && (s.flight.arr || s.flight.dep) ? '시각·걸리는 시간을 넣으면 그날 다닐 시간을 이 값으로 다시 계산해요.' : '여행지 단계에서 비행기 시간도 넣으면 그날 다닐 시간을 이 값에 맞춰 줘요.'}</p>` : ''}
+    <div class="pfoot"><button type="button" class="primary small" data-act="mvdone">완료</button>${m.booked ? `<button type="button" class="ghost small" data-act="mvvault" data-v="${esc(m.id)}">🎫 바우처 보관함에 넣기</button>` : ''}<button type="button" class="link" data-act="mvdel" data-v="${esc(m.id)}">지우기</button></div>
+  </li>`;
+}
+
 /* Step 6 · 일정 */
 function moveSelect(p, days, cur){
   const opts = [`<option value="">자동</option>`]
@@ -742,7 +820,7 @@ export function vPlan(s){
     <h1>날짜별 일정 초안</h1>
     <div class="box tip"><p>여행 날짜를 먼저 정해 주세요. 날짜가 있어야 하루씩 나눠서 일정을 짤 수 있어요.</p><div><button type="button" class="ghost small" data-act="go" data-v="1">날짜 정하러 가기</button></div></div>
   </section>`;
-  const anyItems = P.days.some(d => d.full || d.items.length); const split = isSplitStay(s, P.days);
+  const anyItems = P.days.some(d => d.full || d.items.length); const split = isSplitStay(s, P.days); const mctx = moveCtx(s, P);
   return `<section class="step">
     <p class="eyebrow">Step 6 · 일정</p>
     <h1>날짜별 일정 초안</h1>
@@ -751,9 +829,11 @@ export function vPlan(s){
       : `${esc(P.hotel.name)}에 묵는 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${s.hotelArea || P.hotel.cand ? '' : ' 숙소 동네를 아직 안 정해서 1순위 동네로 계산했어요.'}`}</p>
     <div><button type="button" class="ghost small" data-act="replan">손으로 옮긴 것 지우고 다시 짜기</button></div>
     ${mapSVG('plan', s, P)}
+    ${moveBox(s, P)}
     ${(sh => sh.total ? `<p class="fine">담은 곳 ${sh.total}곳 중 실내는 ${sh.indoor}곳이에요. 날짜마다 '☔ 비 오면?'을 누르면 가까운 실내 장소로 바꿀 수 있어요.</p>` : '')(indoorShare(s))}
     ${P.days.map(d => { const col = DAY_COLORS[d.i % DAY_COLORS.length]; const pct = d.cap ? Math.min(100, d.used / d.cap * 100) : 0;
-      const T = dayTrips(d, P.hotel); const tight = !d.full && T.travelMin && d.used + T.travelMin / 60 > d.cap + 0.5;
+      const T = dayTrips(d, P.hotel); const mvMin = d.cross ? 0 : etcMinutes(s, d.key);   // 숙소 옮기며 국경 넘는 날은 이미 2시간 뺐음
+      const tight = !d.full && (T.travelMin || mvMin) && d.used + (T.travelMin + mvMin) / 60 > d.cap + 0.5;
       const body = d.full
         ? `<div class="fullday"><b>${esc(d.full.name)}</b><span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(d.from, d.full))}" target="_blank" rel="noopener">숙소에서 ${T.legs[0] ? `약 ${minText(T.legs[0].min)} · ${esc(T.legs[0].mode)} · ` : ''}길찾기 ↗</a>${(d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
         : d.items.length
@@ -763,11 +843,11 @@ export function vPlan(s){
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day${d.locked ? ' locked' : ''}" style="--day:${col}">
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${T.travelMin ? ` · 이동 약 ${minText(T.travelMin)}` : ''}${(r => r ? ` · 예보 ${esc(r.text || '')}${r.prob != null ? ` ${r.prob}%` : ''}` : '')(dayRain(s.wx, ymdStr(d.date)))}</p></div></header>
-        ${tight ? `<p class="warnline">이동까지 넣으면 약 ${minText(Math.round(d.used * 60 + T.travelMin))}이라 하루가 빠듯해요. 한 곳을 다른 날로 옮겨 보세요.</p>` : ''}
-        ${d.arrive ? `<p class="fine">✈️ ${koTime(d.arrive.at)} 도착 · ${koTime(d.arrive.ready)}쯤부터 다녀요</p>` : ''}
-        ${d.depart && d.depart.leave >= 0 ? `<p class="fine">✈️ ${koTime(d.depart.at)} 출발 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로</b> (짐 찾는 30분 포함해서 그 전까지만 짰어요)</p>` : ''}
+        ${tight ? `<p class="warnline">이동까지 넣으면 약 ${minText(Math.round(d.used * 60 + T.travelMin + mvMin))}이라 하루가 빠듯해요. 한 곳을 다른 날로 옮겨 보세요.</p>` : ''}
+        ${dayMoves(s, d, mctx, 'start')}
         ${split ? `<p class="fine">🏨 ${d.from.name !== d.to.name ? `🧳 숙소 옮기는 날: ${esc(d.from.name)} → ${esc(d.to.name)}${d.cross ? ' · 짐 옮기고 국경 넘는 2시간을 빼고 짰어요' : ''}` : `${esc(d.to.name)}`}</p>` : ''}
         ${body}
+        ${dayMoves(s, d, mctx, 'end')}
         ${rainBox(s, P, d)}
         <div class="tacts"><button type="button" class="link" data-act="tfood" data-v="${d.i}">🍜 이날 점심·저녁 식당 찾기</button>${d.full || d.items.length ? (d.locked
           ? `<button type="button" class="link" data-act="dunlock" data-v="${d.i}">확정 풀기</button>` : `<button type="button" class="link" data-act="dlock" data-v="${d.i}">🔒 이날 확정</button>`) : ''}</div>
@@ -1336,7 +1416,7 @@ export function vToday(s){
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
     ${d.depart && d.depart.leave >= 0 ? `<p class="warnline">✈️ ${koTime(d.depart.at)} 비행기 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로 출발</b>해야 해요. 짐 찾을 시간도 챙기세요.</p>` : ''}
-    ${d.arrive ? `<p class="fine">✈️ ${koTime(d.arrive.at)} 도착 · 입국·이동 후 ${koTime(d.arrive.ready)}쯤부터 다니는 걸로 짰어요.</p>` : ''}
+    ${(c => (m => m ? `<div class="box"><h2>이날 이동</h2>${m}</div>` : '')(dayMoves(s, d, c, 'start') + dayMoves(s, d, c, 'end')))(moveCtx(s, P))}
     ${next}
     ${ph.phase === 'during' && date === today ? catchBox(s, P, i, date) : ''}
     ${locBox(s, today)}
