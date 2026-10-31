@@ -289,6 +289,8 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
   body{background:#fff; color:#000}
   .rday{break-inside:avoid; border:1px solid #ccc}
 }
+.installbox{border-color:var(--accent); margin-bottom:16px}
+.installbox h2{margin:0}
 .warnbox{border-color:var(--warn)}
 .warnbox h2{color:var(--warn)}
 .sizes{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:18px; font-size:13px; color:var(--muted)}

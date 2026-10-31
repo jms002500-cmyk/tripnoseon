@@ -138,6 +138,7 @@ export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'no
   wx:null, wxBusy:false, fx:null,      // wx: 여행 날짜 날씨(이맘때 평균·예보), fx: 환율 { rate: 1엔당 원, date, src }
   vault:[], vedit:null, vdraft:null, lastBackup:'',   // vault: 예약 보관함(이 기기에만, 공유 안 함), vedit: 고치는 항목 id, vdraft: 제안에서 채운 새 항목
   locOn:false,   // 위치 공유를 이 기기에서 켰는지 (js/loc.js, 기기마다)
+  installHide:false,   // 홈 화면 설치 안내를 닫았는지 (기기마다)
   textSize:'',   // 글씨 크기 '' | 'big' | 'bigger' (기기마다·공유 안 함)
   askNote:'',   // AI 도우미(js/askai.js)에 늘 덧붙일 말 (알레르기 등, 기기마다·공유 안 함)
   nights:{},   // 나눠 자기 { '그날 밤 YYYY-MM-DD': 숙소 후보 id } (js/logic.js nightHotel, 함께 짜기로 공유)

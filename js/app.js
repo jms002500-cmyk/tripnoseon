@@ -3,6 +3,8 @@ import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from '
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
 import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, recordHead } from './views.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
+import { installHint } from './install.js';
+import { esc } from './ui.js';
 import { askPrompt } from './askai.js';
 import { buildIcs } from './ics.js';
 import { catchUp, applyCatchUp } from './catchup.js';
@@ -331,7 +333,7 @@ function render(){
   s.sh.today = ymd(new Date()); { const n = new Date(); s.sh.nowMin = n.getHours() * 60 + n.getMinutes(); }
   const todayMode = s.mode === 'today', sosMode = s.mode === 'sos', recMode = s.mode === 'record';
   if(todayMode || sosMode || recMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
-  document.getElementById('view').innerHTML = sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : VIEWS[s.step](s);
+  document.getElementById('view').innerHTML = (sosMode || recMode ? '' : installCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : VIEWS[s.step](s));
   document.getElementById('line').style.setProperty('--n', STEPS.length);
   document.getElementById('bar').innerHTML = (sosMode
     ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="sbig" data-v="hotel">숙소 카드 보여 주기</button>`
@@ -896,6 +898,8 @@ function act(a, v){
       else clipText(text).then(ok => toast(ok ? '여행 기록을 복사했어요. 원하는 곳에 붙여 넣으세요.' : '복사가 안 됐어요.'));
       return;
     }
+    case 'install': if(installEvt){ const e = installEvt; installEvt = null; e.prompt(); e.userChoice.then(c => { if(c && c.outcome === 'accepted'){ state.installHide = true; save(); } render(); }).catch(() => {}); } return;
+    case 'installhide': s.installHide = true; break;
     case 'tsize': s.textSize = v === 'big' || v === 'bigger' ? v : ''; break;
     case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
     case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); return;
@@ -916,6 +920,21 @@ function act(a, v){
       scroll = true; break;
   }
   save(); render(); if(scroll) window.scrollTo({ top:0 });
+}
+
+/* ---------- 홈 화면 설치 안내 (js/install.js) ---------- */
+let installEvt = null;   // 크롬이 준 설치 창 (있으면 버튼 하나로 설치)
+// 첫 화면을 그리기 전(지역 데이터를 불러오는 중)에 오면 그때는 다시 그리지 않음 — 첫 render가 버튼을 같이 그림
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if(document.getElementById('view').innerHTML) render(); });
+window.addEventListener('appinstalled', () => { installEvt = null; state.installHide = true; saveLocal(); render(); toast('홈 화면에 설치했어요. 이제 아이콘으로 여세요.'); });
+function installCard(s){
+  if(s.installHide) return '';
+  const h = installHint(navigator.userAgent, { standalone:matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
+    canPrompt:!!installEvt, mobile:matchMedia('(pointer: coarse)').matches });
+  if(!h) return '';
+  return `<div class="box installbox"><div class="row"><h2>📲 홈 화면에 설치하기</h2><button type="button" class="link" data-act="installhide">닫기</button></div>
+    ${h.steps.map(t => `<p class="fine">${esc(t)}</p>`).join('')}
+    ${h.kind === 'prompt' ? '<div><button type="button" class="primary small" data-act="install">홈 화면에 설치</button></div>' : ''}</div>`;
 }
 
 /* ---------- 여행 기록 사진 (js/record.js) ---------- */
