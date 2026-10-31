@@ -47,6 +47,8 @@ export function applyHotel(s, it, o = {}){
   let i = hotels.findIndex(x => x.vid === it.id); if(i < 0) i = hotels.findIndex(x => norm(x.name) === norm(name));
   const h = i >= 0 ? Object.assign({}, hotels[i]) : { id:o.newId, name, price:0, pcur:s.hotelCur || '', mapUrl:'', bookUrl:'', memo:'', lat:null, lng:null, area:'', st:'need', src:'', approx:false, label:'' };
   Object.assign(h, { vid:it.id, booked:true, name });
+  if((it.addr || '').trim()) h.addr = it.addr.trim().slice(0, 120);   // 택시용 현지어 주소·전화 → 긴급 정보 숙소 카드 (safety.js hotelCard)
+  if((it.tel || '').trim()) h.tel = it.tel.trim().slice(0, 30);
   if(o.pt) Object.assign(h, { lat:o.pt.lat, lng:o.pt.lng, area:o.pt.area || h.area, st:'ok', src:'link', approx:false, mapUrl:o.mapUrl || h.mapUrl });
   if(i >= 0) hotels[i] = h; else { hotels.push(h); msgs.push(`숙소 후보에 '${name}'`); }
   patch.hotels = hotels;
@@ -80,6 +82,17 @@ export function applyPlace(s, it){
   else if((s.assign || {})[p.id] !== d.i) patch.assign = Object.assign({}, s.assign, { [p.id]:d.i });
   if(Object.keys(patch).length) msgs.push(`${p.name} → ${d.i + 1}일차`);
   return { patch, msgs };
+}
+
+// 예약 금액 → 가계부 지출 한 줄(id 'bk' + 예약 id). 금액이 없으면 지울 id. 이미 있으면 날짜·낸 사람·나누기는 그대로
+//   o: { today, by, day(cat) → 기본 날짜(ledger.js defaultDay) }
+export const BOOK_CAT = { flight:'flight', hotel:'stay', ticket:'ticket', transport:'move', insurance:'etc', entry:'etc', etc:'etc' };
+export function bookingSpend(s, it, o = {}){
+  const id = 'bk' + it.id; const old = (s.spend || {})[id];
+  if(!(it.amt > 0)) return old ? { id, del:true } : null;
+  const cat = BOOK_CAT[it.kind] || 'etc';
+  return { id, e:Object.assign({ d:o.day ? o.day(cat) : (o.today || ''), pay:'card', by:o.by || null, split:null, at:o.now || 0 }, old || {},
+    { amt:Math.round(it.amt * 100) / 100, cur:it.cur || 'KRW', what:String(it.title || '').slice(0, 40), cat, vid:it.id }) };
 }
 
 // 예약 하나 반영. o: applyHotel에 넘길 값

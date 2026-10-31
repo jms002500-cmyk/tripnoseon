@@ -101,7 +101,7 @@ test('시간표 바로가기: 수단·구간·지역에 맞는 공식 누리집'
   const { timetableLinks, TIMETABLES } = await import('../js/moves.js');
   const ids = (s, m) => timetableLinks(s, m).map(t => t.id);
   const hk = trip({ city:'hksz' }), tk = trip();
-  assert.deepEqual(ids(hk, mv('x', { k:'etc', how:'ferry' })), ['turbojet', 'cotai']);
+  assert.deepEqual(ids(hk, mv('x', { k:'etc', how:'ferry' })), ['starferry', 'turbojet', 'cotai']);
   assert.deepEqual(ids(hk, mv('in', { how:'rail' })), ['mtrae', 'mtrjp']);
   assert.ok(ids(hk, mv('x', { k:'etc', how:'rail' })).includes('xrl'));
   assert.deepEqual(ids(tk, mv('go', { how:'abus' })), ['icnbus']);          // 집 ↔ 공항은 한국 쪽

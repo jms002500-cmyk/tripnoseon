@@ -67,6 +67,7 @@ export const TIMETABLES = [
   { id:'mtrjp', label:'MTR 경로·시간 검색', url:'https://www.mtr.com.hk/en/customer/jp/index.php', area:'hksz', how:['metro', 'rail'] },
   { id:'xrl', label:'홍콩 고속철(서구룡역 ↔ 선전·광저우) 시간표·표', url:'https://www.highspeed.mtr.com.hk/en/main/index.html', area:'hksz', how:['rail'], legs:['etc'] },
   { id:'cnrail', label:'중국 기차 시간표·예매 (트립닷컴 한국어)', url:'https://kr.trip.com/trains/china/', area:'hksz', how:['rail'], legs:['etc'] },
+  { id:'starferry', label:'스타페리 시간표 (침사추이 ↔ 센트럴·완차이)', url:'https://www.starferry.com.hk/', area:'hksz', how:['ferry'], legs:['etc'] },
   { id:'turbojet', label:'터보젯 배 시간표 (홍콩 ↔ 마카오)', url:'https://www.turbojet.com.hk/kr/', area:'hksz', how:['ferry'] },
   { id:'cotai', label:'코타이 워터젯 배 시간표 (홍콩 ↔ 마카오)', url:'https://www.cotaiwaterjet.com/', area:'hksz', how:['ferry'] },
   { id:'hzmb', label:'강주아오대교 셔틀버스 (홍콩 ↔ 마카오·주하이)', url:'https://www.hzmbus.com/', area:'hksz', how:['bus'], legs:['etc'] },

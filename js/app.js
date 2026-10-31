@@ -8,7 +8,8 @@ import { esc } from './ui.js';
 import { askPrompt } from './askai.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
-import { applyBooking, applyAll, PLACE_KINDS } from './bookings.js';
+import { applyBooking, applyAll, PLACE_KINDS, bookingSpend } from './bookings.js';
+import { planText } from './agenda.js';
 import { catchUp, applyCatchUp } from './catchup.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, bulkSuggestions, seedItems, customItems, PACK_GO, KEY_ID, tickFrom } from './packing.js';
@@ -22,7 +23,7 @@ import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx, convert } from './prices.js';
 import { planTripleImport, applyTripleImport } from './ledgerimport.js';
-import { atPlace, parseLine, lineFromAi, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, ratesOf, mainCur, personUsed, catOf } from './ledger.js';
+import { atPlace, parseLine, lineFromAi, previewText, ledgerHint, defaultPayer, defaultDay, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, ratesOf, mainCur, personUsed, catOf } from './ledger.js';
 import { parseWon, setBudget } from './budget.js';
 import { ledgerCsv, ledgerCsvName } from './ledgerexport.js';
 import { missingBookings, bookings, receiptOf, newReceipt, idCopies, isIdCopy, newIdCopy } from './vault.js';
@@ -416,8 +417,9 @@ async function saveVault(){
   Object.assign(it, { kind, title:title.slice(0, 60), date:g('vdate').value, time:g('vtime').value,
     code:g('vcode').value.trim().slice(0, 40), link:safeHttpsUrl(g('vlink').value), memo:g('vmemo').value.trim().slice(0, 300),
     placeId:PLACE_KINDS.includes(kind) ? g('vplace').value || null : null });
-  if(kind === 'flight') Object.assign(it, { dir:g('vdir').value, time2:g('vtime2').value, ap:g('vap') ? g('vap').value : '' });
-  if(kind === 'hotel') Object.assign(it, { date2:g('vdate2').value, time2:g('vtime2h').value });
+  if(kind === 'flight') Object.assign(it, { dir:g('vdir').value, time2:g('vtime2').value, ap:g('vap') ? g('vap').value : '', fno:g('vfno').value.trim().toUpperCase().slice(0, 10) });
+  if(kind === 'hotel') Object.assign(it, { date2:g('vdate2').value, time2:g('vtime2h').value, addr:g('vaddr').value.trim().slice(0, 120), tel:g('vtel').value.trim().slice(0, 30) });
+  Object.assign(it, { amt:+g('vamt').value > 0 ? Math.round(+g('vamt').value * 100) / 100 : 0, cur:g('vcur').value || 'KRW' });
   if(!editing && s.vdraft && s.vdraft.moveId) it.moveId = s.vdraft.moveId;
   const mapRaw = kind === 'hotel' ? g('vmap').value.trim() : '';
   const skipped = await storeFiles(it, picked);
@@ -426,6 +428,9 @@ async function saveVault(){
   const r = applyBooking(s, it, Object.assign({ newId:'h' + Date.now().toString(36) }, hotelPt(mapRaw || it.link)));   // 예약을 일정에 반영 (js/bookings.js)
   Object.assign(s, r.patch);
   if(kind === 'flight' || kind === 'hotel') packTick('tickets');
+  // 예약 금액 → 가계부 (js/bookings.js bookingSpend). 여행 전이면 '여행 전'으로
+  const sp = bookingSpend(s, it, { by:defaultPayer(s), now:Date.now(), day:cat => defaultDay(s, ymd(new Date()), cat) });
+  if(sp && sp.del) delete s.spend[sp.id]; else if(sp){ s.spend[sp.id] = sp.e; r.msgs.push(`가계부에 ${money(sp.e.amt, sp.e.cur)}`); }
   keepStorage(); save(); render(); refreshUsage();
   if(r.locate) findHotelLocations();
   if(r.msgs.length) toast(`일정에 반영했어요: ${r.msgs.join(' · ')}`);
@@ -888,11 +893,14 @@ function act(a, v){
     case 'pkchk': { const it = s.pack[v]; if(!it) return; it.done = !it.done; it.doneBy = it.done && s.shareId && s.sh.user ? s.sh.user.name : ''; break; }
     case 'pkdel': { const it = s.pack[v]; if(!it) return; if(it.src){ it.hide = true; it.done = false; } else delete s.pack[v]; break; }   // 추천에서 온 건 숨겨서 다시 추천하지 않음
     case 'pkfilter': s.pfilter = v; break;
-    case 'pkgo': {   // 앱 안에서 하는 준비물 → 그 화면으로
-      const to = PACK_GO[v]; if(!to) return;
-      if(to === 'sos'){ s.mode = 'sos'; packTick('appsos'); save(); render(); window.scrollTo(0, 0); return; }
-      s.mode = null; s.step = to === 'movebox' || to === 'icsbox' ? PLAN_STEP : VAULT_STEP; save(); render();
-      const el = document.getElementById(to === 'vault' ? 'vaultform' : to); if(el) el.scrollIntoView({ block:'start' }); else window.scrollTo(0, 0);
+    case 'pkgo': goTo(PACK_GO[v]); return;   // 앱 안에서 하는 준비물 → 그 화면으로
+    case 'prepgo': goTo(v); return;
+    case 'prepchk': s.prep = Object.assign({}, s.prep, { [v]:!(s.prep || {})[v] }); break;
+    case 'itc': s.flight = Object.assign({ ap:'', arr:'', dep:'' }, s.flight, { itc:!(s.flight || {}).itc }); break;
+    case 'plansend': {   // 가족 단톡용 일정표 (js/agenda.js planText). 공유 창이 없으면 복사
+      const P = plan(s); const text = planText(s, P, moveCtx(s, P), recordHead(s));
+      if(navigator.share) navigator.share({ text }).catch(() => {});
+      else clipText(text).then(ok => toast(ok ? '일정을 복사했어요. 단톡방에 붙여 넣으세요.' : '복사가 안 됐어요.'));
       return;
     }
     case 'lfocus': case 'lex': case 'aipaste': case 'lmore': case 'ledit': case 'lcancel': case 'lundo': case 'ldel': case 'lpadd': case 'lpdel': case 'lpmembers': case 'limpok': case 'limpcancel':
@@ -989,6 +997,14 @@ async function addDayPhotos(date, files){
   const skipped = await storeFiles(it, files.filter(f => /^image\//.test(f.type)).slice(0, room));
   keepStorage(); save(); render(); refreshUsage();
   if(files.length > room) toast(`하루 ${MAX_DAY_PHOTOS}장까지 넣을 수 있어요.`); else if(skipped && skipped.length) toast(`너무 큰 사진은 빼고 넣었어요: ${skipped.join(', ')}`);
+}
+
+// 준비물·출발 전 할 일 → 그 화면·칸으로 (vault·idbox·movebox·icsbox·pack·where·sos)
+function goTo(to){
+  const s = state; if(!to) return;
+  if(to === 'sos'){ s.mode = 'sos'; packTick('appsos'); save(); render(); window.scrollTo(0, 0); return; }
+  s.mode = null; s.step = to === 'movebox' || to === 'icsbox' ? PLAN_STEP : to === 'pack' ? PACK_STEP : to === 'where' ? STEPS.indexOf('여행지') : VAULT_STEP; save(); render();
+  const el = document.getElementById(to === 'vault' ? 'vaultform' : to); if(el) el.scrollIntoView({ block:'start' }); else window.scrollTo(0, 0);
 }
 
 /* ---------- 앱에서 해 두면 준비물 저절로 체크 (js/packing.js tickFrom) ---------- */

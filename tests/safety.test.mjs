@@ -34,10 +34,21 @@ test('문장·지진·분실 안내가 비어 있지 않음', () => {
 
 test('숙소 카드: 정한 숙소 이름, 직접 넣은 주소가 우선', () => {
   const s = Object.assign(clone(DEFAULT), { hotels:[{ id:'h1', name:'ホテルテスト新宿', lat:35.69, lng:139.70 }], hotelPick:'h1' });
-  assert.deepEqual(hotelCard(s), { name:'ホテルテスト新宿', addr:'', tel:'', mapUrl:'https://www.google.com/maps/search/?api=1&query=35.69,139.7' });
+  assert.deepEqual(hotelCard(s), { id:'h1', name:'ホテルテスト新宿', addr:'', tel:'', mapUrl:'https://www.google.com/maps/search/?api=1&query=35.69,139.7' });
   s.safety = { hname:'', addr:'東京都新宿区1-2-3', tel:'03-0000-0000' };
   assert.equal(hotelCard(s).addr, '東京都新宿区1-2-3');
   assert.equal(hotelCard(clone(DEFAULT)).name, '');
+});
+
+test('숙소 카드: 그날 밤 숙소, 예약에 넣은 현지어 주소가 먼저, 다른 숙소 카드', async () => {
+  const { tonightKey, otherHotelCards } = await import('../js/safety.js');
+  const s = Object.assign(clone(DEFAULT), { start:'2027-03-07', end:'2027-03-10', hotelPick:'a', safety:{ addr:'손으로 적은 주소' },
+    hotels:[{ id:'a', name:'A', addr:'香港九龍彌敦道1號', tel:'+852-1', lat:22.3, lng:114.17 }, { id:'b', name:'B', addr:'深圳福田1號', lat:22.54, lng:114.05 }],
+    nights:{ '2027-03-09':'b' } });
+  assert.equal(tonightKey(s, '2027-03-01'), '2027-03-07'); assert.equal(tonightKey(s, '2027-03-10'), '2027-03-09'); assert.equal(tonightKey(s, '2027-03-08'), '2027-03-08');
+  assert.equal(hotelCard(s, '2027-03-08').addr, '香港九龍彌敦道1號');
+  assert.equal(hotelCard(s, '2027-03-09').name, 'B'); assert.equal(hotelCard(s, '2027-03-10').name, 'B');   // 마지막 날은 전날 밤 숙소
+  assert.deepEqual(otherHotelCards(s, 'a').map(x => x.id), ['b']);
 });
 
 test('미아 카드 문장', () => {
