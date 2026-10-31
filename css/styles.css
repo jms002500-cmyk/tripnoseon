@@ -301,6 +301,7 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .mvttbox{display:grid; gap:6px}
 .mvttbox .mvtt{font-size:13px}
 .idwipe{margin-bottom:16px}
+.pkapp{display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin-top:2px}
 .idlist .sbody{gap:4px}
 .idviews{display:flex; flex-wrap:wrap; gap:6px}
 .idacts{display:flex; flex-direction:column; align-items:flex-end; gap:6px}

@@ -11,7 +11,7 @@ import { isEmptyMove, vaultDraft } from './moves.js';
 import { applyBooking, applyAll, PLACE_KINDS } from './bookings.js';
 import { catchUp, applyCatchUp } from './catchup.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
-import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
+import { suggestPacking, bulkSuggestions, seedItems, customItems, PACK_GO, KEY_ID, tickFrom } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
 import { geocode } from './geocode.js';
@@ -425,6 +425,7 @@ async function saveVault(){
   s.vedit = null; s.vdraft = null;
   const r = applyBooking(s, it, Object.assign({ newId:'h' + Date.now().toString(36) }, hotelPt(mapRaw || it.link)));   // 예약을 일정에 반영 (js/bookings.js)
   Object.assign(s, r.patch);
+  if(kind === 'flight' || kind === 'hotel') packTick('tickets');
   keepStorage(); save(); render(); refreshUsage();
   if(r.locate) findHotelLocations();
   if(r.msgs.length) toast(`일정에 반영했어요: ${r.msgs.join(' · ')}`);
@@ -767,7 +768,7 @@ function act(a, v){
     case 'next': s.step = Math.min(STEPS.length-1, s.step+1); scroll = true; break;
     case 'topen': s.mode = s.mode === 'today' ? null : 'today'; s.tday = null; scroll = true; break;
     case 'tclose': s.mode = null; s.sh.sbig = null; scroll = true; break;
-    case 'sos': s.mode = s.mode === 'sos' ? null : 'sos'; s.sh.sbig = null; scroll = true; break;
+    case 'sos': packTick('appsos'); s.mode = s.mode === 'sos' ? null : 'sos'; s.sh.sbig = null; scroll = true; break;
     case 'sbig': s.sh.sbig = v || null; if(v && s.mode !== 'sos') s.mode = 'sos'; break;   // 크게 보여 주기 (직원·택시 기사에게)
     case 'tday': s.tday = +v; s.sh.lplace = null; break;
     case 'locask': s.sh.locAsk = true; s.sh.locMsg = ''; break;
@@ -882,11 +883,18 @@ function act(a, v){
       const [id, to] = v.split('|'); const fa = fullAssign(s, buildDays(s)); const prev = fa[id];
       Object.keys(fa).forEach(k => { if(k !== id && fa[k] === +to) s.fullDay[k] = prev; }); s.fullDay[id] = +to; break;
     }
-    case 'pkseed': Object.assign(s.pack, seedItems(missingSuggestions(s.pack, suggestPacking(s, s.wx)), Date.now())); break;
-    case 'pkone': { const x = suggestPacking(s, s.wx).find(y => y.key === v); if(x) Object.assign(s.pack, seedItems([x], Date.now())); break; }
+    case 'pkseed': Object.assign(s.pack, seedItems(bulkSuggestions(s.pack, suggestPacking(s, s.wx)), Date.now())); packDone(); break;   // 앱에 챙겨 두기는 하나씩 골라 담기
+    case 'pkone': { const x = suggestPacking(s, s.wx).find(y => y.key === v); if(x) Object.assign(s.pack, seedItems([x], Date.now())); packDone(); break; }
     case 'pkchk': { const it = s.pack[v]; if(!it) return; it.done = !it.done; it.doneBy = it.done && s.shareId && s.sh.user ? s.sh.user.name : ''; break; }
     case 'pkdel': { const it = s.pack[v]; if(!it) return; if(it.src){ it.hide = true; it.done = false; } else delete s.pack[v]; break; }   // 추천에서 온 건 숨겨서 다시 추천하지 않음
     case 'pkfilter': s.pfilter = v; break;
+    case 'pkgo': {   // 앱 안에서 하는 준비물 → 그 화면으로
+      const to = PACK_GO[v]; if(!to) return;
+      if(to === 'sos'){ s.mode = 'sos'; packTick('appsos'); save(); render(); window.scrollTo(0, 0); return; }
+      s.mode = null; s.step = to === 'movebox' || to === 'icsbox' ? PLAN_STEP : VAULT_STEP; save(); render();
+      const el = document.getElementById(to === 'vault' ? 'vaultform' : to); if(el) el.scrollIntoView({ block:'start' }); else window.scrollTo(0, 0);
+      return;
+    }
     case 'lfocus': case 'lex': case 'aipaste': case 'lmore': case 'ledit': case 'lcancel': case 'lundo': case 'ldel': case 'lpadd': case 'lpdel': case 'lpmembers': case 'limpok': case 'limpcancel':
     case 'lbedit': case 'lbcats': case 'lbdone': case 'lexport':
       ledgerAct(a, v); return;
@@ -927,7 +935,7 @@ function act(a, v){
       s.moves = ex ? tidy : tidy.concat(m); s.sh.mvEdit = m.id; break;
     }
     case 'mvedit': s.moves = (s.moves || []).filter(m => m.id === v || !isEmptyMove(m)); s.sh.mvEdit = v; break;
-    case 'mvdone': s.moves = (s.moves || []).filter(m => !isEmptyMove(m)); s.sh.mvEdit = null; break;
+    case 'mvdone': s.moves = (s.moves || []).filter(m => !isEmptyMove(m)); s.sh.mvEdit = null; if(s.moves.length) packTick('appmove'); break;
     case 'mvdel': s.moves = (s.moves || []).filter(m => m.id !== v); s.sh.mvEdit = null; toast('이동을 지웠어요.'); break;
     case 'mvhow': setMove(s.sh.mvEdit, m => ({ how:m.how === v ? '' : v })); break;
     case 'mvvault': {   // 예약한 이동의 바우처·예약번호는 보관함(이 기기에만)에
@@ -936,7 +944,7 @@ function act(a, v){
       s.vedit = null; s.vdraft = vaultDraft(s, m, moveCtx(s, plan(s))); s.step = VAULT_STEP; s.mode = null; save(); render(); focusVaultForm(); return;
     }
     case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
-    case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); return;
+    case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); if(packTick('appcal')) save(); return;
     case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; render(); return;
     case 'askclose': s.sh.ask.open = false; setAskPhoto(null); render(); return;
     case 'askkind': s.sh.ask.kind = v; render(); return;
@@ -983,10 +991,24 @@ async function addDayPhotos(date, files){
   if(files.length > room) toast(`하루 ${MAX_DAY_PHOTOS}장까지 넣을 수 있어요.`); else if(skipped && skipped.length) toast(`너무 큰 사진은 빼고 넣었어요: ${skipped.join(', ')}`);
 }
 
+/* ---------- 앱에서 해 두면 준비물 저절로 체크 (js/packing.js tickFrom) ---------- */
+function packTick(key){
+  const s = state; const it = tickFrom(s.pack, key, s.shareId && s.sh.user ? s.sh.user.name : ''); if(!it) return false;
+  s.pack[KEY_ID(key)] = it; return true;
+}
+// 담을 때 이미 해 둔 것은 바로 체크 (여권 사본·오가는 길·항공권/숙소 예약)
+function packDone(){
+  const s = state;
+  if(idCopies(s.vault).some(x => (x.files || []).length)) packTick('appid');
+  if((s.moves || []).some(m => !isEmptyMove(m))) packTick('appmove');
+  if(bookings(s.vault).some(x => x.kind === 'flight' || x.kind === 'hotel')) packTick('tickets');
+}
+
 /* ---------- 여권·사진 사본 (js/vault.js idcopy) ---------- */
 async function addIdFiles(it, files){
   toast('사진을 넣고 있어요…');
   const skipped = await storeFiles(it, files);
+  if(it.files.length) packTick('appid');
   keepStorage(); save(); render(); refreshUsage();
   toast(skipped.length ? '너무 크거나 저장 공간이 모자라 넣지 못한 사진이 있어요.' : `${it.title}에 사진을 넣었어요. 이 기기에만 있어요.`);
 }
