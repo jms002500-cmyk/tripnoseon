@@ -25,6 +25,7 @@ import { mapSVG } from './map.js';
 import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
 import { AIRPORTS, koTime, minText as fminText } from './flight.js';
 import { catchUp } from './catchup.js';
+import { recordOf, MAX_DAY_PHOTOS } from './record.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 
@@ -150,6 +151,35 @@ function catchBox(s, P, i, date){
     <div class="pfoot"><button type="button" class="primary small" data-act="cuall">추천대로 다 옮기기</button></div>
     <p class="fine">오늘 남기는 곳은 오늘에 그대로 둬요. 뺀 곳은 일정 단계의 '아직 일정에 못 넣은 곳'에 있어요. 하루 끝 시각은 어림이에요.</p>
   </div>`;
+}
+
+// 여행 기록 한 장 (js/record.js): s.mode 'record'
+export function recordHead(s){
+  const days = buildDays(s); const where = s.city === 'hksz' && onlyCity(s) ? CITY_KO[onlyCity(s)] : (REGIONS[s.city] || {}).name || '여행';
+  return `${where} 여행${days.length ? ` · ${days[0].label.split(' ')[0]}~${days[days.length - 1].label.split(' ')[0]}` : ''} · ${partyText(s)}`;
+}
+export function vRecord(s){
+  const P = plan(s);
+  if(!P.days.length) return `<section class="step"><p class="eyebrow">여행 기록</p><h1>여행 기록 한 장</h1><div class="box tip"><p>여행 날짜를 정하면 날짜별로 간 곳·쓴 돈·사진을 한 장으로 묶어 드려요.</p></div></section>`;
+  const R = recordOf(s, P);
+  return `<section class="step record">
+    <p class="eyebrow">여행 기록</p>
+    <h1>${esc(recordHead(s))}</h1>
+    <ul class="facts"><li><span>다녀온 곳</span><b>${R.doneCount ? `${R.doneCount}곳` : `${R.placeCount}곳 계획`}</b></li><li><span>쓴 돈</span><b>${R.total ? lmoney(R.total, R.base) : '—'}</b></li><li><span>날짜</span><b>${P.days.length}일</b></li></ul>
+    <div class="pfoot noprint"><button type="button" class="primary small" data-act="rshare">글로 보내기</button><button type="button" class="ghost small" data-act="rprint">PDF로 저장·인쇄</button></div>
+    <p class="fine noprint">사진과 한마디는 이 폰에만 저장돼요(함께 짜기로 안 보내요). 다녀왔어요(✓) 표시는 오늘 화면에서 해요.</p>
+    ${R.days.map(x => { const d = x.d; const pts = [d.from].concat(x.places.map(y => y.p)).filter(Boolean);
+      return `<article class="pcard rday" style="--day:${DAY_COLORS[d.i % DAY_COLORS.length]}">
+        <header>${badge(d.i)}<div><h3>${d.i + 1}일차 · ${d.label}</h3><p>${x.spent ? `쓴 돈 ${lmoney(x.spent, R.base)}` : '적은 지출 없음'}</p></div></header>
+        ${x.places.length ? mapSVG('plan', s, { days:[d], hotel:P.hotel }, pts) : ''}
+        ${x.places.length ? `<ol class="stops">${x.places.map((y, j) => `<li class="${y.done ? 'done' : ''}"><span class="num">${j + 1}</span><div class="sbody"><b>${esc(y.p.name)}${y.done ? ' ✓' : ''}</b></div></li>`).join('')}</ol>` : '<p class="fine">쉬어 가는 날</p>'}
+        ${x.files.length ? `<div class="rphotos">${x.files.map(f => `<button type="button" class="vthumb" data-act="vview" data-v="${esc((s.vault.find(it => it.kind === 'photo' && it.date === d.key) || {}).id || '')}|${esc(f.fid)}" aria-label="사진 크게 보기"><img data-fid="${esc(f.fid)}" alt=""></button>`).join('')}</div>` : ''}
+        <div class="noprint">${x.files.length < MAX_DAY_PHOTOS ? `<label class="ghost small filebtn">📷 사진 넣기 (${x.files.length}/${MAX_DAY_PHOTOS})<input type="file" accept="image/*" multiple data-rphoto="${d.key}" hidden></label>` : ''}</div>
+        <label class="shlabel noprint" for="rnote-${d.key}">그날 한마디<input id="rnote-${d.key}" type="text" maxlength="100" value="${esc(x.note)}" placeholder="예: 아이가 스타페리를 제일 좋아했어요" data-rnote="${d.key}"></label>
+        ${x.note ? `<p class="pnote printonly">"${esc(x.note)}"</p>` : ''}
+      </article>`; }).join('')}
+    <div class="pfoot noprint"><button type="button" class="ghost small" data-act="tclose">계획으로</button></div>
+  </section>`;
 }
 
 // 글씨 크기 (이 기기에만). 동행 단계 아래·오늘 화면 아래에 둠
@@ -1010,6 +1040,7 @@ export function vLedger(s){
     <p class="eyebrow">Step 9 · 가계부</p>
     <h1>함께 쓰는 가계부</h1>
     <p class="lead">쓴 돈을 한 줄로 적으면 원화로 바꿔 합치고, 누가 누구에게 얼마를 보내면 되는지 계산해요.</p>
+    ${buildDays(s).length ? `<p class="fine">여행이 끝나면 <button type="button" class="link" data-act="recopen">📔 여행 기록 한 장</button>으로 날짜별 간 곳·쓴 돈·사진을 묶어 가족에게 보낼 수 있어요.</p>` : ''}
     <div class="box tip"><p>${shared ? '함께 짜는 여행이라 <b>가계부도 참여자 모두와 공유</b>돼요. 누가 적어도 모두의 화면에 바로 보여요.' : '지금은 <b>이 기기에만</b> 저장돼요. 가족과 같이 적으려면 오른쪽 위 \'함께 짜기\'로 여행을 공유해 주세요. 공유하면 가계부도 함께 보여요.'}</p></div>
     <form class="box" id="ledgerform" autocomplete="off">
       <h2>한 줄로 적기</h2>
@@ -1337,7 +1368,7 @@ export function vToday(s){
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
     </form>
     ${sizeChips(s)}
-    <div class="pfoot"><button type="button" class="ghost small" data-act="go" data-v="${STEP('일정')}">전체 일정</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('준비물')}">준비물</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('보관함')}">보관함</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('가계부')}">가계부·정산</button><button type="button" class="ghost small" data-act="sos">긴급 정보</button></div>
+    <div class="pfoot"><button type="button" class="ghost small" data-act="go" data-v="${STEP('일정')}">전체 일정</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('준비물')}">준비물</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('보관함')}">보관함</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('가계부')}">가계부·정산</button><button type="button" class="ghost small" data-act="sos">긴급 정보</button><button type="button" class="ghost small" data-act="recopen">📔 여행 기록</button></div>
   </section>`;
 }
 

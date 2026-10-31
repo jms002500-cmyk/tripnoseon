@@ -1,7 +1,8 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { VIEWS, SHEET, ASKSHEET, vToday, vSafety } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, recordHead } from './views.js';
+import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { askPrompt } from './askai.js';
 import { buildIcs } from './ics.js';
 import { catchUp, applyCatchUp } from './catchup.js';
@@ -328,14 +329,16 @@ function render(){
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
   s.sh.today = ymd(new Date()); { const n = new Date(); s.sh.nowMin = n.getHours() * 60 + n.getMinutes(); }
-  const todayMode = s.mode === 'today', sosMode = s.mode === 'sos';
-  if(todayMode || sosMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
-  document.getElementById('view').innerHTML = sosMode ? vSafety(s) : todayMode ? vToday(s) : VIEWS[s.step](s);
+  const todayMode = s.mode === 'today', sosMode = s.mode === 'sos', recMode = s.mode === 'record';
+  if(todayMode || sosMode || recMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
+  document.getElementById('view').innerHTML = sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : VIEWS[s.step](s);
   document.getElementById('line').style.setProperty('--n', STEPS.length);
   document.getElementById('bar').innerHTML = (sosMode
     ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="sbig" data-v="hotel">숙소 카드 보여 주기</button>`
     : todayMode
     ? `<button type="button" class="ghost" data-act="tclose">계획으로</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`
+    : recMode
+    ? `<button type="button" class="ghost" data-act="tclose">계획으로</button><button type="button" class="primary" data-act="rshare">글로 보내기</button>`
     : s.step < STEPS.length-1
     ? `<button type="button" class="ghost" data-act="prev"${s.step === 0 ? ' disabled' : ''}>이전</button><button type="button" class="primary" data-act="next">다음 · ${STEPS[s.step+1]}</button>`
     : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`) + ASK_BTN;
@@ -885,6 +888,14 @@ function act(a, v){
       break;
     }
     case 'cuundo': if(s.sh.cuUndo){ s.assign = s.sh.cuUndo.assign; s.dlock = s.sh.cuUndo.dlock; s.sh.cuUndo = null; s.sh.cuMsg = '되돌렸어요.'; } break;
+    case 'recopen': s.mode = 'record'; scroll = true; break;
+    case 'rprint': window.print(); return;
+    case 'rshare': {   // 여행 기록을 글로 (가족 단톡 등). 공유 창이 없으면 복사
+      const text = recordText(recordOf(s, plan(s)), recordHead(s));
+      if(navigator.share){ navigator.share({ text }).catch(() => {}); }
+      else clipText(text).then(ok => toast(ok ? '여행 기록을 복사했어요. 원하는 곳에 붙여 넣으세요.' : '복사가 안 됐어요.'));
+      return;
+    }
     case 'tsize': s.textSize = v === 'big' || v === 'bigger' ? v : ''; break;
     case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
     case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); return;
@@ -905,6 +916,18 @@ function act(a, v){
       scroll = true; break;
   }
   save(); render(); if(scroll) window.scrollTo({ top:0 });
+}
+
+/* ---------- 여행 기록 사진 (js/record.js) ---------- */
+// 그날 사진을 줄여서 보관함 사진 항목에 붙임 (하루 최대 MAX_DAY_PHOTOS장)
+async function addDayPhotos(date, files){
+  const s = state; let it = photoOf(s.vault, date);
+  if(!it){ it = newPhotoItem(date, 'v' + Date.now().toString(36)); s.vault = (s.vault || []).concat(it); }
+  const room = MAX_DAY_PHOTOS - it.files.length; if(room <= 0) return;
+  toast('사진을 줄여서 넣고 있어요…');
+  const skipped = await storeFiles(it, files.filter(f => /^image\//.test(f.type)).slice(0, room));
+  keepStorage(); save(); render(); refreshUsage();
+  if(files.length > room) toast(`하루 ${MAX_DAY_PHOTOS}장까지 넣을 수 있어요.`); else if(skipped && skipped.length) toast(`너무 큰 사진은 빼고 넣었어요: ${skipped.join(', ')}`);
 }
 
 /* ---------- 폰 캘린더에 넣기 (js/ics.js) ---------- */
@@ -955,6 +978,12 @@ function onChange(e){
       else { state.impMsg = '이 파일에서 장소를 찾지 못했어요. 구글 테이크아웃의 CSV나 JSON 파일인지 확인해 주세요.'; render(); }
     });
     t.value = ''; return;
+  }
+  else if(t.dataset.rphoto){ const f = Array.from(t.files || []); t.value = ''; if(f.length) addDayPhotos(t.dataset.rphoto, f); return; }
+  else if(t.dataset.rnote){
+    const k = t.dataset.rnote; let it = photoOf(s.vault, k);
+    if(!it){ if(!t.value.trim()) return; it = newPhotoItem(k, 'v' + Date.now().toString(36)); s.vault = (s.vault || []).concat(it); }
+    it.memo = t.value.trim().slice(0, 100);
   }
   else if(t.dataset.flight){ s.flight = Object.assign({ ap:'', arr:'', dep:'' }, s.flight, { [t.dataset.flight]:t.value }); }
   else if(t.dataset.askphoto != null){ const f = t.files && t.files[0]; t.value = ''; if(f){ setAskPhoto(f); render(); } return; }
