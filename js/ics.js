@@ -4,9 +4,10 @@
 import { legMinutes } from './transit.js';
 import { DAY_START, dayEnd, hm, toMin } from './flight.js';
 import { movesOn, moveEnds, moveMin, howOf, legOf, isEmptyMove } from './moves.js';
+import { prepTasks } from './prep.js';
 import { PACE } from './data.js';
 
-const TZ_OFFSET = { tokyo:9, hksz:8 };   // 현지 시각 → UTC (두 곳 다 서머타임 없음)
+export const TZ_OFFSET = { tokyo:9, hksz:8 };   // 현지 시각 → UTC (두 곳 다 서머타임 없음)
 const HOME_TZ = 9;                       // 집 ↔ 공항은 한국 시각
 
 // 그날 장소마다 어림 시각 [{ p, start, end }] (분). 하루 종일 곳은 나서는 시각 ~ 하루 끝
@@ -72,6 +73,10 @@ export function buildIcs(s, P, vault, now, ctx){
       add(d.key, d.depart.at, d.depart.at + 30, `✈️ ${tag} 출발 비행기`, { id:'dep' });
     }
   });
+  // 출발 전 할 일 (js/prep.js): 아직 안 했고 오늘 이후인 것만, 그날 오전 9시(한국 시각) 알림
+  const today = new Date(now).toISOString().slice(0, 10);
+  prepTasks(s).filter(x => !x.done && x.date >= today).forEach(x => add(x.date, 9 * 60, 9 * 60 + 30, `🗓 D-${x.dday || 'day'} ${x.t}`, { id:'prep' + x.key, tz:HOME_TZ,
+    alarms:[[0, `오늘 할 일: ${x.t}`]], desc:x.why }));
   (vault || []).filter(it => /^\d{4}-\d{2}-\d{2}$/.test(it.date || '')).forEach(it => {
     const m = /^(\d{1,2}):(\d{2})$/.exec(it.time || ''); const st = m ? +m[1] * 60 + +m[2] : null;
     add(it.date, st, st == null ? null : st + 60, `🎟️ ${it.title || '예약'}`, { id:it.id, alarms:st == null ? [] : [[60, `${it.title || '예약'}: 1시간 뒤`]],

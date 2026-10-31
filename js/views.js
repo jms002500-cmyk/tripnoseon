@@ -3,7 +3,8 @@
 import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, disneyArea, CITY_KO, CITY_FLAG } from './data.js';
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, bulkSuggestions, packView, PACK_GO } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
-import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as sosHotel, kidCardJa } from './safety.js';
+import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as tonightCard, otherHotelCards, kidCardJa } from './safety.js';
+const sosHotel = s => tonightCard(s, (s.sh || {}).today);   // 그날 밤 숙소 카드
 import * as HK from './regions/hksz-guide.js';
 import { mealSlots, rankFood, moreFoodUrl, foodKey, walkMin } from './food.js';
 import { canShareLoc, locList, kmText, locMapUrl } from './loc.js';
@@ -23,8 +24,10 @@ import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js'
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
 import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
-import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText } from './flight.js';
+import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 import { bookingRows, flightDir, PLACE_KINDS } from './bookings.js';
+import { dayAgenda, nextUp } from './agenda.js';
+import { prepTasks, prepNow } from './prep.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
 import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
@@ -729,6 +732,53 @@ function transitBox(s, P){
   </div>`;
 }
 
+/* ---------- 시간 정해진 일·다음에 할 일 (js/agenda.js) ---------- */
+// 보관함 항공권 편명 → 운항 상태 바로가기 (dir 'out' 가는 편 / 'back' 오는 편)
+function flightRowLinks(s, dir){
+  const L = bookings(s.vault).filter(it => it.kind === 'flight' && normFno(it.fno) && flightDir(s, it) === dir)
+    .flatMap(it => flightLinks(it.fno, (s.flight || {}).ap || it.ap, dir));
+  return L.length ? `<span class="mvtt">🛫 ${L.map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : '';
+}
+function agendaBox(s, d, P, live){
+  const list = dayAgenda(s, d, moveCtx(s, P)); if(!list.length) return '';
+  const nu = nextUp(list, live ? (s.sh || {}).nowMin : null);
+  const tm = x => x.home && x.kst != null ? `${koTime(x.kst)}<small>한국 시각</small>` : x.min != null ? koTime(x.min) : '';
+  const extra = x => x.m ? ttLinks(s, x.m) : x.kind === 'flight' ? flightRowLinks(s, x.dir) : x.kind === 'itc' ? `<span class="mvtt"><a class="link" href="${esc(HK.ITC.url)}" target="_blank" rel="noopener">시내 체크인 공식 안내 ↗</a></span>` : '';
+  const row = x => `<li><span class="mvt">${tm(x)}</span><div><span>${x.icon ? x.icon + ' ' : ''}${esc(x.text)}</span>${x.sub ? `<span class="fine">${esc(x.sub)}</span>` : ''}${extra(x)}</div></li>`;
+  return `<div class="box agenda">
+    <h2>⏰ ${live ? '다음에 할 일' : '이날 시간 정해진 일'}<small>${list.length}가지</small></h2>
+    ${nu.next ? `<div class="agnext"><span class="mvt">${tm(nu.next)}</span><div><b>${nu.next.icon ? nu.next.icon + ' ' : ''}${esc(nu.next.text)}</b>${nu.next.sub ? `<span class="fine">${esc(nu.next.sub)}</span>` : ''}${extra(nu.next)}</div></div>` : '<p class="fine">오늘 시간 정해진 일은 다 지났어요.</p>'}
+    ${nu.later.length ? `<ul class="mvlist">${nu.later.map(row).join('')}</ul>` : ''}
+    ${nu.past.length ? `<details class="more"><summary>지난 일 ${nu.past.length}가지</summary><ul class="mvlist agpast">${nu.past.map(row).join('')}</ul></details>` : ''}
+  </div>`;
+}
+// 마지막 날 카드: 홍콩 시내 체크인 (마지막 밤을 홍콩에서 잘 때)
+function itcLine(s, d){
+  if(s.city !== 'hksz' || !d.depart || (AREAS[d.from && (d.from.key || d.from.area)] || {}).city === 'sz') return '';
+  const on = !!(s.flight || {}).itc;
+  return `<div class="itcbox"><p class="fine">🧳 ${esc(HK.ITC.text)}${on ? ' 짐 찾으러 숙소에 들르는 30분을 빼고 짰어요.' : ''}</p>
+    <div class="pfoot"><button type="button" class="${on ? 'primary' : 'ghost'} small" data-act="itc" aria-pressed="${on}">${on ? '✓ 시내 체크인 할게요' : '시내 체크인 할게요'}</button><a class="link" href="${esc(HK.ITC.url)}" target="_blank" rel="noopener">공식 안내 ↗</a></div></div>`;
+}
+
+/* ---------- 출발 전 할 일 (js/prep.js) ---------- */
+function prepBox(s, where){
+  const today = (s.sh || {}).today || ''; if(!s.start || (today && today > s.start)) return '';
+  const all = prepTasks(s); const now = prepNow(s, today);
+  const list = where === 'today' ? now.late.concat(now.soon) : all; if(!list.length) return '';
+  const dd = x => x.dday ? `D-${x.dday}` : 'D-day';
+  const top = where === 'today' ? list : all.filter(x => !x.done).slice(0, 4); const rest = where === 'today' ? [] : all.filter(x => !top.includes(x));
+  const li = x => `<li class="${x.done ? 'done' : ''}${!x.done && x.dday > now.left ? ' late' : ''}">
+      <button type="button" class="tchk" data-act="prepchk" data-v="${esc(x.key)}" aria-pressed="${x.done}" aria-label="${esc(x.t)} 했어요">✓</button>
+      <div class="sbody"><b>${dd(x)} · ${esc(x.t)}</b><span>${esc(x.why)}</span>${x.auto ? '<span class="pkby">앱에 해 둠</span>' : ''}${x.go ? `<span class="pkapp"><button type="button" class="link" data-act="prepgo" data-v="${esc(x.go)}">바로 하러 가기 →</button></span>` : ''}</div></li>`;
+  return `<div class="box" id="prepbox">
+    <h2>🗓 출발 전 할 일<small>${now.left > 0 ? `출발까지 ${now.left}일` : now.left === 0 ? '오늘 출발' : ''} · ${all.filter(x => x.done).length}/${all.length}</small></h2>
+    ${where === 'today' ? '<p class="fine">지금 할 때가 됐거나 지난 일이에요.</p>' : ''}
+    ${top.length ? `<ul class="plist">${top.map(li).join('')}</ul>` : '<p class="fine">할 일을 다 했어요 👍</p>'}
+    ${rest.length ? `<details class="more"><summary>전체 할 일 ${all.length}가지 보기</summary><ul class="plist">${rest.map(li).join('')}</ul></details>` : ''}
+    <p class="fine">일정 단계에서 폰 캘린더에 넣으면 할 일 날 아침 9시에 알림이 울려요. 함께 짜는 가족과 체크를 같이 봐요.</p>
+  </div>`;
+}
+
 /* ---------- 오가는 길 (js/moves.js) ---------- */
 // 기본 이름: 도착 공항, 첫날 가는 숙소, 마지막 날 나서는 숙소
 export function moveCtx(s, P){
@@ -758,7 +808,7 @@ function dayMoves(s, d, ctx, part){
     of('go').forEach(m => rows.push(moveLi(m, ctx, [], s)));
     const a = d.arrive;
     if(a){
-      rows.push(mvLi(a.at, `✈️ ${esc(a.ap.name)} 도착`, `입국·짐 찾기 약 ${fminText(AFTER_LANDING)}`));
+      rows.push(mvLi(a.at, `✈️ ${esc(a.ap.name)} 도착`, `입국·짐 찾기 약 ${fminText(AFTER_LANDING)}`, false, flightRowLinks(s, 'out')));
       if(!of('in').length) rows.push(mvLi(a.at + AFTER_LANDING, `🧳 ${esc(a.ap.name)} → ${esc(ctx.inHotel || '숙소')} · 약 ${fminText(a.transfer)}`, '어림 · 위 \'오가는 길\'에서 어떻게 갈지 정할 수 있어요'));
       if(a.early) warn.push('예약한 차 시각이 입국·짐 찾기(약 1시간)보다 일러요. 비행기가 늦으면 기사님께 꼭 알려 주세요.');
     }
@@ -770,7 +820,7 @@ function dayMoves(s, d, ctx, part){
     const z = d.depart && d.depart.leave >= 0 ? d.depart : null;
     if(z && !of('out').length) rows.push(mvLi(z.leave, `🧳 <b>숙소에서 공항으로</b> · 약 ${fminText(z.transfer)}`, '짐 찾는 30분 포함해서 그 전까지만 짰어요'));
     of('out').forEach(m => rows.push(moveLi(m, ctx, [guessMin(m, z), z ? '짐 찾는 30분 포함해서 그 전까지만 짰어요' : ''], s)));
-    if(z) rows.push(mvLi(z.at, `✈️ ${esc(z.ap.name)} 출발`, '2시간 30분 전 공항 도착 기준'));
+    if(z) rows.push(mvLi(z.at, `✈️ ${esc(z.ap.name)} 출발`, '2시간 30분 전 공항 도착 기준', false, flightRowLinks(s, 'back')));
     if(z && z.late) warn.push('이 시각에 나서면 출발 1시간 30분 전에도 공항에 못 닿을 수 있어요. 더 일찍 나서는 걸 알아보세요.');
     of('back').forEach(m => rows.push(moveLi(m, ctx, [], s)));
   }
@@ -860,6 +910,7 @@ export function vPlan(s){
         ${split ? `<p class="fine">🏨 ${d.from.name !== d.to.name ? `🧳 숙소 옮기는 날: ${esc(d.from.name)} → ${esc(d.to.name)}${d.cross ? ' · 짐 옮기고 국경 넘는 2시간을 빼고 짰어요' : ''}` : `${esc(d.to.name)}`}</p>` : ''}
         ${body}
         ${dayMoves(s, d, mctx, 'end')}
+        ${itcLine(s, d)}
         ${rainBox(s, P, d)}
         <div class="tacts"><button type="button" class="link" data-act="tfood" data-v="${d.i}">🍜 이날 점심·저녁 식당 찾기</button>${d.full || d.items.length ? (d.locked
           ? `<button type="button" class="link" data-act="dunlock" data-v="${d.i}">확정 풀기</button>` : `<button type="button" class="link" data-act="dlock" data-v="${d.i}">🔒 이날 확정</button>`) : ''}</div>
@@ -867,6 +918,11 @@ export function vPlan(s){
         ${d.full ? '' : `<div class="meter${d.used > d.cap ? ' over' : ''}"><span style="width:${pct}%"></span></div>`}
       </article>`; }).join('')}
     ${REGION.key === 'tokyo' ? transitBox(s, P) : ''}
+    <div class="box" id="sendbox">
+      <h2>💬 가족에게 일정 보내기</h2>
+      <p class="fine">날짜별 오가는 길·비행기·장소·숙소를 글 하나로 정리해서 단톡방 등에 보내요. 함께 짜기를 안 쓰는 가족(부모님 등)에게 좋아요. 예약번호는 안 넣어요.</p>
+      <div class="pfoot"><button type="button" class="primary small" data-act="plansend">일정 글로 보내기</button></div>
+    </div>
     ${anyItems ? `<div class="box" id="icsbox">
       <h2>📅 폰 캘린더에 넣기</h2>
       <p class="fine">날짜별 일정·비행기·보관함 예약을 폰 캘린더에 넣어요. 첫 장소 30분 전, 공항 가기 1시간 전 같은 <b>알림을 폰 캘린더가 울려 줘요</b>(인터넷 없어도 돼요). 시각은 어림이에요.</p>
@@ -898,6 +954,7 @@ export function vPack(s){
     <p class="eyebrow">Step 7 · 준비물</p>
     <h1>준비물 체크리스트</h1>
     <p class="lead">${ctx ? `${esc(ctx)}에 맞춰 골랐어요. ` : ''}누구 짐인지 나누고 챙긴 것을 체크해요.</p>
+    ${prepBox(s, 'pack')}
     <div class="box tip"><p>${shared ? '함께 짜는 여행이라 <b>준비물도 참여자 모두와 공유</b>돼요. 누가 체크해도 모두의 화면에 바로 보여요.' : '지금은 <b>이 기기에만</b> 저장돼요. 가족과 같이 체크하려면 오른쪽 위 \'함께 짜기\'로 여행을 공유해 주세요.'}${s.wx && s.wx.climate ? '' : ' 여행지 단계에서 날씨를 받으면 옷차림 추천이 더 정확해져요.'}</p></div>
     ${!v.total ? `<div class="box">
       <h2>추천 준비물<small>${miss.length}개</small></h2>
@@ -955,7 +1012,8 @@ function vaultCard(s, it){
   const armed = s.sh && s.sh.vdel === it.id; const link = safeHttpsUrl(it.link);
   return `<article class="vcard" id="v-${esc(it.id)}">
     <div class="vhead"><span class="vicon" aria-hidden="true">${k.icon}</span><div><h3>${esc(it.title)}</h3>
-      <p class="meta">${esc(k.label)}${it.time ? ' · ' + esc(it.time) : ''}${pn && pn !== it.title ? ' · ' + esc(pn) : ''}</p></div></div>
+      <p class="meta">${esc(k.label)}${it.time ? ' · ' + esc(it.time) : ''}${pn && pn !== it.title ? ' · ' + esc(pn) : ''}${it.fno ? ' · ' + esc(normFno(it.fno) || it.fno) : ''}${it.amt > 0 ? ' · ' + lmoney(it.amt, it.cur || 'KRW') : ''}</p></div></div>
+    ${it.kind === 'flight' && normFno(it.fno) ? `<span class="mvtt">🛫 ${flightLinks(it.fno, (s.flight || {}).ap || it.ap, flightDir(s, it)).map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : ''}
     ${it.code ? `<div class="vcode"><span>예약번호</span><b>${esc(it.code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(it.id)}">복사</button></div>` : ''}
     ${it.memo ? `<p class="pnote">${esc(it.memo)}</p>` : ''}
     ${(it.files || []).length ? `<div class="vfiles">${it.files.map(f => /^image\//.test(f.type)
@@ -1026,6 +1084,10 @@ export function vVault(s){
         <label for="vtime"><span class="vl-any">시간</span><span class="vl-flight">출발 시각</span><span class="vl-hotel">체크인 시각</span><input id="vtime" type="time" value="${esc(d.time || '')}"></label>
         <label for="vcode">예약번호<input id="vcode" type="text" maxlength="40" value="${esc(d.code || '')}" spellcheck="false"></label>
       </div>
+      <div class="row2">
+        <label for="vamt">금액 (선택)<input id="vamt" type="number" inputmode="decimal" min="0" step="any" value="${d.amt > 0 ? esc(String(d.amt)) : ''}" placeholder="가계부 '여행 전'에"></label>
+        <label for="vcur">통화<select id="vcur">${['KRW'].concat(REGION.curs || []).map(c => `<option value="${c}"${(d.cur || 'KRW') === c ? ' selected' : ''}>${esc(CURRENCY[c] ? CURRENCY[c].label : c)}</option>`).join('')}</select></label>
+      </div>
       ${vaultExtras(s, d)}
       <label for="vlink">예약 페이지 주소 (선택)<input id="vlink" type="url" inputmode="url" value="${esc(d.link || '')}" placeholder="https://"></label>
       <label for="vmemo">메모 (선택)<textarea id="vmemo" rows="2" maxlength="300" placeholder="예: 체크인 15시 · 짐은 프런트에 맡기기">${esc(d.memo || '')}</textarea></label>
@@ -1082,6 +1144,7 @@ function vaultExtras(s, d){
         <label for="vdir">가는 편·오는 편<select id="vdir">${[['', '날짜로 알아서'], ['out', '가는 편'], ['back', '오는 편']].map(([k, l]) => `<option value="${k}"${(d.dir || '') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
         <label for="vtime2">도착 시각 (도착지)<input id="vtime2" type="time" value="${esc(d.kind === 'flight' ? d.time2 || '' : '')}"></label>
       </div>
+      <label for="vfno">편명 (선택)<input id="vfno" type="text" maxlength="10" value="${esc(d.fno || '')}" placeholder="예: CX411 · 넣으면 지연·게이트 확인 바로가기" spellcheck="false" autocapitalize="characters"></label>
       ${aps.length ? `<label for="vap">여행지 공항<select id="vap">${aps.map(a => `<option value="${a.code}"${(d.ap || (s.flight || {}).ap || aps[0].code) === a.code ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : ''}
       <p class="fine">가는 편은 도착 날짜·도착 시각으로 첫날을, 오는 편은 출발 날짜·출발 시각으로 마지막 날을 맞춰요(현지 시각).${dir ? ` 지금은 ${dir === 'out' ? '가는 편' : '오는 편'}으로 봤어요.` : ''}</p>
     </div>
@@ -1090,8 +1153,10 @@ function vaultExtras(s, d){
         <label for="vdate2">체크아웃 날짜<input id="vdate2" type="date" value="${esc(d.date2 || '')}"></label>
         <label for="vtime2h">체크아웃 시각<input id="vtime2h" type="time" value="${esc(d.kind === 'hotel' ? d.time2 || '' : '')}"></label>
       </div>
+      <label for="vaddr">택시용 현지어 주소 (선택)<input id="vaddr" type="text" maxlength="120" value="${esc(d.addr || '')}" placeholder="${REGION.key === 'hksz' ? '예약 확인서의 중국어(한자) 주소 붙여 넣기' : '예약 확인서의 일본어 주소 붙여 넣기'}"></label>
+      <label for="vtel">숙소 전화 (선택)<input id="vtel" type="tel" maxlength="30" value="${esc(d.tel || '')}" placeholder="${REGION.key === 'hksz' ? '예: +852-1234-5678' : '예: +81-3-1234-5678'}"></label>
       <label for="vmap">숙소 위치 · 구글 지도 주소 (선택)<input id="vmap" type="url" inputmode="url" value="" placeholder="구글 지도에서 숙소를 열고 공유 → 링크 복사"></label>
-      <p class="fine">체크인부터 체크아웃 전날 밤까지 이 숙소에서 자는 걸로 일정을 짜요. 위치를 안 넣으면 숙소 이름으로 찾아봐요(이름이 OpenStreetMap 검색 서버로 가요).</p>
+      <p class="fine">현지어 주소·전화를 넣으면 긴급 정보의 숙소 카드(택시 기사에게 보여 주기)가 그날 밤 숙소로 바뀌어요. 체크인부터 체크아웃 전날 밤까지 이 숙소에서 자는 걸로 일정을 짜요. 위치를 안 넣으면 숙소 이름으로 찾아봐요(이름이 OpenStreetMap 검색 서버로 가요).</p>
     </div>
     <div class="vx vx-place">
       <label for="vplace">일정에 넣을 장소 (선택)<select id="vplace"><option value="">연결 안 함</option>${picked.concat(cur).map(p => `<option value="${esc(p.id)}"${d.placeId === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}${all.filter(p => !picked.includes(p) && !cur.includes(p)).length ? `<optgroup label="아직 안 담은 곳">${all.filter(p => !picked.includes(p) && !cur.includes(p)).map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</optgroup>` : ''}</select></label>
@@ -1309,7 +1374,7 @@ function vSafetyHKSZ(s){
     </div>
     <div class="box" id="soshotel"><h2>숙소 주소 카드<small>택시·길 묻기</small></h2>
       <div class="soscard"><p class="sosja">請帶我去這個地址 / 请带我去这个地址</p><b>${esc(hc.name || '숙소 이름을 넣어 주세요')}</b>${hc.addr ? `<span>${esc(hc.addr)}</span>` : ''}${hc.tel ? `<span>TEL ${esc(hc.tel)}</span>` : ''}</div>
-      <div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button></div>
+      <div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button>${otherHotelCards(s, hc.id).map(h => `<button type="button" class="ghost small" data-act="sbig" data-v="hotel:${esc(h.id)}">🏨 ${esc(h.name)}</button>`).join('')}</div>
       <label for="sfname">숙소 이름 (중국어 이름이면 더 좋아요)<input id="sfname" type="text" maxlength="80" data-sf="hname" value="${esc(sf.hname || '')}" placeholder="${esc(hc.name || '예약 확인서의 숙소 이름')}"></label>
       <label for="sfaddr">주소 (예약 확인서의 중국어 주소를 붙여 넣기)<input id="sfaddr" type="text" maxlength="120" data-sf="addr" value="${esc(sf.addr || '')}"></label>
       <label for="sftel">숙소 전화<input id="sftel" type="tel" maxlength="30" data-sf="tel" value="${esc(sf.tel || '')}" placeholder="예: +852-1234-5678"></label>
@@ -1341,12 +1406,13 @@ function vSafetyHKSZ(s){
 }
 function sosBig(s){
   const b = (s.sh || {}).sbig; if(!b) return '';
-  const hc = sosHotel(s); const hk = s.city === 'hksz';
+  const isHotel = b === 'hotel' || b.startsWith('hotel:'); const hk = s.city === 'hksz';
+  const hc = b.startsWith('hotel:') ? (otherHotelCards(s, '').find(x => x.id === b.slice(6)) || sosHotel(s)) : sosHotel(s);
   // 문장: 일본어 p0…, 홍콩(광둥어) h0…, 선전(보통화) z0…
-  const ph = b[0] === 'p' ? PHRASES[+b.slice(1)] : (b[0] === 'h' && b !== 'hotel') ? HK.PHRASES.hk[+b.slice(1)] : b[0] === 'z' ? HK.PHRASES.sz[+b.slice(1)] : null;
-  const ja = b === 'hotel' ? [hk ? '請帶我去這個地址\n请带我去这个地址' : 'この住所に行きたいです', hc.name, hc.addr, hc.tel ? `TEL ${hc.tel}` : ''].filter(Boolean).join('\n')
+  const ph = b[0] === 'p' ? PHRASES[+b.slice(1)] : (b[0] === 'h' && !isHotel) ? HK.PHRASES.hk[+b.slice(1)] : b[0] === 'z' ? HK.PHRASES.sz[+b.slice(1)] : null;
+  const ja = isHotel ? [hk ? '請帶我去這個地址\n请带我去这个地址' : 'この住所に行きたいです', hc.name, hc.addr, hc.tel ? `TEL ${hc.tel}` : ''].filter(Boolean).join('\n')
     : b === 'kid' ? (hk ? kidCardZh(s.sphone, hc.name) : kidCardJa(s.sphone, hc.name)) : ph ? (ph.ja || ph.local) : '';
-  const ko = b === 'hotel' ? '이 주소로 가고 싶어요' : b === 'kid' ? '길을 잃었어요. 이 번호로 전화해 주세요' : ph ? `${ph.ko} · ${ph.read}` : '';
+  const ko = isHotel ? '이 주소로 가고 싶어요' : b === 'kid' ? '길을 잃었어요. 이 번호로 전화해 주세요' : ph ? `${ph.ko} · ${ph.read}` : '';
   return `<div class="sosover" role="dialog" aria-label="크게 보기"><p class="sosja">${esc(ja).replace(/\n/g, '<br>')}</p><p class="fine">${esc(ko)}</p>
     <button type="button" class="ghost" data-act="sbig" data-v="">닫기</button></div>`;
 }
@@ -1369,7 +1435,7 @@ export function vSafety(s){
     </div>
     <div class="box" id="soshotel"><h2>숙소 일본어 카드<small>택시·길 묻기</small></h2>
       <div class="soscard"><p class="sosja">この住所に行きたいです</p><b>${esc(hc.name || '숙소 이름을 넣어 주세요')}</b>${hc.addr ? `<span>${esc(hc.addr)}</span>` : ''}${hc.tel ? `<span>TEL ${esc(hc.tel)}</span>` : ''}</div>
-      <div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button>${hc.mapUrl ? `<a class="link" href="${esc(hc.mapUrl)}" target="_blank" rel="noopener">지도 ↗</a>` : ''}</div>
+      <div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button>${otherHotelCards(s, hc.id).map(h => `<button type="button" class="ghost small" data-act="sbig" data-v="hotel:${esc(h.id)}">🏨 ${esc(h.name)}</button>`).join('')}${hc.mapUrl ? `<a class="link" href="${esc(hc.mapUrl)}" target="_blank" rel="noopener">지도 ↗</a>` : ''}</div>
       <label for="sfname">숙소 이름 (일본어면 더 좋아요)<input id="sfname" type="text" maxlength="80" data-sf="hname" value="${esc(sf.hname || '')}" placeholder="${esc(hc.name || '예: ホテル○○新宿')}"></label>
       <label for="sfaddr">주소 (예약 확인서의 일본어 주소를 붙여 넣기)<input id="sfaddr" type="text" maxlength="120" data-sf="addr" value="${esc(sf.addr || '')}" placeholder="예: 東京都新宿区…"></label>
       <label for="sftel">숙소 전화<input id="sftel" type="tel" maxlength="30" data-sf="tel" value="${esc(sf.tel || '')}" placeholder="예: 03-1234-5678"></label>
@@ -1506,8 +1572,9 @@ export function vToday(s){
     ${todayWeatherLine(dayWeather(s.wx, date))}
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
+    ${ph.phase === 'before' ? prepBox(s, 'today') : ''}
     ${d.depart && d.depart.leave >= 0 ? `<p class="warnline">✈️ ${koTime(d.depart.at)} 비행기 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로 출발</b>해야 해요. 짐 찾을 시간도 챙기세요.</p>` : ''}
-    ${(c => (m => m ? `<div class="box"><h2>이날 이동</h2>${m}</div>` : '')(dayMoves(s, d, c, 'start') + dayMoves(s, d, c, 'end')))(moveCtx(s, P))}
+    ${agendaBox(s, d, P, ph.phase === 'during' && date === today)}
     ${next}
     ${ph.phase === 'during' && date === today ? catchBox(s, P, i, date) : ''}
     ${locBox(s, today)}

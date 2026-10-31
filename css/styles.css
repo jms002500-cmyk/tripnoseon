@@ -301,6 +301,12 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .mvttbox{display:grid; gap:6px}
 .mvttbox .mvtt{font-size:13px}
 .idwipe{margin-bottom:16px}
+.agnext{display:grid; grid-template-columns:5.6em 1fr; gap:8px; align-items:baseline; padding:10px 12px; margin:6px 0 4px; border:1.5px solid var(--accent); border-radius:12px; background:var(--accent-soft)}
+.agnext b{font-size:16px}
+.agnext > div{display:flex; flex-direction:column; gap:2px; min-width:0}
+.agpast li{opacity:.6}
+.itcbox{margin:8px 0; padding:10px 12px; border:1px dashed var(--rule); border-radius:12px}
+#prepbox .plist li.late .sbody b{color:var(--warn)}
 .pkapp{display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin-top:2px}
 .idlist .sbody{gap:4px}
 .idviews{display:flex; flex-wrap:wrap; gap:6px}

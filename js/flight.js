@@ -17,6 +17,24 @@ export const minText = m => m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m
 // '오후 1시', '오전 9:30'
 export const koTime = m => { const h = Math.floor(m / 60) % 24, mm = m % 60; return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}${mm ? `:${String(mm).padStart(2, '0')}` : '시'}`; };
 
+// 편명 → 운항 상태(지연·게이트) 바로가기. 공항 공식 운항 정보 페이지(주소 확인 2026-10-31) + 구글 검색(편명이 구글로 감)
+export const FLIGHT_PAGES = {
+  ICN:{ name:'인천공항 운항정보', url:'https://www.airport.kr/ap_ko/869/subview.do' },
+  HKG:{ name:'홍콩 공항', arr:'https://www.hongkongairport.com/en/flights/arrivals/passenger.page', dep:'https://www.hongkongairport.com/en/flights/departures/passenger.page' },
+  NRT:{ name:'나리타 공항 운항정보', url:'https://www.narita-airport.jp/ko/flight/' },
+  HND:{ name:'하네다 공항 항공편', url:'https://tokyo-haneda.com/ko/flight/index.html' }
+};
+export const normFno = t => { const m = /^([A-Z0-9]{2})\s*-?\s*(\d{1,4}[A-Z]?)$/.exec(String(t || '').trim().toUpperCase()); return m && /[A-Z]/.test(m[1]) ? m[1] + m[2] : ''; };
+// dir 'out'(한국 → 여행지) | 'back'. ap: 여행지 공항 코드
+export function flightLinks(fno, ap, dir){
+  const f = normFno(fno); const out = [];
+  if(f) out.push({ label:`${f} 실시간 상태 (구글)`, url:`https://www.google.com/search?q=${encodeURIComponent(f + ' flight status')}`, google:true });
+  const page = (code, way) => { const p = FLIGHT_PAGES[code]; if(!p) return null; return { label:p.arr ? `${p.name} ${way === 'arr' ? '도착' : '출발'} 안내` : p.name, url:p[way] || p.url }; };
+  const here = page(ap, dir === 'out' ? 'arr' : 'dep'), home = page('ICN', dir === 'out' ? 'dep' : 'arr');
+  if(dir === 'out'){ if(home) out.push(home); if(here) out.push(here); } else { if(here) out.push(here); if(home) out.push(home); }
+  return out;
+}
+
 export const airportOf = (region, code) => { const l = AIRPORTS[region] || []; return l.find(a => a.code === code) || l[0] || null; };
 // 공항 ↔ 그 도시 숙소 (분)
 export const transferMin = (ap, city) => !ap ? 60 : typeof ap.min === 'number' ? ap.min : (ap.min[city] || Object.values(ap.min)[0]);
@@ -42,6 +60,6 @@ export function departInfo(f, region, city, base, o){
   const t = toMin(f && f.dep); if(t == null) return null;
   const ap = airportOf(region, f.ap); const tr = o && o.min ? o.min : transferMin(ap, city);
   const set = !!(o && o.time != null && o.time < t); const leave = set ? o.time : t - EARLY - tr;
-  return { at:t, leave, transfer:tr, ap, cap:capBetween(DAY_START, leave - BAG_PICKUP, base),
+  return { at:t, leave, transfer:tr, ap, cap:capBetween(DAY_START, leave - (f.itc ? 0 : BAG_PICKUP), base),   // 시내 체크인(f.itc)이면 짐은 아침에 미리 부침
     ...(set ? { set:true } : {}), ...(set && leave + tr > t - 90 ? { late:true } : {}) };
 }

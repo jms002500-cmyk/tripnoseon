@@ -131,7 +131,8 @@ export const DAY_COLORS = ['#F39700','#E60012','#00A7DB','#009944','#9B7CB6','#B
 export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'normal',
   country:'jp', city:'tokyo', cityOnly:'', start:'', end:'',
   flight:{ ap:'', arr:'', dep:'' },   // 비행기: 공항 코드, 첫날 도착·마지막 날 출발 현지 시각 'HH:MM' (js/flight.js, 함께 짜기로 공유)   // cityOnly: 도시가 둘인 지역에서 한 도시만 갈 때 'hk' | 'sz' (''이면 둘 다)
-  moves:[],   // 오가는 길: 집 ↔ 공항·공항 ↔ 숙소·여행 중 예약한 이동 (js/moves.js, 함께 짜기로 공유, 예약번호는 안 넣음)
+  moves:[],
+  prep:{},    // 출발 전 할 일 체크 { 키:true } (js/prep.js, 함께 짜기로 공유)   // 오가는 길: 집 ↔ 공항·공항 ↔ 숙소·여행 중 예약한 이동 (js/moves.js, 함께 짜기로 공유, 예약번호는 안 넣음)
   picked:{}, must:{}, fullDay:{}, custom:[], hotelArea:null, assign:{}, areaFilter:'all', kindFilter:'all', anchorKind:'all',
   imports:[], geoBusy:false, geoErr:false, impMsg:'',       // imports: 구글 지도에서 가져와 확인을 기다리는 곳
   hotels:[], hotelPick:null, hotelCur:'JPY', hotelSort:'place', hotelMsg:'', hotelBusy:false, hotelErr:false,   // hotels: 숙소 후보

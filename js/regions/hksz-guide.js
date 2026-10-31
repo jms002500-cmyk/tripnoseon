@@ -182,3 +182,8 @@ export function guideFor(city){
     money:MONEY[city] || null, packing:packingFor(city)
   };
 }
+
+// 홍콩 공항철도 시내 체크인 (홍콩역·구룡역): 참여 항공사만, 무료로 비행기 짐을 미리 부침. 받는 시간·항공사는 공식 페이지에서 확인
+//   www.hongkongairport.com/en/baggage/airport-express-check-in.page (2026-10-31 확인)
+export const ITC = { url:'https://www.hongkongairport.com/en/baggage/airport-express-check-in.page', checked:'2026-10-31',
+  text:'마지막 날 홍콩역·구룡역(공항철도)에서 비행기 짐을 미리 부치면 짐 없이 다니다 공항으로 가요. 참여 항공사만 되고 무료예요. 받는 시간·항공사는 꼭 확인하세요.' };
