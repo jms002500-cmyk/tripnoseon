@@ -721,6 +721,17 @@ export function vPlan(s){
         ${d.full ? '' : `<div class="meter${d.used > d.cap ? ' over' : ''}"><span style="width:${pct}%"></span></div>`}
       </article>`; }).join('')}
     ${REGION.key === 'tokyo' ? transitBox(s, P) : ''}
+    ${anyItems ? `<div class="box">
+      <h2>📅 폰 캘린더에 넣기</h2>
+      <p class="fine">날짜별 일정·비행기·보관함 예약을 폰 캘린더에 넣어요. 첫 장소 30분 전, 공항 가기 1시간 전 같은 <b>알림을 폰 캘린더가 울려 줘요</b>(인터넷 없어도 돼요). 시각은 어림이에요.</p>
+      <div class="pfoot"><button type="button" class="primary small" data-act="icsshare">캘린더 앱으로 보내기</button><button type="button" class="ghost small" data-act="icsfile">파일로 받기</button></div>
+      <details class="more"><summary>넣는 법·주의</summary><ul class="fine">
+        <li>삼성 캘린더: '캘린더 앱으로 보내기'에서 캘린더를 고르거나, 받은 파일을 열고 저장을 누르세요.</li>
+        <li>구글 캘린더: 폰 앱은 파일을 못 읽어요. PC에서 calendar.google.com → 설정 → 가져오기로 넣으세요.</li>
+        <li>일정을 바꾼 뒤 다시 넣으면 겹쳐 보여요. 전에 넣은 '트립노선' 일정을 지우고 넣으세요.</li>
+        <li>예약번호·QR은 넣지 않아요. 보관함에서 보세요.</li>
+      </ul></details>
+    </div>` : ''}
     ${P.unassigned.length ? `<div class="box"><h2>아직 일정에 못 넣은 곳</h2><ol class="stops">${P.unassigned.map(u => `<li><span class="num" style="--day:var(--muted)">·</span><div class="sbody"><b>${esc(u.p.name)}</b><span>${esc(u.why)}</span></div>${u.p.full ? '' : moveSelect(u.p, P.days, s.assign[u.p.id])}</li>`).join('')}</ol></div>` : ''}
     ${anyItems ? `<p class="fine">이동 시간은 직선거리로 어림한 값이에요(${REGION.key === 'tokyo' ? '구글은 일본 대중교통 경로를 다른 앱에 주지 않아요' : '국경을 넘는 구간은 출입국 시간을 더했어요'}). 정확한 시간·노선은 길찾기를 눌러 구글 지도에서 보세요.</p>` : '<p class="empty">담은 장소가 없어요. 장소 담기 단계에서 몇 곳을 담아 주세요.</p>'}
   </section>`;
