@@ -24,6 +24,7 @@ import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWea
 import { mapSVG } from './map.js';
 import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText } from './flight.js';
+import { bookingRows, flightDir, PLACE_KINDS } from './bookings.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
 import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
@@ -527,7 +528,7 @@ function hotelNoLoc(h, s){
   const areaOpts = `<option value="">동네 고르기</option>` + Object.entries(AREAS).map(([k, a]) => `<option value="${k}">${a.name}</option>`).join('');
   const st = h.st === 'need' ? (s.hotelBusy ? '이름으로 위치를 찾고 있어요…' : '위치를 아직 안 찾았어요') : '위치를 못 찾았어요. 구글 지도 주소를 붙이거나 동네를 골라 주세요';
   return `<li class="imp">
-    <div class="sbody"><b>${esc(koOf(h) || h.name)}</b>${koOf(h) ? `<span>${esc(h.name)}</span>` : ''}<span>${st}</span></div>
+    <div class="sbody"><b>${esc(koOf(h) || h.name)}${h.booked ? ' <span class="mvok">예약함</span>' : ''}</b>${koOf(h) ? `<span>${esc(h.name)}</span>` : ''}<span>${st}</span></div>
     <button type="button" class="link" data-act="hdel" data-v="${esc(h.id)}">지우기</button>
     ${h.st === 'fail' ? `<a class="link" href="${gmap(h.name)}" target="_blank" rel="noopener">구글 지도에서 찾기 ↗</a>` : ''}
     ${h.st === 'fail' ? `<div class="row2"><select data-harea="${esc(h.id)}" aria-label="${esc(h.name)} 동네">${areaOpts}</select></div>
@@ -763,6 +764,7 @@ function dayMoves(s, d, ctx, part){
     }
     of('in').forEach(m => rows.push(moveLi(m, ctx, [guessMin(m, a)], s)));
     of('etc').forEach(m => rows.push(moveLi(m, ctx, [], s)));
+    bookingRows(bookings(s.vault), d.key).forEach(b => rows.push(mvLi(b.time, `${b.icon} ${esc(b.text)} <span class="mvok">예약</span>`, '')));
     if(a && a.cap > 0) rows.push(mvLi(null, `<b>${koTime(a.ready)}쯤부터 다녀요</b>`, '숙소에 짐 맡기는 30분 포함'));
   } else {
     const z = d.depart && d.depart.leave >= 0 ? d.depart : null;
@@ -994,30 +996,59 @@ export function vVault(s){
     ${miss.length ? `<div class="box"><h2>아직 보관함에 없는 예약<small>${miss.length}가지</small></h2>
       <ul class="implist">${miss.map((m, i) => `<li class="imp"><div class="sbody"><b>${kindOf(m.kind).icon} ${esc(m.title)}</b><span>${esc(m.why)}</span></div>
         <button type="button" class="ghost small" data-act="vaddq" data-v="${i}">넣기</button></li>`).join('')}</ul></div>` : ''}
+    ${items.some(it => it.kind === 'flight' || it.kind === 'hotel' || (PLACE_KINDS.includes(it.kind) && it.placeId)) ? `<div><button type="button" class="ghost small" data-act="vapply">↻ 보관함 예약을 일정에 다시 반영</button></div>` : ''}
     ${groups.length ? groups.map(g => `<h2 class="vday">${esc(vaultDay(s, g.date))}</h2><div class="list">${g.items.map(it => vaultCard(s, it)).join('')}</div>`).join('')
       : '<p class="empty">아직 넣은 예약이 없어요. 아래에서 첫 예약을 넣어 보세요.</p>'}
-    <form class="box" id="vaultform" autocomplete="off">
+    <form class="box" id="vaultform" autocomplete="off" data-kind="${esc(d.kind || 'flight')}">
       <h2>${editing ? '예약 고치기' : '보관함에 넣기'}</h2>
       <div class="row2">
         <label for="vkind">종류<select id="vkind">${VAULT_KINDS.map(k => `<option value="${k.key}"${(d.kind || 'flight') === k.key ? ' selected' : ''}>${k.icon} ${k.label}</option>`).join('')}</select></label>
-        <label for="vdate">날짜<input id="vdate" type="date" value="${esc(d.date || '')}"></label>
+        <label for="vdate"><span class="vl-any">날짜</span><span class="vl-flight">출발 날짜</span><span class="vl-hotel">체크인 날짜</span><input id="vdate" type="date" value="${esc(d.date || '')}"></label>
       </div>
-      <label for="vtitle">이름<input id="vtitle" type="text" required maxlength="60" value="${esc(d.title || '')}" placeholder="예: 가는 편 인천 → 나리타"></label>
+      <label for="vtitle"><span class="vl-any">이름</span><span class="vl-hotel">숙소 이름</span><input id="vtitle" type="text" required maxlength="60" value="${esc(d.title || '')}" placeholder="예: 가는 편 인천 → 나리타"></label>
       <div class="row2">
-        <label for="vtime">시간<input id="vtime" type="time" value="${esc(d.time || '')}"></label>
+        <label for="vtime"><span class="vl-any">시간</span><span class="vl-flight">출발 시각</span><span class="vl-hotel">체크인 시각</span><input id="vtime" type="time" value="${esc(d.time || '')}"></label>
         <label for="vcode">예약번호<input id="vcode" type="text" maxlength="40" value="${esc(d.code || '')}" spellcheck="false"></label>
       </div>
+      ${vaultExtras(s, d)}
       <label for="vlink">예약 페이지 주소 (선택)<input id="vlink" type="url" inputmode="url" value="${esc(d.link || '')}" placeholder="https://"></label>
       <label for="vmemo">메모 (선택)<textarea id="vmemo" rows="2" maxlength="300" placeholder="예: 체크인 15시 · 짐은 프런트에 맡기기">${esc(d.memo || '')}</textarea></label>
       <label for="vfiles">티켓·QR 사진, PDF (선택, 여러 개)<input id="vfiles" type="file" accept="image/*,application/pdf" multiple></label>
-      <input type="hidden" id="vplace" value="${esc(d.placeId || '')}">
+
       ${editing && (editing.files || []).length ? `<p class="fine">이미 넣은 첨부 ${editing.files.length}개는 그대로 둬요. 새로 고른 파일은 더해져요.</p>` : ''}
       <div class="pfoot"><button type="submit" class="primary small">${editing ? '고친 내용 저장' : '보관함에 넣기'}</button>
         ${editing || s.vdraft ? '<button type="button" class="ghost small" data-act="vcancel">취소</button>' : ''}</div>
+      <p class="fine">넣은 예약은 일정에 바로 반영돼요: 항공권 → 여행 날짜·비행기 시간, 숙소 → 숙소·밤별 숙소, 장소를 연결한 입장권 → 그날 일정. 숙소 이름·위치와 일정은 함께 짜는 가족에게도 보여요(예약번호·첨부는 이 기기에만).</p>
       <p class="fine">큰 사진은 줄여서 저장하고, QR 캡처는 선명하게 그대로 둬요. 아이폰은 홈 화면에 추가한 앱에서 써야 오래 안전하게 남아요. 원본은 메일·사진첩에도 꼭 남겨 두세요.</p>
     </form>
     ${backupBox(s)}
   </section>`;
+}
+
+// 종류마다 더 받는 칸 (보이고 숨기는 건 form의 data-kind, app.js가 종류를 바꿀 때 고침)
+function vaultExtras(s, d){
+  const aps = AIRPORTS[s.city] || []; const dir = d.kind === 'flight' && d.id ? flightDir(s, d) : (d.dir || '');
+  const picked = pickedPlaces(s); const all = allPlaces(s); const cur = d.placeId && !picked.some(p => p.id === d.placeId) ? all.filter(p => p.id === d.placeId) : [];
+  return `<div class="vx vx-flight">
+      <div class="row2">
+        <label for="vdir">가는 편·오는 편<select id="vdir">${[['', '날짜로 알아서'], ['out', '가는 편'], ['back', '오는 편']].map(([k, l]) => `<option value="${k}"${(d.dir || '') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label for="vtime2">도착 시각 (도착지)<input id="vtime2" type="time" value="${esc(d.kind === 'flight' ? d.time2 || '' : '')}"></label>
+      </div>
+      ${aps.length ? `<label for="vap">여행지 공항<select id="vap">${aps.map(a => `<option value="${a.code}"${(d.ap || (s.flight || {}).ap || aps[0].code) === a.code ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : ''}
+      <p class="fine">가는 편은 도착 날짜·도착 시각으로 첫날을, 오는 편은 출발 날짜·출발 시각으로 마지막 날을 맞춰요(현지 시각).${dir ? ` 지금은 ${dir === 'out' ? '가는 편' : '오는 편'}으로 봤어요.` : ''}</p>
+    </div>
+    <div class="vx vx-hotel">
+      <div class="row2">
+        <label for="vdate2">체크아웃 날짜<input id="vdate2" type="date" value="${esc(d.date2 || '')}"></label>
+        <label for="vtime2h">체크아웃 시각<input id="vtime2h" type="time" value="${esc(d.kind === 'hotel' ? d.time2 || '' : '')}"></label>
+      </div>
+      <label for="vmap">숙소 위치 · 구글 지도 주소 (선택)<input id="vmap" type="url" inputmode="url" value="" placeholder="구글 지도에서 숙소를 열고 공유 → 링크 복사"></label>
+      <p class="fine">체크인부터 체크아웃 전날 밤까지 이 숙소에서 자는 걸로 일정을 짜요. 위치를 안 넣으면 숙소 이름으로 찾아봐요(이름이 OpenStreetMap 검색 서버로 가요).</p>
+    </div>
+    <div class="vx vx-place">
+      <label for="vplace">일정에 넣을 장소 (선택)<select id="vplace"><option value="">연결 안 함</option>${picked.concat(cur).map(p => `<option value="${esc(p.id)}"${d.placeId === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}${all.filter(p => !picked.includes(p) && !cur.includes(p)).length ? `<optgroup label="아직 안 담은 곳">${all.filter(p => !picked.includes(p) && !cur.includes(p)).map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</optgroup>` : ''}</select></label>
+      <p class="fine">장소를 고르면 그 장소를 예약한 날 일정에 넣어요.</p>
+    </div>`;
 }
 
 /* Step 9 · 가계부 (함께 짜기 여행이면 참여자 모두와 공유) */

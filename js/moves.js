@@ -86,6 +86,6 @@ export function timetableLinks(s, m){
 // 보관함에 넣을 예약(교통) 초안
 export function vaultDraft(s, m, ctx){
   const h = howOf(m.how); const e = moveEnds(m, ctx);
-  return { kind:'transport', title:`${h ? h.label : '이동'} · ${e.from} → ${e.to}`.slice(0, 60), date:moveDate(s, m), time:toMin(m.time) != null ? m.time : '',
+  return { kind:'transport', moveId:m.id, title:`${h ? h.label : '이동'} · ${e.from} → ${e.to}`.slice(0, 60), date:moveDate(s, m), time:toMin(m.time) != null ? m.time : '',
     why:'예약 확인서·바우처·예약번호를 넣어 두면 타는 곳에서 바로 꺼내 보여 줄 수 있어요.' };
 }
