@@ -98,3 +98,32 @@ test('홍콩 시내 체크인: 짐 찾으러 숙소에 안 들러서 마지막 �
     s.vault = []; assert.ok(dayAgenda(s, plan(s).days[2], ctx).some(x => x.kind === 'itc'));
   } finally { D.useRegion('tokyo'); }
 });
+
+test('검토에서 고친 것: 여행지 시계, 가는 편/오는 편 짐작, 시각 없는 공항→숙소 순서, 다른 밤 숙소 카드, 기록 문장', async () => {
+  const { tripClock } = await import('../js/today.js');
+  const at = new Date('2026-12-06T15:30:00Z');   // 한국 00:30(12/7), 홍콩 23:30(12/6)
+  assert.deepEqual(tripClock(at, 'Asia/Hong_Kong'), { date:'2026-12-06', min:23 * 60 + 30 });
+  assert.deepEqual(tripClock(at, 'Asia/Seoul'), { date:'2026-12-07', min:30 });
+  const { flightDir } = await import('../js/bookings.js');
+  assert.equal(flightDir(trip({ end:'' }), { id:'b', kind:'flight', date:'2027-03-11' }), 'back');   // 오는 날이 비어도 가는 날 뒤면 오는 편
+  const noDates = trip({ start:'', end:'', vault:[{ id:'a', kind:'flight', date:'2027-03-07' }] });
+  assert.equal(flightDir(noDates, { id:'b', kind:'flight', date:'2027-03-11' }), 'back');
+  assert.equal(flightDir(noDates, { id:'a', kind:'flight', date:'2027-03-07' }), 'out');
+  const s = trip({ flight:{ ap:'HND', arr:'11:00', dep:'' }, moves:[mv('in', { how:'taxi' })],
+    vault:[{ id:'h', kind:'hotel', title:'H', date:'2027-03-07', time:'15:00', files:[] }] });
+  const L = dayAgenda(s, plan(s).days[0], ctx); assert.deepEqual(L.map(x => x.kind), ['flight', 'move', 'book']); assert.equal(L[1].min, 720);
+  const { hotelCard } = await import('../js/safety.js');
+  const hs = trip({ hotelPick:'a', safety:{ addr:'A 주소' }, hotels:[{ id:'a', name:'A' }, { id:'b', name:'B' }], nights:{ '2027-03-08':'b' } });
+  assert.equal(hotelCard(hs, '2027-03-07').addr, 'A 주소'); assert.deepEqual([hotelCard(hs, '2027-03-08').name, hotelCard(hs, '2027-03-08').addr], ['B', '']);
+  const { describeChange } = await import('../js/sharecore.js');
+  assert.match(describeChange(trip(), trip({ moves:[mv('go', { how:'car' })], prep:{ insure:true } })), /오가는 길 고침.*출발 전 할 일 1개 함/);
+});
+
+test('캘린더: 보관함 가는 편은 한국 시각', async () => {
+  await D.loadRegion('hksz');
+  try{
+    const s = trip({ city:'hksz', picked:{ hk_space:true } });
+    const t = buildIcs(s, plan(s), [{ id:'f', kind:'flight', title:'가는 편', date:'2027-03-07', time:'09:00', dir:'out', files:[] }], new Date('2027-01-01')).replace(/\r\n /g, '');
+    assert.match(t, /DTSTART:20270307T000000Z/); assert.ok(t.includes('SUMMARY:✈️ 가는 편'));   // 09:00 한국 = 00:00 UTC
+  } finally { D.useRegion('tokyo'); }
+});

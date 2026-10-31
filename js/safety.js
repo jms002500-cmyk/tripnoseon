@@ -65,6 +65,7 @@ export function hotelCard(s, today){
   const sf = s.safety || {}; const k = tonightKey(s, today); const hs = s.hotels || [];
   const h = hs.find(x => x.id === ((k && (s.nights || {})[k]) || s.hotelPick)) || hs.find(x => x.id === s.hotelPick);
   if(h && (h.addr || h.tel)) return cardOf(h);
+  if(h && h.id !== s.hotelPick) return cardOf(h);   // 손으로 적은 카드(s.safety)는 정한 숙소 것
   return { id:h ? h.id : '', name:sf.hname || (h ? h.name : ''), addr:sf.addr || '', tel:sf.tel || '', mapUrl:h && h.lat != null ? `https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}` : '' };
 }
 // 다른 예약 숙소 카드 (홍콩·선전처럼 숙소를 옮길 때)

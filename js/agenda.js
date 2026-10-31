@@ -18,7 +18,8 @@ export function dayAgenda(s, d, ctx){
   ms.forEach(m => {
     const t = toMin(m.time); const home = !!legOf(m.k).home;
     if(m.k === 'out' && d.depart && d.depart.leave >= 0 && t == null) return;   // 시각 없는 숙소 → 공항은 아래 '공항으로 출발'로
-    out.push({ min:home ? localOf(s, t) : t, icon:'', text:moveText(m, c, minText), sub:[m.booked ? '예약함' : '', m.note || ''].filter(Boolean).join(' · '), kind:'move', m, home, kst:home ? t : null });
+    const guessIn = m.k === 'in' && t == null && d.arrive ? d.arrive.at + AFTER_LANDING : null;   // 시각을 안 넣은 공항 → 숙소는 입국 뒤로 줄 세움
+    out.push({ min:home ? localOf(s, t) : t != null ? t : guessIn, icon:'', text:moveText(m, c, minText), sub:[m.booked ? '예약함' : '', guessIn != null ? '시각은 어림' : '', m.note || ''].filter(Boolean).join(' · '), kind:'move', m, home, kst:home ? t : null });
   });
   const a = d.arrive, z = d.depart && d.depart.leave >= 0 ? d.depart : null;
   if(a){
