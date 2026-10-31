@@ -276,6 +276,19 @@ details.pc summary{cursor:pointer; font-weight:600; font-size:14px; color:var(--
 /* 큰 글씨 모드: 내용·아래 막대·창을 키움(px로 적은 크기까지 같이). 맨 위 단계 줄·버튼은 넘치지 않게 그대로 */
 html[data-size="big"] #view, html[data-size="big"] .bar, html[data-size="big"] #sheet{zoom:1.15}
 html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="bigger"] #sheet{zoom:1.3}
+.rday header{display:flex; gap:10px; align-items:center; margin-bottom:6px}
+.rday header h3{margin:0}
+.rday header p{margin:2px 0 0; font-size:13px; color:var(--muted)}
+.rphotos{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin:8px 0}
+.rphotos .vthumb{width:100%; aspect-ratio:1; padding:0}
+.rphotos img{width:100%; height:100%; object-fit:cover; border-radius:8px}
+.printonly{display:none}
+@media print{
+  header.top, .bar, #sheet, .noprint, #toast{display:none !important}
+  .printonly{display:block}
+  body{background:#fff; color:#000}
+  .rday{break-inside:avoid; border:1px solid #ccc}
+}
 .warnbox{border-color:var(--warn)}
 .warnbox h2{color:var(--warn)}
 .sizes{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:18px; font-size:13px; color:var(--muted)}
