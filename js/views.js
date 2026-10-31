@@ -749,6 +749,8 @@ function agendaBox(s, d, P, live){
     <h2>⏰ ${live ? '다음에 할 일' : '이날 시간 정해진 일'}<small>${list.length}가지</small></h2>
     ${nu.next ? `<div class="agnext"><span class="mvt">${tm(nu.next)}</span><div><b>${nu.next.icon ? nu.next.icon + ' ' : ''}${esc(nu.next.text)}</b>${nu.next.sub ? `<span class="fine">${esc(nu.next.sub)}</span>` : ''}${extra(nu.next)}</div></div>` : '<p class="fine">오늘 시간 정해진 일은 다 지났어요.</p>'}
     ${nu.later.length ? `<ul class="mvlist">${nu.later.map(row).join('')}</ul>` : ''}
+    ${d.arrive && d.arrive.early ? '<p class="warnline">예약한 차 시각이 입국·짐 찾기(약 1시간)보다 일러요. 비행기가 늦으면 기사님께 꼭 알려 주세요.</p>' : ''}
+    ${d.depart && d.depart.late ? '<p class="warnline">이 시각에 나서면 출발 1시간 30분 전에도 공항에 못 닿을 수 있어요. 더 일찍 나서는 걸 알아보세요.</p>' : ''}
     ${nu.past.length ? `<details class="more"><summary>지난 일 ${nu.past.length}가지</summary><ul class="mvlist agpast">${nu.past.map(row).join('')}</ul></details>` : ''}
   </div>`;
 }

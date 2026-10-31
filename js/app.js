@@ -8,10 +8,10 @@ import { esc } from './ui.js';
 import { askPrompt } from './askai.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
-import { applyBooking, applyAll, PLACE_KINDS, bookingSpend } from './bookings.js';
+import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend } from './bookings.js';
 import { planText } from './agenda.js';
 import { catchUp, applyCatchUp } from './catchup.js';
-import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
+import { phaseOf, shownDate, shouldAutoOpen, doneKey, tripClock } from './today.js';
 import { suggestPacking, bulkSuggestions, seedItems, customItems, PACK_GO, KEY_ID, tickFrom } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
@@ -333,7 +333,7 @@ function render(){
   document.getElementById('line').innerHTML =
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
-  s.sh.today = ymd(new Date()); { const n = new Date(); s.sh.nowMin = n.getHours() * 60 + n.getMinutes(); }
+  { const c = tripClock(new Date(), REGION.tz); s.sh.today = c.date; s.sh.nowMin = c.min; }   // 여행지 시각 (폰 시간대가 한국 그대로여도)
   const todayMode = s.mode === 'today', sosMode = s.mode === 'sos', recMode = s.mode === 'record';
   if(todayMode || sosMode || recMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
   document.getElementById('view').innerHTML = (sosMode || recMode ? '' : installCard(s) + idWipeCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : VIEWS[s.step](s));
@@ -539,7 +539,9 @@ async function doRestore(){
   }
   if(rs.data.rakuten && rs.data.rakuten.key){ try{ localStorage.setItem(RK_KEY, JSON.stringify(rs.data.rakuten)); }catch(e){} }
   unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();   // 공유 여행이면 서버 일정을 그대로 받음
+  const keepIds = idCopies(s.vault).filter(it => !(rs.data.state.vault || []).some(x => x.id === it.id));
   state = restoreState(rs.data); state.rkOn = !!rkKeys(); state.sh = sh;
+  if(keepIds.length) state.vault = (state.vault || []).concat(keepIds);   // 여권 사본은 백업에 고를 때만 들어가서, 없으면 이 기기 것을 남김
   sh.restore = null; sh.bkbusy = false; sh.hasRestoreUndo = true;
   sh.bkmsg = failed ? `백업으로 바꿨지만 첨부 ${failed}개는 저장 공간이 모자라 넣지 못했어요.` : '백업으로 바꿨어요.';
   saveLocal();
@@ -831,7 +833,11 @@ function act(a, v){
         if(cityOfArea(cur.key) === c){ o[d.key] = 'area:' + v; hit = true; } else o[d.key] = (s.nights || {})[d.key] || 'area:' + cur.key; });
       if(!hit && sp) Object.entries(splitNights(s, sp)).forEach(([k, x]) => { if(cityOfArea(x.slice(5)) === c) o[k] = 'area:' + v; });
       s.nights = o; break; }
-    case 'replan': s.assign = keepLockedAssign(s); break;
+    case 'replan': {   // 확정한 날과 예약한 표로 정한 날(js/bookings.js applyPlace)은 남김
+      s.assign = keepLockedAssign(s);
+      bookings(s.vault).filter(it => PLACE_KINDS.includes(it.kind) && it.placeId).forEach(it => Object.assign(s, applyPlace(s, it).patch));
+      break;
+    }
     case 'dlock': lockDay(s, +v); toast(`${+v + 1}일차를 확정했어요. 이날 장소는 자동으로 바뀌지 않아요.`); break;
     case 'dunlock': unlockDay(s, +v); break;
     case 'impfind': findLocations(); return;

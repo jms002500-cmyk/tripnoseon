@@ -5,6 +5,7 @@ import { legMinutes } from './transit.js';
 import { DAY_START, dayEnd, hm, toMin } from './flight.js';
 import { movesOn, moveEnds, moveMin, howOf, legOf, isEmptyMove } from './moves.js';
 import { prepTasks } from './prep.js';
+import { flightDir } from './bookings.js';
 import { PACE } from './data.js';
 
 export const TZ_OFFSET = { tokyo:9, hksz:8 };   // 현지 시각 → UTC (두 곳 다 서머타임 없음)
@@ -79,7 +80,9 @@ export function buildIcs(s, P, vault, now, ctx){
     alarms:[[0, `오늘 할 일: ${x.t}`]], desc:x.why }));
   (vault || []).filter(it => /^\d{4}-\d{2}-\d{2}$/.test(it.date || '')).forEach(it => {
     const m = /^(\d{1,2}):(\d{2})$/.exec(it.time || ''); const st = m ? +m[1] * 60 + +m[2] : null;
-    add(it.date, st, st == null ? null : st + 60, `🎟️ ${it.title || '예약'}`, { id:it.id, alarms:st == null ? [] : [[60, `${it.title || '예약'}: 1시간 뒤`]],
+    const icon = { flight:'✈️', hotel:'🏨', transport:'🚆', entry:'🛂', insurance:'🛡️' }[it.kind] || '🎟️';
+    const home = it.kind === 'flight' && flightDir(s, it) === 'out';   // 가는 편 출발 시각은 한국 시각
+    add(it.date, st, st == null ? null : st + 60, `${icon} ${it.title || '예약'}`, { id:it.id, tz:home ? HOME_TZ : 0, alarms:st == null ? [] : [[60, `${it.title || '예약'}: 1시간 뒤`]],
       desc:'보관함에 넣은 예약이에요. 예약번호·QR은 트립노선 보관함에서 보세요.' });
   });
   return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//tripnoseon//ko', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:트립노선 여행',

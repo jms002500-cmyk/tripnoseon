@@ -66,6 +66,9 @@ export function describeChange(prev, next){
   if(prev.hotelPick !== next.hotelPick){ const h = (next.hotels || []).find(x => x.id === next.hotelPick); parts.push(h ? `숙소를 ${h.name}(으)로 정함` : '정한 숙소를 취소'); }
   if((next.hotels || []).length > (prev.hotels || []).length) parts.push('숙소 후보 추가');
   if(!same(prev.assign, next.assign)) parts.push('일정 순서 조정');
+  if(!same(prev.flight, next.flight)) parts.push('비행기 시간 고침');
+  if(!same(prev.moves, next.moves)) parts.push('오가는 길 고침');
+  { const pd = Object.keys(next.prep || {}).filter(k => next.prep[k] && !(prev.prep || {})[k]).length; if(pd) parts.push(`출발 전 할 일 ${pd}개 함`); }
   const ps = prev.spend || {}, ns = next.spend || {};
   const sAdd = Object.keys(ns).filter(id => !ps[id]), sDel = Object.keys(ps).filter(id => !ns[id]);
   const sEdit = Object.keys(ns).filter(id => ps[id] && !same(ps[id], ns[id]));

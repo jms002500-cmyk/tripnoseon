@@ -17,6 +17,16 @@ export function phaseOf(s, today){
   return { phase:'during', index:daysBetween(s.start, today), dday:0, n };
 }
 
+// 여행지 시간대의 오늘 날짜·지금 분. tz: 'Asia/Hong_Kong' 등 (없으면 폰 시간대)
+export function tripClock(now, tz){
+  const d = now || new Date();
+  try{
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone:tz || undefined, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' })
+      .formatToParts(d).map(x => [x.type, x.value]));
+    return { date:`${p.year}-${p.month}-${p.day}`, min:(+p.hour % 24) * 60 + +p.minute };
+  }catch(e){ return { date:`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, min:d.getHours() * 60 + d.getMinutes() }; }
+}
+
 // 보여 줄 날: 고른 날 > 여행 중이면 오늘 > 출발 전이면 첫날 > 다녀온 뒤면 마지막 날
 export function dayToShow(s, today, pick, count){
   const n = count || 0; if(!n) return -1;

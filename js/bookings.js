@@ -13,12 +13,15 @@ const norm = t => String(t || '').replace(/\s+/g, '').toLowerCase();
 export const PLACE_KINDS = ['ticket', 'transport', 'etc'];   // 장소를 연결할 수 있는 예약
 
 // 가는 편·오는 편: 넣은 값, 없으면 날짜로 짐작 (여행 날짜가 없으면 가는 편)
+//   여행 날짜가 없으면 보관함의 다른 항공권보다 늦은 날이면 오는 편, 오는 날만 비었으면 가는 날보다 뒤면 오는 편
 export function flightDir(s, it){
   if(it.dir === 'out' || it.dir === 'back') return it.dir;
-  if(!isKey(it.date) || !s.start) return 'out';
+  if(!isKey(it.date)) return 'out';
+  if(!s.start) return (s.vault || []).some(x => x.kind === 'flight' && x.id !== it.id && isKey(x.date) && x.date < it.date) ? 'back' : 'out';
   if(s.end && it.date >= s.end) return 'back';
   if(it.date <= s.start) return 'out';
-  return s.end && (Date.parse(it.date) - Date.parse(s.start)) > (Date.parse(s.end) - Date.parse(it.date)) ? 'back' : 'out';
+  if(!s.end) return 'back';
+  return (Date.parse(it.date) - Date.parse(s.start)) > (Date.parse(s.end) - Date.parse(it.date)) ? 'back' : 'out';
 }
 
 // 항공권: 가는 편은 도착 날짜·도착 시각(현지), 오는 편은 출발 날짜·출발 시각(현지)
@@ -106,7 +109,7 @@ export function applyBooking(s, it, o){
 
 // 보관함 전부 다시 반영: 항공권(날짜) → 숙소(밤) → 장소 순서. o.newId(i), o.ptOf(it): 숙소 위치
 export function applyAll(s, items, o = {}){
-  const ord = { flight:0, hotel:1 }; const list = (items || []).slice().sort((a, b) => (ord[a.kind] ?? 2) - (ord[b.kind] ?? 2));
+  const ord = { flight:0, hotel:1 }; const list = (items || []).slice().sort((a, b) => (ord[a.kind] ?? 2) - (ord[b.kind] ?? 2) || String(a.date || '').localeCompare(String(b.date || '')));
   let cur = Object.assign({}, s); const patch = {}, msgs = []; const locate = [];
   list.forEach((it, i) => {
     const r = applyBooking(cur, it, { newId:o.newId ? o.newId(i) : 'h' + i, ...(o.ptOf ? o.ptOf(it) : {}) });
