@@ -4,6 +4,7 @@ import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, un
 import { VIEWS, SHEET, ASKSHEET, vToday, vSafety } from './views.js';
 import { askPrompt } from './askai.js';
 import { buildIcs } from './ics.js';
+import { catchUp, applyCatchUp } from './catchup.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
@@ -326,7 +327,7 @@ function render(){
   document.getElementById('line').innerHTML =
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
-  s.sh.today = ymd(new Date());
+  s.sh.today = ymd(new Date()); { const n = new Date(); s.sh.nowMin = n.getHours() * 60 + n.getMinutes(); }
   const todayMode = s.mode === 'today', sosMode = s.mode === 'sos';
   if(todayMode || sosMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
   document.getElementById('view').innerHTML = sosMode ? vSafety(s) : todayMode ? vToday(s) : VIEWS[s.step](s);
@@ -736,6 +737,7 @@ function importRowOf(k){ return state.imports.find(r => r.k === k); }
 
 function act(a, v){
   const s = state; let scroll = false;
+  if(s.sh.cuMsg && !/^cu/.test(a)){ s.sh.cuMsg = ''; s.sh.cuUndo = null; }   // 남은 일정 옮기기 알림은 다른 걸 누르면 닫음
   switch(a){
     case 'go': s.step = +v; s.mode = null; scroll = true; break;
     case 'prev': s.step = Math.max(0, s.step-1); scroll = true; break;
@@ -866,6 +868,17 @@ function act(a, v){
     case 'bkundo': undoRestore(); return;
     case 'shareopen': s.sh.open = true; startShare(); render(); return;
     case 'shareclose': s.sh.open = false; render(); return;
+    case 'cumove': case 'cuall': {   // 늦었을 때 남은 일정 옮기기 (오늘 남기는 곳은 오늘에 고정)
+      const P = plan(s); const di = P.days.findIndex(d => d.key === s.sh.today); if(di < 0) return;
+      let moves = {};
+      if(a === 'cumove'){ const [id, j] = String(v).split('|'); moves[id] = +j; }
+      else { const c = catchUp(s, P, di, s.sh.today, s.sh.nowMin); if(!c) return; c.drop.forEach(x => { moves[x.p.id] = x.to != null ? x.to : -1; }); }
+      s.sh.cuUndo = { assign:clone(s.assign), dlock:clone(s.dlock || {}) }; Object.assign(s, applyCatchUp(s, P, di, moves));
+      const n = Object.values(moves).length, out = Object.values(moves).filter(j => j < 0).length;
+      s.sh.cuMsg = `${out === n ? `${n}곳을 오늘 일정에서 뺐어요` : `${n}곳을 ${out ? '옮기거나 뺐어요' : '뒷날로 옮겼어요'}`}. 오늘은 확정해서 다른 곳이 끼어들지 않아요.`;
+      break;
+    }
+    case 'cuundo': if(s.sh.cuUndo){ s.assign = s.sh.cuUndo.assign; s.dlock = s.sh.cuUndo.dlock; s.sh.cuUndo = null; s.sh.cuMsg = '되돌렸어요.'; } break;
     case 'tsize': s.textSize = v === 'big' || v === 'bigger' ? v : ''; break;
     case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
     case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); return;

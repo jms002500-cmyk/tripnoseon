@@ -24,6 +24,7 @@ import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWea
 import { mapSVG } from './map.js';
 import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
 import { AIRPORTS, koTime, minText as fminText } from './flight.js';
+import { catchUp } from './catchup.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 
@@ -133,6 +134,22 @@ export function ASKSHEET(s, photo){
       </details>
       <p class="fine">보내는 것은 고른 사진과 이 문장뿐이에요. 보관함·여권·위치는 보내지 않아요. AI 답은 틀릴 수 있으니 알레르기·약은 직원·약사에게 한 번 더 확인하세요.</p>
     </div></div>`;
+}
+
+// 늦었을 때 남은 일정 다시 맞추기 (js/catchup.js). 오늘을 보고 있을 때만
+function catchBox(s, P, i, date){
+  const sh = s.sh || {}; const msg = sh.cuMsg ? `<p class="lmsg" role="status">${esc(sh.cuMsg)}${sh.cuUndo ? ' <button type="button" class="link" data-act="cuundo">되돌리기</button>' : ''}</p>` : '';
+  const c = sh.nowMin != null ? catchUp(s, P, i, date, sh.nowMin) : null; if(!c) return msg;
+  if(!c.drop.length) return `${msg}<p class="fine">⏰ 지금 출발하면 남은 ${c.left.length}곳을 ${koTime(c.finish)}쯤 다 돌아요.</p>`;
+  const d = P.days[i];
+  return `${msg}<div class="box warnbox">
+    <h2>⏰ 오늘 남은 곳을 다 가기 어려워요</h2>
+    <p class="pnote">지금 ${koTime(sh.nowMin)}이에요. 남은 ${c.left.length}곳을 다 가면 ${koTime(c.allFinish)}쯤 끝나요(${d.depart ? '공항 갈 준비' : '보통 하루 끝'} ${koTime(c.end)}). 아래 ${c.drop.length}곳을 옮기면 ${koTime(c.finish)}쯤 끝나요.</p>
+    <ul class="implist">${c.drop.map(x => `<li class="imp"><div class="sbody"><b>${esc(x.p.name)}${s.must[x.p.id] ? ' ★' : ''}</b><span>${x.to != null ? `${x.to + 1}일차 · ${P.days[x.to].label}에 자리가 있어요` : '들어갈 뒷날이 없어요'}</span></div>
+      ${x.to != null ? `<button type="button" class="link" data-act="cumove" data-v="${esc(x.p.id)}|${x.to}">${x.to + 1}일차로</button>` : ''}<button type="button" class="link" data-act="cumove" data-v="${esc(x.p.id)}|-1">오늘 빼기</button></li>`).join('')}</ul>
+    <div class="pfoot"><button type="button" class="primary small" data-act="cuall">추천대로 다 옮기기</button></div>
+    <p class="fine">오늘 남기는 곳은 오늘에 그대로 둬요. 뺀 곳은 일정 단계의 '아직 일정에 못 넣은 곳'에 있어요. 하루 끝 시각은 어림이에요.</p>
+  </div>`;
 }
 
 // 글씨 크기 (이 기기에만). 동행 단계 아래·오늘 화면 아래에 둠
@@ -1285,6 +1302,7 @@ export function vToday(s){
     ${d.depart && d.depart.leave >= 0 ? `<p class="warnline">✈️ ${koTime(d.depart.at)} 비행기 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로 출발</b>해야 해요. 짐 찾을 시간도 챙기세요.</p>` : ''}
     ${d.arrive ? `<p class="fine">✈️ ${koTime(d.arrive.at)} 도착 · 입국·이동 후 ${koTime(d.arrive.ready)}쯤부터 다니는 걸로 짰어요.</p>` : ''}
     ${next}
+    ${ph.phase === 'during' && date === today ? catchBox(s, P, i, date) : ''}
     ${locBox(s, today)}
     ${rainBox(s, P, d)}
     ${stops.length ? `<div class="box"><h2>이날 동선<small>${stops.filter(isDone).length}/${stops.length}곳 다녀옴</small></h2>
