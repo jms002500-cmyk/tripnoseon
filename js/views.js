@@ -22,6 +22,7 @@ import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDat
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
+import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 
@@ -104,6 +105,33 @@ export function SHEET(s){
       </div>${note}`;
   }
   return `<div class="mapsheet sheet" role="dialog" aria-label="함께 짜기">${head}<div class="shbody">${sh.msg ? `<p class="warnline">${esc(sh.msg)}</p>` : ''}${body}</div></div>`;
+}
+
+/* AI 도우미 창: 사진 + 상황에 맞는 부탁 문장을 내 AI 앱으로 (js/askai.js). photo: { url } 고른 사진(app.js가 들고 있음) */
+export function ASKSHEET(s, photo){
+  const k = askKindOf(s.sh.ask && s.sh.ask.kind);
+  return `<div class="mapsheet sheet" role="dialog" aria-label="AI에게 묻기">
+    <div class="mshead"><b>📷 AI에게 묻기</b><button type="button" class="ghost small" data-act="askclose">닫기</button></div>
+    <div class="shbody">
+      <p class="pnote">사진을 찍으면 상황에 맞는 부탁 문장을 붙여 <b>내 폰의 AI 앱</b>(제미나이·ChatGPT·Claude 등)으로 넘겨요. 무료 계정이어도 돼요.</p>
+      <h2>무엇을 찍나요?</h2>
+      <div class="chips">${ASK_KINDS.map(x => chip('askkind', x.key, `${x.icon} ${x.label}`, x.key === k.key)).join('')}</div>
+      ${photo ? `<figure class="askphoto"><img src="${photo.url}" alt="고른 사진"><figcaption><button type="button" class="link" data-act="askclear">다른 사진 고르기</button></figcaption></figure>
+      <button type="button" class="primary" data-act="asksend">${k.icon} AI 앱으로 보내기</button>
+      <p class="fine">보낼 앱 목록이 뜨면 쓰는 AI 앱을 고르세요. 부탁 문장도 같이 복사해 둬요. AI 입력칸에 글이 안 보이면 입력칸을 꾹 눌러 붙여 넣으세요.</p>`
+      : `<div class="askpick">
+        <label class="primary filebtn">📷 사진 찍기<input type="file" accept="image/*" capture="environment" data-askphoto hidden></label>
+        <label class="ghost filebtn">🖼️ 앨범에서 고르기<input type="file" accept="image/*" data-askphoto hidden></label>
+      </div>`}
+      <label for="asknote" class="shlabel">AI에게 늘 덧붙일 말 (이 폰에만 저장)<input id="asknote" type="text" maxlength="200" value="${esc(s.askNote || '')}" placeholder="예: 땅콩 알레르기 있어요, 매운 건 못 먹어요" data-asknote></label>
+      <details class="more"><summary>보낼 부탁 문장 보기</summary><pre class="askprompt">${esc(askPrompt(s, k.key, s.askNote))}</pre>
+        <div><button type="button" class="ghost small" data-act="askcopy">문장만 복사</button></div></details>
+      <details class="more"><summary>보내기가 안 될 때</summary>
+        <p class="fine">'문장만 복사'를 누른 뒤 아래에서 AI를 열고, 사진은 AI 화면에서 직접 붙여 주세요.</p>
+        <div class="chips">${AI_SITES.map(x => `<a class="chip" href="${x.url}" target="_blank" rel="noopener">${x.label} 열기 ↗</a>`).join('')}</div>
+      </details>
+      <p class="fine">보내는 것은 고른 사진과 이 문장뿐이에요. 보관함·여권·위치는 보내지 않아요. AI 답은 틀릴 수 있으니 알레르기·약은 직원·약사에게 한 번 더 확인하세요.</p>
+    </div></div>`;
 }
 
 /* Step 1 · 동행 */

@@ -1,7 +1,8 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { VIEWS, SHEET, vToday, vSafety } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, vToday, vSafety } from './views.js';
+import { askPrompt } from './askai.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
@@ -35,6 +36,9 @@ let state = load();
 state.rkOn = !!rkKeys();
 state.sh = freshSh();
 let resetArmed = false; let resetTimer = null;
+// AI 도우미에 고른 사진 (메모리에만, 저장 안 함) { file, url }
+let askPhoto = null;
+const ASK_BTN = '<button type="button" class="ghost askbtn" data-act="askopen" aria-label="사진으로 AI에게 묻기">📷</button>';
 
 function load(){
   try{ const raw = localStorage.getItem(S_KEY); if(raw) return Object.assign(clone(DEFAULT), JSON.parse(raw), { geoBusy:false, hotelBusy:false, rkBusy:false, wxBusy:false }); }catch(e){}
@@ -325,13 +329,13 @@ function render(){
   if(todayMode || sosMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
   document.getElementById('view').innerHTML = sosMode ? vSafety(s) : todayMode ? vToday(s) : VIEWS[s.step](s);
   document.getElementById('line').style.setProperty('--n', STEPS.length);
-  document.getElementById('bar').innerHTML = sosMode
+  document.getElementById('bar').innerHTML = (sosMode
     ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="sbig" data-v="hotel">숙소 카드 보여 주기</button>`
     : todayMode
     ? `<button type="button" class="ghost" data-act="tclose">계획으로</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`
     : s.step < STEPS.length-1
     ? `<button type="button" class="ghost" data-act="prev"${s.step === 0 ? ' disabled' : ''}>이전</button><button type="button" class="primary" data-act="next">다음 · ${STEPS[s.step+1]}</button>`
-    : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`;
+    : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`) + ASK_BTN;
   devBar();
   const rb = document.getElementById('resetBtn');
   rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터';
@@ -340,15 +344,17 @@ function render(){
   tb.hidden = phaseOf(s, s.sh.today).phase === 'none';
   tb.classList.toggle('on', todayMode); tb.setAttribute('aria-pressed', String(todayMode));
   const xb = document.getElementById('sosBtn'); xb.classList.toggle('on', sosMode); xb.setAttribute('aria-pressed', String(sosMode));
-  document.body.classList.toggle('noscroll', !!s.sh.open || (sosMode && !!s.sh.sbig));
+  const anySheet = !!s.sh.open || !!(s.sh.ask && s.sh.ask.open);
+  document.body.classList.toggle('noscroll', anySheet || (sosMode && !!s.sh.sbig));
   const sb = document.getElementById('shareBtn');
   sb.textContent = s.shareId && s.sh.trip ? `함께 · ${s.sh.trip.memberUids.length}명` : '함께 짜기';
   sb.classList.toggle('on', !!s.shareId);
   const sheet = document.getElementById('sheet');
   const keepScroll = sheet.querySelector('.shbody') ? sheet.querySelector('.shbody').scrollTop : 0;
-  if(s.sh.open){ sheet.innerHTML = SHEET(s); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
+  if(s.sh.ask && s.sh.ask.open){ sheet.innerHTML = ASKSHEET(s, askPhoto); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
+  else if(s.sh.open){ sheet.innerHTML = SHEET(s); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
   else sheet.innerHTML = '';
-  if(!(sosMode && s.sh.sbig)) document.body.classList.toggle('noscroll', !!s.sh.open);
+  if(!(sosMode && s.sh.sbig)) document.body.classList.toggle('noscroll', anySheet);
   ensureWeather(false);
   ensureFx();
   hydrateThumbs();
@@ -858,6 +864,12 @@ function act(a, v){
     case 'bkundo': undoRestore(); return;
     case 'shareopen': s.sh.open = true; startShare(); render(); return;
     case 'shareclose': s.sh.open = false; render(); return;
+    case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; render(); return;
+    case 'askclose': s.sh.ask.open = false; setAskPhoto(null); render(); return;
+    case 'askkind': s.sh.ask.kind = v; render(); return;
+    case 'askclear': setAskPhoto(null); render(); return;
+    case 'askcopy': clipText(askPrompt(s, s.sh.ask.kind, s.askNote)).then(ok => toast(ok ? '부탁 문장을 복사했어요. AI 입력칸에 붙여 넣으세요.' : '복사가 안 됐어요. 문장을 길게 눌러 복사해 주세요.')); return;
+    case 'asksend': sendAsk(); return;
     case 'login': case 'logout': case 'sharestart': case 'joinok': case 'joincancel': case 'restore': case 'copylink': case 'sendlink':
     case 'linkopen': case 'kick': case 'leave': case 'unlink': case 'sharedel': case 'vote': case 'cmopen': case 'cmdel':
       shareAct(a, v); return;
@@ -869,6 +881,22 @@ function act(a, v){
       scroll = true; break;
   }
   save(); render(); if(scroll) window.scrollTo({ top:0 });
+}
+
+/* ---------- AI 도우미 (js/askai.js) ---------- */
+function setAskPhoto(f){
+  if(askPhoto) URL.revokeObjectURL(askPhoto.url);
+  askPhoto = f ? { file:f, url:URL.createObjectURL(f) } : null;
+}
+async function clipText(t){ try{ await navigator.clipboard.writeText(t); return true; }catch(e){ return false; } }
+// 사진 + 부탁 문장을 공유 창으로 (사용자가 AI 앱을 고름). 일부 AI 앱은 같이 보낸 글을 빠뜨려서 문장은 복사도 해 둠
+async function sendAsk(){
+  const s = state; const text = askPrompt(s, s.sh.ask.kind, s.askNote); const f = askPhoto && askPhoto.file;
+  const copied = clipText(text);
+  if(f && navigator.canShare && navigator.canShare({ files:[f] })){
+    try{ await navigator.share({ files:[f], text }); }
+    catch(e){ if(!e || e.name !== 'AbortError') toast('보내기가 안 됐어요. 아래 \'보내기가 안 될 때\'를 봐 주세요.'); }
+  } else { await copied; toast('이 브라우저에서는 사진을 바로 보낼 수 없어요. 부탁 문장을 복사해 뒀으니 AI를 열고 사진을 붙여 주세요.'); }
 }
 
 function onChange(e){
@@ -892,6 +920,8 @@ function onChange(e){
     });
     t.value = ''; return;
   }
+  else if(t.dataset.askphoto != null){ const f = t.files && t.files[0]; t.value = ''; if(f){ setAskPhoto(f); render(); } return; }
+  else if(t.dataset.asknote != null){ s.askNote = t.value.trim().slice(0, 200); }
   else if(t.dataset.bkimport != null){ const f = t.files && t.files[0]; t.value = ''; if(f) readBackupFile(f); return; }
   else if(t.dataset.lname != null){
     const p = partyOf(s).map(x => Object.assign({}, x)); const it = p.find(x => x.id === t.dataset.lname); if(!it) return;
