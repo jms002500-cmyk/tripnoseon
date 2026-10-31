@@ -27,6 +27,7 @@ import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 import { bookingRows, flightDir, PLACE_KINDS } from './bookings.js';
 import { dayAgenda, nextUp } from './agenda.js';
+import { clockView, diffText } from './clock.js';
 import { prepTasks, prepNow } from './prep.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
 import { catchUp } from './catchup.js';
@@ -742,7 +743,8 @@ function flightRowLinks(s, dir){
 function agendaBox(s, d, P, live){
   const list = dayAgenda(s, d, moveCtx(s, P)); if(!list.length) return '';
   const nu = nextUp(list, live ? (s.sh || {}).nowMin : null);
-  const tm = x => x.home && x.kst != null ? `${koTime(x.kst)}<small>한국 시각</small>` : x.min != null ? koTime(x.min) : '';
+  const ck = clockView(null, REGION, (s.sh || {}).devOff, s.here); const atHome = !!ck.diff && (ck.where === 'home' || (!ck.where && (s.sh || {}).devOff === (s.sh || {}).homeOff));
+  const tm = x => x.home && x.kst != null ? `${koTime(x.kst)}<small>한국 시각</small>` : x.min != null ? `${koTime(x.min)}${atHome ? `<small>한국 ${koTime((x.min - ck.diff + 1440) % 1440)}</small>` : ''}` : '';
   const extra = x => x.m ? ttLinks(s, x.m) : x.kind === 'flight' ? flightRowLinks(s, x.dir) : x.kind === 'itc' ? `<span class="mvtt"><a class="link" href="${esc(HK.ITC.url)}" target="_blank" rel="noopener">시내 체크인 공식 안내 ↗</a></span>` : '';
   const row = x => `<li><span class="mvt">${tm(x)}</span><div><span>${x.icon ? x.icon + ' ' : ''}${esc(x.text)}</span>${x.sub ? `<span class="fine">${esc(x.sub)}</span>` : ''}${extra(x)}</div></li>`;
   return `<div class="box agenda">
@@ -760,6 +762,29 @@ function itcLine(s, d){
   const on = !!(s.flight || {}).itc;
   return `<div class="itcbox"><p class="fine">🧳 ${esc(HK.ITC.text)}${on ? ' 짐 찾으러 숙소에 들르는 30분을 빼고 짰어요.' : ''}</p>
     <div class="pfoot"><button type="button" class="${on ? 'primary' : 'ghost'} small" data-act="itc" aria-pressed="${on}">${on ? '✓ 시내 체크인 할게요' : '시내 체크인 할게요'}</button><a class="link" href="${esc(HK.ITC.url)}" target="_blank" rel="noopener">공식 안내 ↗</a></div></div>`;
+}
+
+/* ---------- 시차·내 위치 (js/clock.js) ---------- */
+// 오늘 화면: 현지·한국 시각, 내 위치로 지금 어디인지 확인, 폰 시계가 다른 나라 시간이면 알림
+function clockBox(s, ph){
+  if(ph.phase === 'after') return '';
+  const sh = s.sh || {}; const c = clockView(null, REGION, sh.devOff, s.here);
+  const place = REGION.key === 'hksz' ? '홍콩·선전' : REGION.name || '현지';
+  const whereLine = c.where === 'trip' ? `📍 지금 ${esc(place)}에 있어요. 일정·할 일은 현지 시각이에요.`
+    : c.where === 'home' ? `📍 지금 한국에 있어요.${c.diff ? ' 현지 시각 옆에 한국 시각도 같이 보여 드려요.' : ''}`
+    : c.where === 'other' ? '📍 한국도 여행지도 아닌 곳이에요(경유지 등). 일정은 현지 시각이에요.' : '';
+  const fix = '설정 → 날짜 및 시간(아이폰: 설정 → 일반 → 날짜 및 시간)에서 \'자동으로 설정\'(자동 시간대)을 켜 주세요. 비행기 모드를 끄고 잠시 기다리면 바뀌어요.';
+  const warn = c.phoneOff === 'home' ? `폰 시계가 아직 한국 시간이에요. ${fix}`
+    : c.phoneOff === 'trip' ? `폰 시계가 여행지 시간이에요. 한국에 돌아왔으면 ${fix}` : c.phoneOff ? `폰 시계가 지금 있는 곳 시간과 달라요. ${fix}` : '';
+  if(!c.diff && !warn && !whereLine && sh.geoAsk !== 'busy') return `<p class="fine">🕐 ${diffText(0)}. 일정은 현지 시각이에요.${'geolocation' in navigator ? ' <button type="button" class="link" data-act="whereami">내 위치로 폰 시계 확인</button>' : ''}</p>`;
+  return `<div class="box clockbox">
+    <div class="clk"><div><span class="fine">현지</span><b>${koTime(c.trip.min)}</b></div><div><span class="fine">한국</span><b>${koTime(c.home.min)}</b></div></div>
+    <p class="fine">${diffText(c.diff)}. 일정·다음에 할 일·알림은 늘 현지 시각으로 계산해요(폰 캘린더 알림도 시차에 맞게 울려요).</p>
+    ${whereLine ? `<p class="pnote">${whereLine}${c.fresh ? '' : ' <span class="fine">(조금 전 확인)</span>'}</p>` : ''}
+    ${warn ? `<p class="warnline">⏰ ${warn}</p>` : ''}
+    ${'geolocation' in navigator ? `<div><button type="button" class="ghost small" data-act="whereami"${sh.geoAsk === 'busy' ? ' disabled' : ''}>${sh.geoAsk === 'busy' ? '위치 확인 중…' : c.where ? '📍 다시 확인' : '📍 내 위치로 현지 시간 맞추기'}</button></div>
+    <p class="fine">위치는 이 폰에서 한국인지 여행지인지만 보고 좌표는 남기지 않아요. 어디로도 보내지 않아요.</p>` : ''}
+  </div>`;
 }
 
 /* ---------- 출발 전 할 일 (js/prep.js) ---------- */
@@ -1572,6 +1597,7 @@ export function vToday(s){
     <header class="thead">${badge(i)}<div><h1>${i + 1}일차 · ${esc(d.label)}</h1><p class="lead">${esc(phaseText(ph, i))}</p></div></header>
     <div class="scroller" role="group" aria-label="날짜 고르기">${P.days.map(x => `<button type="button" class="chip" data-act="tday" data-v="${x.i}" aria-pressed="${x.i === i}">${x.i + 1}일차${x.i === ph.index ? ' · 오늘' : ''}</button>`).join('')}</div>
     ${todayWeatherLine(dayWeather(s.wx, date))}
+    ${clockBox(s, ph)}
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
     ${ph.phase === 'before' ? prepBox(s, 'today') : ''}

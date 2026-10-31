@@ -301,6 +301,9 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .mvttbox{display:grid; gap:6px}
 .mvttbox .mvtt{font-size:13px}
 .idwipe{margin-bottom:16px}
+.clk{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.clk > div{display:flex; flex-direction:column; gap:2px; padding:8px 10px; border:1px solid var(--rule); border-radius:10px}
+.clk b{font-family:var(--f-mono); font-size:20px}
 .agnext{display:grid; grid-template-columns:5.6em 1fr; gap:8px; align-items:baseline; padding:10px 12px; margin:6px 0 4px; border:1.5px solid var(--accent); border-radius:12px; background:var(--accent-soft)}
 .agnext b{font-size:16px}
 .agnext > div{display:flex; flex-direction:column; gap:2px; min-width:0}

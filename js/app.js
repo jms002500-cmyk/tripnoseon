@@ -10,6 +10,7 @@ import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
 import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend } from './bookings.js';
 import { planText } from './agenda.js';
+import { whereOf, tzOffset, HOME_TZ, HERE_FRESH } from './clock.js';
 import { catchUp, applyCatchUp } from './catchup.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey, tripClock } from './today.js';
 import { suggestPacking, bulkSuggestions, seedItems, customItems, PACK_GO, KEY_ID, tickFrom } from './packing.js';
@@ -333,7 +334,7 @@ function render(){
   document.getElementById('line').innerHTML =
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
-  { const c = tripClock(new Date(), REGION.tz); s.sh.today = c.date; s.sh.nowMin = c.min; }   // 여행지 시각 (폰 시간대가 한국 그대로여도)
+  { const c = tripClock(new Date(), REGION.tz); s.sh.today = c.date; s.sh.nowMin = c.min; s.sh.devOff = -new Date().getTimezoneOffset(); s.sh.homeOff = tzOffset(HOME_TZ); }   // 여행지 시각 (폰 시간대가 한국 그대로여도)
   const todayMode = s.mode === 'today', sosMode = s.mode === 'sos', recMode = s.mode === 'record';
   if(todayMode || sosMode || recMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
   document.getElementById('view').innerHTML = (sosMode || recMode ? '' : installCard(s) + idWipeCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : VIEWS[s.step](s));
@@ -903,6 +904,7 @@ function act(a, v){
     case 'prepgo': goTo(v); return;
     case 'prepchk': s.prep = Object.assign({}, s.prep, { [v]:!(s.prep || {})[v] }); break;
     case 'itc': s.flight = Object.assign({ ap:'', arr:'', dep:'' }, s.flight, { itc:!(s.flight || {}).itc }); break;
+    case 'whereami': checkWhere(true); return;
     case 'plansend': {   // 가족 단톡용 일정표 (js/agenda.js planText). 공유 창이 없으면 복사
       const P = plan(s); const text = planText(s, P, moveCtx(s, P), recordHead(s));
       if(navigator.share) navigator.share({ text }).catch(() => {});
@@ -1012,6 +1014,29 @@ function goTo(to){
   s.mode = null; s.step = to === 'movebox' || to === 'icsbox' ? PLAN_STEP : to === 'pack' ? PACK_STEP : to === 'where' ? STEPS.indexOf('여행지') : VAULT_STEP; save(); render();
   const el = document.getElementById(to === 'vault' ? 'vaultform' : to); if(el) el.scrollIntoView({ block:'start' }); else window.scrollTo(0, 0);
 }
+
+/* ---------- 시차·내 위치 (js/clock.js) ---------- */
+// 지금 한국인지 여행지인지만 s.here에 (좌표는 안 남김). ask: 버튼으로 눌렀을 때만 허락 창이 뜰 수 있음
+function checkWhere(ask){
+  const s = state; if(!('geolocation' in navigator) || s.sh.geoAsk === 'busy') return;
+  s.sh.geoAsk = 'busy'; if(ask) render();
+  navigator.geolocation.getCurrentPosition(pos => {
+    const where = whereOf({ lat:pos.coords.latitude, lng:pos.coords.longitude }, REGION);
+    state.here = { where, at:Date.now() }; state.sh.geoAsk = ''; saveLocal(); render();
+    if(ask) toast(where === 'trip' ? '현지에 있어요. 현지 시각으로 보여 드려요.' : where === 'home' ? '한국에 있어요. 한국 시각도 같이 보여 드려요.' : '위치를 확인했어요.');
+  }, err => {
+    state.sh.geoAsk = ''; render();
+    if(ask) toast(err && err.code === 1 ? '위치 허락이 꺼져 있어요. 브라우저(또는 폰) 설정에서 이 사이트의 위치를 허용해 주세요.' : '위치를 못 받았어요. 잠시 뒤 다시 눌러 주세요.');
+  }, { enableHighAccuracy:false, timeout:15000, maximumAge:10 * 60000 });
+}
+// 이미 허락했으면 앱을 열 때 30분마다 조용히 다시 확인 (허락 창은 안 띄움)
+function autoWhere(){
+  const s = state; if(!navigator.permissions || !navigator.permissions.query) return;
+  if(s.here && s.here.at && Date.now() - s.here.at < HERE_FRESH) return;
+  navigator.permissions.query({ name:'geolocation' }).then(p => { if(p.state === 'granted') checkWhere(false); }).catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') autoWhere(); });
+setTimeout(autoWhere, 1500);
 
 /* ---------- 앱에서 해 두면 준비물 저절로 체크 (js/packing.js tickFrom) ---------- */
 function packTick(key){
