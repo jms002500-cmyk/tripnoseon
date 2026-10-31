@@ -353,6 +353,13 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .warnlink{color:var(--warn) !important}
 #vaultform input, #vaultform textarea{padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--paper); color:var(--ink); font:inherit; width:100%; min-width:0}
 #vaultform input[type="file"]{padding:8px; background:var(--surface)}
+#vaultform select{padding:9px 10px; border:1.5px solid var(--rule); border-radius:10px; background:var(--paper); color:var(--ink); width:100%; min-width:0}
+#vaultform .vx, #vaultform .vl-flight, #vaultform .vl-hotel{display:none}
+#vaultform .vx{gap:10px}
+#vaultform .vx > label{display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted); min-width:0}
+#vaultform[data-kind="flight"] .vx-flight, #vaultform[data-kind="hotel"] .vx-hotel, #vaultform[data-kind="ticket"] .vx-place, #vaultform[data-kind="transport"] .vx-place, #vaultform[data-kind="etc"] .vx-place{display:grid}
+#vaultform[data-kind="flight"] .vl-flight, #vaultform[data-kind="hotel"] .vl-hotel{display:inline}
+#vaultform[data-kind="flight"] .vl-any, #vaultform[data-kind="hotel"] .vl-any{display:none}
 .viewer{position:fixed; inset:0; z-index:70; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center;
   padding:env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px)}
 .viewer img{max-width:100%; max-height:calc(100% - 64px); object-fit:contain; background:#FFFFFF}

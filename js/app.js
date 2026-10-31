@@ -8,6 +8,7 @@ import { esc } from './ui.js';
 import { askPrompt } from './askai.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
+import { applyBooking, applyAll, PLACE_KINDS } from './bookings.js';
 import { catchUp, applyCatchUp } from './catchup.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
@@ -411,13 +412,22 @@ async function saveVault(){
   const picked = Array.from(g('vfiles').files || []);
   const editing = s.vedit ? s.vault.find(x => x.id === s.vedit) : null;
   const it = editing || { id:'v' + Date.now().toString(36), files:[] };
-  Object.assign(it, { kind:g('vkind').value, title:title.slice(0, 60), date:g('vdate').value, time:g('vtime').value,
+  const kind = g('vkind').value;
+  Object.assign(it, { kind, title:title.slice(0, 60), date:g('vdate').value, time:g('vtime').value,
     code:g('vcode').value.trim().slice(0, 40), link:safeHttpsUrl(g('vlink').value), memo:g('vmemo').value.trim().slice(0, 300),
-    placeId:g('vplace').value || it.placeId || null });
+    placeId:PLACE_KINDS.includes(kind) ? g('vplace').value || null : null });
+  if(kind === 'flight') Object.assign(it, { dir:g('vdir').value, time2:g('vtime2').value, ap:g('vap') ? g('vap').value : '' });
+  if(kind === 'hotel') Object.assign(it, { date2:g('vdate2').value, time2:g('vtime2h').value });
+  if(!editing && s.vdraft && s.vdraft.moveId) it.moveId = s.vdraft.moveId;
+  const mapRaw = kind === 'hotel' ? g('vmap').value.trim() : '';
   const skipped = await storeFiles(it, picked);
   if(!editing) s.vault.push(it);
   s.vedit = null; s.vdraft = null;
+  const r = applyBooking(s, it, Object.assign({ newId:'h' + Date.now().toString(36) }, hotelPt(mapRaw || it.link)));   // 예약을 일정에 반영 (js/bookings.js)
+  Object.assign(s, r.patch);
   keepStorage(); save(); render(); refreshUsage();
+  if(r.locate) findHotelLocations();
+  if(r.msgs.length) toast(`일정에 반영했어요: ${r.msgs.join(' · ')}`);
   if(skipped.length) toast(`${skipped.join(', ')}은(는) 너무 크거나 저장 공간이 모자라 넣지 못했어요 (파일 하나 15MB까지).`);
   const card = document.getElementById('v-' + it.id); if(card) card.scrollIntoView({ block:'center' });
 }
@@ -839,6 +849,7 @@ function act(a, v){
       break;
     }
     case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
+    case 'vapply': applyVaultAll(); return;
     case 'tfood': s.mode = 'today'; s.tday = +v; save(); render(); { const b = document.getElementById('foodbox'); if(b) b.scrollIntoView({ block:'start' }); } return;
     case 'ffind': {   // 끼니 자리 근처 식당 (구글)
       const [di, k] = v.split('|').map(Number); const P = plan(s); const d = P.days[di]; const m = d && mealSlots(d, d.from, d.to)[k]; if(!m) return;
@@ -967,6 +978,20 @@ async function addDayPhotos(date, files){
   if(files.length > room) toast(`하루 ${MAX_DAY_PHOTOS}장까지 넣을 수 있어요.`); else if(skipped && skipped.length) toast(`너무 큰 사진은 빼고 넣었어요: ${skipped.join(', ')}`);
 }
 
+/* ---------- 보관함 예약 → 일정 (js/bookings.js) ---------- */
+// 숙소 위치: 구글 지도 주소에서 좌표를 읽고 여행 지역 안이면 { pt:{ lat, lng, area }, mapUrl }
+function hotelPt(raw){
+  const pt = raw && coordsFromUrl(raw);
+  return pt && nearTokyo(pt) ? { pt:{ lat:pt.lat, lng:pt.lng, area:nearestArea(pt).key }, mapUrl:safeMapUrl(raw) } : {};
+}
+function applyVaultAll(){
+  const s = state; const base = Date.now().toString(36);
+  const r = applyAll(s, bookings(s.vault), { newId:i => 'h' + base + i, ptOf:it => hotelPt(it.link) });
+  Object.assign(s, r.patch); save(); render();
+  if(r.locate) findHotelLocations();
+  toast(r.msgs.length ? `일정에 반영했어요: ${r.msgs.join(' · ')}` : '이미 일정에 다 반영돼 있어요.');
+}
+
 /* ---------- 오가는 길 (js/moves.js) ---------- */
 function setMove(id, fn){ state.moves = (state.moves || []).map(m => m.id === id ? Object.assign({}, m, fn(m)) : m); }
 
@@ -1025,6 +1050,7 @@ function onChange(e){
     if(!it){ if(!t.value.trim()) return; it = newPhotoItem(k, 'v' + Date.now().toString(36)); s.vault = (s.vault || []).concat(it); }
     it.memo = t.value.trim().slice(0, 100);
   }
+  else if(t.id === 'vkind'){ const f = document.getElementById('vaultform'); if(f) f.dataset.kind = t.value; return; }   // 종류마다 다른 칸 (다시 그리면 적던 게 지워짐)
   else if(t.dataset.mv){
     const f = t.dataset.mv; const val = f === 'booked' ? t.checked : f === 'min' ? (+t.value > 0 ? Math.min(1440, Math.round(+t.value)) : null)
       : f === 'from' || f === 'to' ? t.value.trim().slice(0, 40) : f === 'note' ? t.value.trim().slice(0, 80) : t.value;
