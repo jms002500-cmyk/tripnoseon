@@ -321,6 +321,7 @@ document.addEventListener('focusout', () => { if(renderLater){ renderLater = fal
 
 function render(){
   const s = state;
+  document.documentElement.dataset.size = s.textSize || '';   // 큰 글씨 모드 (css html[data-size])
   renderNet(); locSync();
   document.getElementById('line').innerHTML =
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
@@ -865,6 +866,7 @@ function act(a, v){
     case 'bkundo': undoRestore(); return;
     case 'shareopen': s.sh.open = true; startShare(); render(); return;
     case 'shareclose': s.sh.open = false; render(); return;
+    case 'tsize': s.textSize = v === 'big' || v === 'bigger' ? v : ''; break;
     case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
     case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); return;
     case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; render(); return;

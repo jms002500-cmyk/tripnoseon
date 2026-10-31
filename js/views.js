@@ -135,6 +135,12 @@ export function ASKSHEET(s, photo){
     </div></div>`;
 }
 
+// 글씨 크기 (이 기기에만). 동행 단계 아래·오늘 화면 아래에 둠
+const SIZES = [['', '보통'], ['big', '크게'], ['bigger', '아주 크게']];
+function sizeChips(s){
+  return `<div class="sizes"><span>글씨 크기</span>${SIZES.map(([k, l]) => `<button type="button" class="chip" data-act="tsize" data-v="${k}" aria-pressed="${(s.textSize || '') === k}">${l}</button>`).join('')}</div>`;
+}
+
 /* Step 1 · 동행 */
 export function vWho(s){
   const counter = (label) => `<div class="row"><span>${label}</span><div class="counter"><button type="button" data-act="adults" data-v="-1" aria-label="한 명 빼기">−</button><b>${s.adults}</b><button type="button" data-act="adults" data-v="1" aria-label="한 명 더하기">+</button></div></div>`;
@@ -156,6 +162,7 @@ export function vWho(s){
     <h2>하루를 어떻게 보낼까요?</h2>
     <div class="seg">${Object.entries(PACE).map(([k, p]) => `<button type="button" class="segopt" data-act="pace" data-v="${k}" aria-pressed="${s.pace === k}"><b>${p.label}</b><span>${p.desc}</span></button>`).join('')}</div>
     <div class="summary">${esc(partyText(s))} · ${s.styles.length ? esc(s.styles.join('·')) : '취향 미정'} · 하루 약 ${PACE[s.pace].hours}시간<span>이 정보로 장소 추천 순서와 하루 일정 양이 정해져요.</span></div>
+    ${sizeChips(s)}
   </section>`;
 }
 
@@ -1301,6 +1308,7 @@ export function vToday(s){
       <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:mainCur(s) }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
     </form>
+    ${sizeChips(s)}
     <div class="pfoot"><button type="button" class="ghost small" data-act="go" data-v="${STEP('일정')}">전체 일정</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('준비물')}">준비물</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('보관함')}">보관함</button><button type="button" class="ghost small" data-act="go" data-v="${STEP('가계부')}">가계부·정산</button><button type="button" class="ghost small" data-act="sos">긴급 정보</button></div>
   </section>`;
 }
