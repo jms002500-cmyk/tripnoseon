@@ -297,6 +297,9 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .mvt small{font-family:var(--f-body); font-size:10.5px}
 .mvlist li > div, .mvset > li:not(.mvform) > div{display:flex; flex-direction:column; gap:2px; min-width:0; overflow-wrap:anywhere}
 .mvok{display:inline-block; padding:0 7px; border-radius:999px; background:var(--accent-soft); color:var(--accent-ink); font-size:11.5px; font-weight:600}
+.mvtt{display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12.5px}
+.mvttbox{display:grid; gap:6px}
+.mvttbox .mvtt{font-size:13px}
 .mvset{list-style:none; margin:8px 0; padding:0}
 .mvset > li{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--rule); font-size:13.5px}
 .mvset > li.on{border-bottom:none}

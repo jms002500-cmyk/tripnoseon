@@ -57,6 +57,32 @@ export function moveText(m, ctx, minText){
   return `${h ? `${h.icon} ${h.label}` : `${legOf(m.k).icon} 수단 미정`} · ${e.from} → ${e.to}${n ? ` · 약 ${minText ? minText(n) : `${n}분`}` : ''}`;
 }
 
+// 시간표·예약 바로가기: 배·기차·공항버스 같은 수단은 그날 운행 시간을 공식 누리집에서 바로 확인 (주소 확인 2026-10-31)
+//   주소만 여는 링크라 앱이 아무 정보도 보내지 않음. area: 'kr'(집 ↔ 공항) | 지역 키, how: 수단, legs: 이 구간에만
+export const TT_CHECKED = '2026-10-31';
+export const TIMETABLES = [
+  { id:'arex', label:'공항철도(AREX) 시간표', url:'https://www.arex.or.kr/', area:'kr', how:['rail'] },
+  { id:'icnbus', label:'인천공항 버스 노선·시간 검색', url:'https://www.airport.kr/ap_ko/974/subview.do', area:'kr', how:['abus', 'bus'] },
+  { id:'mtrae', label:'홍콩 공항철도(Airport Express) 운행 안내', url:'https://www.mtr.com.hk/en/customer/services/airport_express_index.html', area:'hksz', how:['rail'], legs:['in', 'out'] },
+  { id:'mtrjp', label:'MTR 경로·시간 검색', url:'https://www.mtr.com.hk/en/customer/jp/index.php', area:'hksz', how:['metro', 'rail'] },
+  { id:'xrl', label:'홍콩 고속철(서구룡역 ↔ 선전·광저우) 시간표·표', url:'https://www.highspeed.mtr.com.hk/en/main/index.html', area:'hksz', how:['rail'], legs:['etc'] },
+  { id:'cnrail', label:'중국 기차 시간표·예매 (트립닷컴 한국어)', url:'https://kr.trip.com/trains/china/', area:'hksz', how:['rail'], legs:['etc'] },
+  { id:'turbojet', label:'터보젯 배 시간표 (홍콩 ↔ 마카오)', url:'https://www.turbojet.com.hk/kr/', area:'hksz', how:['ferry'] },
+  { id:'cotai', label:'코타이 워터젯 배 시간표 (홍콩 ↔ 마카오)', url:'https://www.cotaiwaterjet.com/', area:'hksz', how:['ferry'] },
+  { id:'hzmb', label:'강주아오대교 셔틀버스 (홍콩 ↔ 마카오·주하이)', url:'https://www.hzmbus.com/', area:'hksz', how:['bus'], legs:['etc'] },
+  { id:'nex', label:"나리타 익스프레스(N'EX) 안내", url:'https://www.jreast.co.jp/ko/multi/nex/', area:'tokyo', how:['rail'], legs:['in', 'out'] },
+  { id:'skyliner', label:'게이세이 스카이라이너 시간표·예약', url:'https://www.keisei.co.jp/keisei/tetudou/skyliner/kr/index.php', area:'tokyo', how:['rail'], legs:['in', 'out'] },
+  { id:'limo', label:'공항 리무진 버스 시간표', url:'https://www.limousinebus.co.jp/ko/', area:'tokyo', how:['abus', 'bus'], legs:['in', 'out'] },
+  { id:'smartex', label:'신칸센 시간·예약 (도카이도·산요)', url:'https://smart-ex.jp/en/', area:'tokyo', how:['rail'], legs:['etc'] },
+  { id:'navitime', label:'NAVITIME 일본 전철·버스 (날짜·시각으로 검색)', url:'https://japantravel.navitime.com/ko/', area:'tokyo', how:['rail', 'metro', 'bus', 'abus'] }
+];
+// 이 이동에 맞는 바로가기. 수단을 안 골랐으면 없음
+export function timetableLinks(s, m){
+  if(!m || !m.how) return [];
+  const area = legOf(m.k).home ? 'kr' : s.city;
+  return TIMETABLES.filter(t => t.area === area && t.how.includes(m.how) && (!t.legs || t.legs.includes(m.k)));
+}
+
 // 보관함에 넣을 예약(교통) 초안
 export function vaultDraft(s, m, ctx){
   const h = howOf(m.how); const e = moveEnds(m, ctx);

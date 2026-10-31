@@ -24,7 +24,7 @@ import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWea
 import { mapSVG } from './map.js';
 import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText } from './flight.js';
-import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove } from './moves.js';
+import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
 import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
@@ -735,34 +735,42 @@ export function moveCtx(s, P){
   return { ap:ap ? ap.name : '', inHotel:D.length && D[0].to ? D[0].to.name : '', outHotel:D.length && D[D.length - 1].from ? D[D.length - 1].from.name : '' };
 }
 // 이동 한 줄: 시각 | 수단 · 출발 → 도착 · 걸리는 시간 · 예약함 (+ 작은 글씨)
-function mvLi(time, main, extra, home){
-  return `<li><span class="mvt">${time != null ? koTime(time) : ''}${home && time != null ? '<small>한국 시각</small>' : ''}</span><div><span>${main}</span>${extra ? `<span class="fine">${extra}</span>` : ''}</div></li>`;
+function mvLi(time, main, extra, home, tail){
+  return `<li><span class="mvt">${time != null ? koTime(time) : ''}${home && time != null ? '<small>한국 시각</small>' : ''}</span><div><span>${main}</span>${extra ? `<span class="fine">${extra}</span>` : ''}${tail || ''}</div></li>`;
 }
-function moveLi(m, ctx, more){
-  return mvLi(toMin(m.time), `${esc(moveText(m, ctx, minText))}${m.booked ? ' <span class="mvok">예약함</span>' : ''}`, [esc(m.note || '')].concat(more || []).filter(Boolean).join(' · '), legOf(m.k).home);
+function moveLi(m, ctx, more, s){
+  const tt = s ? ttLinks(s, m) : '';
+  return mvLi(toMin(m.time), `${esc(moveText(m, ctx, minText))}${m.booked ? ' <span class="mvok">예약함</span>' : ''}`, [esc(m.note || '')].concat(more || []).filter(Boolean).join(' · '), legOf(m.k).home, tt);
+}
+// 그날 운행 시간 확인 바로가기 (공식 누리집, 새 창). 여행 중 이동에 출발·도착을 적었으면 구글 지도 대중교통 경로도
+function ttLinks(s, m){
+  const L = timetableLinks(s, m).map(t => `<a class="link" href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.label)} ↗</a>`);
+  if(m.k === 'etc' && (m.from || '').trim() && (m.to || '').trim() && ['rail', 'metro', 'bus', 'ferry'].includes(m.how))
+    L.push(`<a class="link" href="${esc(`https://www.google.com/maps/dir/?${new URLSearchParams({ api:'1', origin:m.from.trim(), destination:m.to.trim(), travelmode:'transit' })}`)}" target="_blank" rel="noopener">구글 지도 대중교통 경로 ↗</a>`);
+  return L.length ? `<span class="mvtt">⏱ ${L.join('')}</span>` : '';
 }
 const guessMin = (m, info) => !moveMin(m) && info ? `약 ${fminText(info.transfer)} 걸린다고 봤어요` : '';
 // 날짜 카드의 이동 줄. part 'start': 집→공항·도착 비행기·공항→숙소·여행 중 이동 / 'end': 숙소→공항·출발 비행기·공항→집
 function dayMoves(s, d, ctx, part){
   const ms = movesOn(s, d.key).filter(m => !isEmptyMove(m)); const of = k => ms.filter(m => m.k === k); const rows = []; const warn = [];
   if(part === 'start'){
-    of('go').forEach(m => rows.push(moveLi(m, ctx)));
+    of('go').forEach(m => rows.push(moveLi(m, ctx, [], s)));
     const a = d.arrive;
     if(a){
       rows.push(mvLi(a.at, `✈️ ${esc(a.ap.name)} 도착`, `입국·짐 찾기 약 ${fminText(AFTER_LANDING)}`));
       if(!of('in').length) rows.push(mvLi(a.at + AFTER_LANDING, `🧳 ${esc(a.ap.name)} → ${esc(ctx.inHotel || '숙소')} · 약 ${fminText(a.transfer)}`, '어림 · 위 \'오가는 길\'에서 어떻게 갈지 정할 수 있어요'));
       if(a.early) warn.push('예약한 차 시각이 입국·짐 찾기(약 1시간)보다 일러요. 비행기가 늦으면 기사님께 꼭 알려 주세요.');
     }
-    of('in').forEach(m => rows.push(moveLi(m, ctx, [guessMin(m, a)])));
-    of('etc').forEach(m => rows.push(moveLi(m, ctx)));
+    of('in').forEach(m => rows.push(moveLi(m, ctx, [guessMin(m, a)], s)));
+    of('etc').forEach(m => rows.push(moveLi(m, ctx, [], s)));
     if(a && a.cap > 0) rows.push(mvLi(null, `<b>${koTime(a.ready)}쯤부터 다녀요</b>`, '숙소에 짐 맡기는 30분 포함'));
   } else {
     const z = d.depart && d.depart.leave >= 0 ? d.depart : null;
     if(z && !of('out').length) rows.push(mvLi(z.leave, `🧳 <b>숙소에서 공항으로</b> · 약 ${fminText(z.transfer)}`, '짐 찾는 30분 포함해서 그 전까지만 짰어요'));
-    of('out').forEach(m => rows.push(moveLi(m, ctx, [guessMin(m, z), z ? '짐 찾는 30분 포함해서 그 전까지만 짰어요' : ''])));
+    of('out').forEach(m => rows.push(moveLi(m, ctx, [guessMin(m, z), z ? '짐 찾는 30분 포함해서 그 전까지만 짰어요' : ''], s)));
     if(z) rows.push(mvLi(z.at, `✈️ ${esc(z.ap.name)} 출발`, '2시간 30분 전 공항 도착 기준'));
     if(z && z.late) warn.push('이 시각에 나서면 출발 1시간 30분 전에도 공항에 못 닿을 수 있어요. 더 일찍 나서는 걸 알아보세요.');
-    of('back').forEach(m => rows.push(moveLi(m, ctx)));
+    of('back').forEach(m => rows.push(moveLi(m, ctx, [], s)));
   }
   return (rows.length ? `<ul class="mvlist">${rows.join('')}</ul>` : '') + warn.map(w => `<p class="warnline">${w}</p>`).join('');
 }
@@ -781,6 +789,7 @@ function moveBox(s, P){
     <div><button type="button" class="ghost small" data-act="mvadd">＋ 여행 중 이동 더하기</button></div>
     <p class="fine">${REGION.key === 'hksz' ? '예: 홍콩 → 선전 국경 버스, 고속철, 마카오 배, 디즈니 가는 길. ' : '예: 디즈니 셔틀, 신칸센, 하코네 버스. '}넣은 이동은 날짜 카드·오늘 화면·폰 캘린더에 같이 보여요.</p>
     <p class="fine">예약번호·바우처는 여기 말고 보관함(🚆 교통)에 넣으세요. 여기 적은 건 함께 짜는 가족에게도 보여요.</p>
+    <p class="fine">공항버스·기차·배를 고르면 그날 운행 시간을 보는 공식 누리집 바로가기가 붙어요(주소 확인 ${TT_CHECKED}). 구글 지도 경로를 누르면 적은 출발·도착 이름이 구글로 가요.</p>
   </div>`;
 }
 function moveForm(s, m, P, ctx){
@@ -789,6 +798,7 @@ function moveForm(s, m, P, ctx){
   return `<li class="mvform">
     <p class="fine">어떻게 가요?</p>
     <div class="chips">${MOVE_HOW.map(h => chip('mvhow', h.k, `${h.icon} ${h.label}`, m.how === h.k)).join('')}</div>
+    ${(tt => tt ? `<div class="mvttbox"><p class="fine">${(d => d ? `${d.i + 1}일차 ${d.label}` : '그날')(D.find(d => d.key === moveDate(s, m)))} 운행 시간은 아래에서 날짜를 골라 확인하세요. 시간표는 바뀔 수 있으니 전날 한 번 더 보세요.</p>${tt}</div>` : '')(ttLinks(s, m))}
     ${m.k === 'etc' ? `<label class="shlabel" for="mvdate">날짜<select id="mvdate" data-mv="date">${D.map(d => `<option value="${d.key}"${m.date === d.key ? ' selected' : ''}>${d.i + 1}일차 · ${d.label}</option>`).join('')}</select></label>` : ''}
     <div class="dates">
       <label for="mvtime">${L.timeLabel}${L.home ? ' (한국 시각)' : ''}<input id="mvtime" type="time" value="${esc(m.time || '')}" data-mv="time"></label>
