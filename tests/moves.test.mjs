@@ -96,3 +96,18 @@ test('폰 캘린더: 집→공항은 한국 시각, 현지 이동은 현지 시�
 test('함께 짜기로 공유 (통째로)', () => {
   assert.ok(SHARED_KEYS.includes('moves')); assert.ok(!MAP_KEYS.includes('moves'));
 });
+
+test('시간표 바로가기: 수단·구간·지역에 맞는 공식 누리집', async () => {
+  const { timetableLinks, TIMETABLES } = await import('../js/moves.js');
+  const ids = (s, m) => timetableLinks(s, m).map(t => t.id);
+  const hk = trip({ city:'hksz' }), tk = trip();
+  assert.deepEqual(ids(hk, mv('x', { k:'etc', how:'ferry' })), ['turbojet', 'cotai']);
+  assert.deepEqual(ids(hk, mv('in', { how:'rail' })), ['mtrae', 'mtrjp']);
+  assert.ok(ids(hk, mv('x', { k:'etc', how:'rail' })).includes('xrl'));
+  assert.deepEqual(ids(tk, mv('go', { how:'abus' })), ['icnbus']);          // 집 ↔ 공항은 한국 쪽
+  assert.deepEqual(ids(hk, mv('back', { how:'rail' })), ['arex']);
+  assert.ok(ids(tk, mv('in', { how:'rail' })).includes('skyliner')); assert.ok(!ids(tk, mv('x', { k:'etc', how:'rail' })).includes('skyliner'));
+  assert.deepEqual(ids(hk, mv('in')), []); assert.deepEqual(ids(hk, mv('in', { how:'taxi' })), []);
+  TIMETABLES.forEach(t => assert.match(t.url, /^https:\/\//, t.id));
+  assert.equal(new Set(TIMETABLES.map(t => t.id)).size, TIMETABLES.length);
+});
