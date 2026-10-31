@@ -1,6 +1,7 @@
 // 계산만 하는 순수 함수 모음 (DOM을 건드리지 않음 → tests/에서 바로 테스트 가능)
 import { AREAS, PLACES, PACE, WD, REGION, disneyArea, cityOfArea, CITY_KO } from './data.js';
 import { ratesOf } from './ledger.js';
+import { arriveInfo, departInfo, capBetween } from './flight.js';
 import { bestPrice } from './prices.js';
 
 export function clone(o){ return JSON.parse(JSON.stringify(o)); }
@@ -47,11 +48,17 @@ export function buildDays(s){
   const dates = [];
   for(let d = new Date(a); d <= b && dates.length < 10; d.setDate(d.getDate()+1)) dates.push(new Date(d));
   const base = PACE[s.pace].hours;
+  // 비행기 시간을 넣었으면 첫날은 시내에 나서는 시각부터, 마지막 날은 공항 가러 숙소를 나서기 전까지 (js/flight.js)
+  //   공항~숙소 시간은 첫날은 처음 가는 도시, 마지막 날은 마지막 도시 기준 (홍콩 → 선전 순)
+  const cs = tripCities(s); const A = arriveInfo(s.flight, s.city, cs[0] || '', base), Z = departInfo(s.flight, s.city, cs[cs.length - 1] || '', base);
   return dates.map((d, i) => {
     const kind = dates.length === 1 ? 'single' : i === 0 ? 'arrive' : i === dates.length-1 ? 'depart' : 'full';
-    const cap = (kind === 'arrive' || kind === 'depart') ? Math.max(2, Math.round(base/2)) : base;
+    let cap = (kind === 'arrive' || kind === 'depart') ? Math.max(2, Math.round(base/2)) : base;
+    const a = (kind === 'arrive' || kind === 'single') ? A : null, z = (kind === 'depart' || kind === 'single') ? Z : null;
+    if(a && z) cap = capBetween(a.ready, z.leave - 30, base); else if(a) cap = a.cap; else if(z) cap = z.cap;
     const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return { i, date:d, key, wd:d.getDay(), kind, cap, label:`${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})` };
+    return { i, date:d, key, wd:d.getDay(), kind, cap, label:`${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})`,
+      ...(a ? { arrive:a } : {}), ...(z ? { depart:z } : {}) };
   });
 }
 
@@ -267,7 +274,7 @@ export function plan(s){
   const res = days.map((d, i) => ({ ...d, full:null, items:[], used:0, locked:isLocked(s, d), from:dh[i].from, to:dh[i].to }));
   const hotel = hotelOf(s); const fa = fullAssign(s, days); const unassigned = []; const auto = []; const dc = dayCities(s, days);
   // 짐 들고 국경을 넘는 날(홍콩 → 선전 숙소)은 체크아웃·출입국에 2시간쯤 빼고 계산
-  res.forEach(d => { if(dc[d.i].size > 1){ d.cap = Math.max(2, d.cap - 2); d.cross = true; } });
+  res.forEach(d => { if(dc[d.i].size > 1){ d.cap = Math.max(Math.min(2, d.cap), d.cap - 2); d.cross = true; } });
   pickedPlaces(s).forEach(p => {
     if(p.full){
       const di = fa[p.id];
