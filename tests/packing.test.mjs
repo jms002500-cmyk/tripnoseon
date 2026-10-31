@@ -64,7 +64,7 @@ test('목록 보기: 분류별 묶음, 안 챙긴 것 먼저, 거르기, 개수'
   assert.equal(packView(pack, 'left').shown, 2);
   assert.equal(packView(pack, 'common').shown, 1);
   assert.equal(packView(pack, 'p2').shown, 1);
-  assert.equal(PACK_CATS.length, 7);
+  assert.equal(PACK_CATS.length, 8);   // 📱 앱에 챙겨 두기 포함
 });
 
 test('함께 짜기: 준비물은 공유, 한 개씩 따로 보냄, 기록 문장', () => {
@@ -75,4 +75,27 @@ test('함께 짜기: 준비물은 공유, 한 개씩 따로 보냄, 기록 문�
   assert.equal(describeChange(sharedOf(a), sharedOf(b)), '준비물 1개 챙김');
   const c = clone(b); c.pack.k1 = { t:'수영복', c:'wear', who:'', done:false, at:9 };
   assert.equal(describeChange(sharedOf(b), sharedOf(c)), '준비물 추가: 수영복');
+});
+
+test('앱에 챙겨 두기: 골라 담는 추천, 그 화면으로 가는 길, 해 두면 저절로 체크', async () => {
+  const { PACK_GO, tickFrom, KEY_ID } = await import('../js/packing.js');
+  const s = Object.assign(clone(DEFAULT), { start:'2027-03-07', end:'2027-03-09' });
+  const sg = suggestPacking(s, null); const app = sg.filter(x => x.c === 'app').map(x => x.key);
+  assert.deepEqual(app, ['appid', 'appmove', 'appcal', 'appsos']); assert.ok(sg.some(x => x.key === 'idphoto'));
+  app.concat('tickets').forEach(k => assert.ok(PACK_GO[k], k));
+  // 담지 않은 추천은 건드리지 않음 (넣고 싶은 사람만)
+  assert.equal(tickFrom({}, 'appid', ''), null);
+  const pack = seedItems(sg.filter(x => x.key === 'appid'), 1);
+  const t = tickFrom(pack, 'appid', '엄마'); assert.equal(t.done, true); assert.equal(t.doneBy, '엄마'); assert.equal(pack[KEY_ID('appid')].done, false);
+  assert.equal(tickFrom({ [KEY_ID('appid')]:Object.assign({}, t) }, 'appid'), null);              // 이미 챙김
+  assert.equal(tickFrom({ [KEY_ID('appid')]:Object.assign({}, pack[KEY_ID('appid')], { hide:true }) }, 'appid'), null);   // 뺀 것
+});
+
+test('한 번에 담기에는 앱에 챙겨 두기가 빠짐, 홍콩·선전은 여권 사본 추천이 겹치지 않게', async () => {
+  const { bulkSuggestions } = await import('../js/packing.js');
+  const s = Object.assign(clone(DEFAULT), { start:'2027-03-07', end:'2027-03-09' });
+  const sg = suggestPacking(s, null);
+  assert.ok(bulkSuggestions({}, sg).every(x => x.c !== 'app')); assert.ok(missingSuggestions({}, sg).some(x => x.c === 'app'));
+  const hk = suggestPacking(Object.assign({}, s, { city:'hksz', country:'hk' }), null);
+  assert.ok(!hk.some(x => x.key === 'idphoto')); assert.ok(hk.some(x => x.key === 'passCopy'));
 });

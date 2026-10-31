@@ -1,7 +1,7 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
 import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, disneyArea, CITY_KO, CITY_FLAG } from './data.js';
-import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, packView } from './packing.js';
+import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, bulkSuggestions, packView, PACK_GO } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as sosHotel, kidCardJa } from './safety.js';
 import * as HK from './regions/hksz-guide.js';
@@ -867,7 +867,7 @@ export function vPlan(s){
         ${d.full ? '' : `<div class="meter${d.used > d.cap ? ' over' : ''}"><span style="width:${pct}%"></span></div>`}
       </article>`; }).join('')}
     ${REGION.key === 'tokyo' ? transitBox(s, P) : ''}
-    ${anyItems ? `<div class="box">
+    ${anyItems ? `<div class="box" id="icsbox">
       <h2>📅 폰 캘린더에 넣기</h2>
       <p class="fine">날짜별 일정·비행기·보관함 예약을 폰 캘린더에 넣어요. 첫 장소 30분 전, 공항 가기 1시간 전 같은 <b>알림을 폰 캘린더가 울려 줘요</b>(인터넷 없어도 돼요). 시각은 어림이에요.</p>
       <div class="pfoot"><button type="button" class="primary small" data-act="icsshare">캘린더 앱으로 보내기</button><button type="button" class="ghost small" data-act="icsfile">파일로 받기</button></div>
@@ -886,7 +886,7 @@ export function vPlan(s){
 /* Step 7 · 준비물 (함께 짜기 여행이면 가족이 같이 체크) */
 export function vPack(s){
   const sh = s.sh || {}; const shared = !!(s.shareId && sh.trip);
-  const sugg = suggestPacking(s, s.wx); const miss = missingSuggestions(s.pack, sugg);
+  const sugg = suggestPacking(s, s.wx); const miss = bulkSuggestions(s.pack, sugg); const appMiss = missingSuggestions(s.pack, sugg).filter(x => x.c === 'app');
   const whyOf = it => (it.src && (sugg.find(x => x.key === it.src) || {}).why) || '';
   const v = packView(s.pack, s.pfilter); const party = partyOf(s);
   const m = s.start ? +s.start.slice(5, 7) : null;
@@ -912,10 +912,15 @@ export function vPack(s){
     ${v.groups.length ? v.groups.map(g => `<h2 class="vday">${g.cat.icon} ${esc(g.cat.label)}<small>${g.items.filter(x => x.done).length}/${g.items.length}</small></h2>
       <ul class="plist">${g.items.map(it => `<li class="${it.done ? 'done' : ''}">
         <button type="button" class="tchk" data-act="pkchk" data-v="${esc(it.id)}" aria-pressed="${!!it.done}" aria-label="${esc(it.t)} 챙김">✓</button>
-        <div class="sbody"><b>${esc(it.t)}</b>${whyOf(it) ? `<span>${esc(whyOf(it))}</span>` : ''}${it.done && it.doneBy ? `<span class="pkby">${esc(it.doneBy)} 챙김</span>` : ''}
+        <div class="sbody"><b>${esc(it.t)}</b>${whyOf(it) ? `<span>${esc(whyOf(it))}</span>` : ''}${it.done && it.doneBy ? `<span class="pkby">${esc(it.doneBy)} 챙김</span>` : ''}${packApp(s, it.src)}
           <span class="pkrow"><select data-pkwho="${esc(it.id)}" aria-label="${esc(it.t)} 누구 짐">${[['', '공용']].concat(party.map(p => [p.id, p.name])).map(([k, l]) => `<option value="${esc(k)}"${(it.who || '') === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
           <button type="button" class="link" data-act="pkdel" data-v="${esc(it.id)}">빼기</button></span></div>
       </li>`).join('')}</ul>`).join('') : '<p class="empty">이 조건에 맞는 준비물이 없어요.</p>'}`}
+    ${appMiss.length ? `<div class="box" id="pkappbox">
+      <h2>📱 앱에 챙겨 두기<small>필요한 것만 골라 담기</small></h2>
+      <p class="fine">트립노선 안에서 미리 해 두면 여행 중에 바로 꺼내 쓰는 것들이에요. 담으면 체크리스트에 들어가고, 앱에서 해 두면 저절로 체크돼요.</p>
+      <ul class="implist">${appMiss.map(x => `<li class="imp"><div class="sbody"><b>${esc(x.t)}</b>${x.why ? `<span>${esc(x.why)}</span>` : ''}</div><button type="button" class="ghost small" data-act="pkone" data-v="${esc(x.key)}">담기</button></li>`).join('')}</ul>
+    </div>` : ''}
     <form class="box" id="packform" autocomplete="off">
       <h2>직접 더하기</h2>
       <div class="lline"><input id="pkin" type="text" maxlength="200" enterkeyhint="done" placeholder="예: 수영복, 머리끈 (쉼표로 여러 개)" aria-label="준비물 직접 더하기"><button type="submit" class="primary small">더하기</button></div>
@@ -927,6 +932,15 @@ export function vPack(s){
       <div class="pfoot"><button type="button" class="ghost small" data-act="pkseed">모두 담기</button></div>
     </div>` : ''}
   </section>`;
+}
+
+// 앱 안에서 하는 준비물: 지금 상태 + 그 화면으로 가는 버튼 (js/packing.js PACK_GO)
+function packApp(s, src){
+  if(!src || !PACK_GO[src]) return '';
+  const ids = idCopies(s.vault).reduce((a, x) => a + (x.files || []).length, 0); const bk = bookings(s.vault).length; const mv = (s.moves || []).filter(m => !isEmptyMove(m)).length;
+  const st = { appid:ids ? `앱에 ${ids}장 있어요` : '', tickets:bk ? `보관함에 예약 ${bk}건` : '', appmove:mv ? `${mv}구간 정했어요` : '' }[src] || '';
+  const go = { appid:'여권 사본 넣으러 가기', tickets:'보관함 열기', appmove:'오가는 길 정하기', appcal:'캘린더 넣으러 가기', appsos:'긴급 정보 열기' }[src];
+  return `<span class="pkapp">${st ? `<span class="mvok">${esc(st)}</span>` : ''}<button type="button" class="link" data-act="pkgo" data-v="${esc(src)}">📱 ${go} →</button></span>`;
 }
 
 /* Step 8 · 보관함 (예약·티켓, 이 기기에만) */

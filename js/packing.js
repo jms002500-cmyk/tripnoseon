@@ -10,6 +10,7 @@ import { pickedPlaces } from './logic.js';
 
 export const PACK_CATS = [
   { key:'doc', label:'서류·돈', icon:'🛂' },
+  { key:'app', label:'앱에 챙겨 두기', icon:'📱' },
   { key:'kid', label:'아이', icon:'🧒' },
   { key:'wear', label:'옷·신발', icon:'🧥' },
   { key:'tech', label:'전자기기', icon:'🔌' },
@@ -55,6 +56,13 @@ export function suggestPacking(s, wx){
   add('card', 'doc', '해외 결제 카드', '수수료가 적은 카드를 하나 챙기면 좋아요.');
   if(jp) add('ic', 'doc', '교통카드 (Suica·PASMO 또는 휴대폰 교통카드)', kids.some(a => a >= 6 && a <= 12) ? '초등학생은 어린이 요금 카드가 따로 있어요(역 창구에서 만들어요).' : '지하철·버스·편의점에서 찍고 다녀요.');
   add('insurance', 'doc', '여행자 보험', '');
+  if(!hksz) add('idphoto', 'doc', '여권용 사진 2장 (실물)', '여권을 잃어버려 여행증명서를 만들 때 실물 사진이 필요해요.');
+  // 앱에 챙겨 두기: 트립노선 안에서 해 두면 여행 중에 꺼내 쓰는 것. '한 번에 담기'에는 안 들어가고 하나씩 골라 담음
+  //   (PACK_GO로 그 화면에 바로 가고, 해 두면 저절로 체크)
+  add('appid', 'app', '여권 사본·여권용 사진 넣어 두기', '여권을 잃어버리면 영사관에서 여행증명서를 빨리 받아요. 이 폰에만 저장되고, 여행이 끝나면 지우라고 알려 드려요.');
+  add('appmove', 'app', '공항 오가는 길 정하기 (공항버스·픽업·기차)', '예약한 차와 시각을 넣으면 날짜별 일정·폰 캘린더에 같이 나와요.');
+  add('appcal', 'app', '일정을 폰 캘린더에 넣기', '첫 장소 30분 전, 공항 가기 1시간 전 같은 알림을 폰이 울려 줘요(인터넷 없어도 돼요).');
+  add('appsos', 'app', '긴급 정보 한 번 열어 보기', '긴급 번호·숙소 카드·영사관 위치를 미리 봐 두면 급할 때 바로 찾아요.');
   // 홍콩·선전: 플러그·알리페이·입국카드·로밍·옥토퍼스 등 (공식 출처로 확인한 안내, js/regions/hksz-guide.js)
   if(hksz) packingFor('hk').concat(packingFor('sz')).forEach(x => { if(!out.some(o => o.key === x.key)) out.push(x); });
   // 전자기기
@@ -105,10 +113,20 @@ export function suggestPacking(s, wx){
   return out;
 }
 
-const KEY_ID = key => 'sg_' + key;   // 추천에서 담은 것의 번호 (두 사람이 같은 추천을 동시에 담아도 하나로)
+// 앱 안에서 하는 준비물 → 그 화면 (views.js 버튼, app.js 'pkgo')
+export const PACK_GO = { appid:'idbox', tickets:'vault', appmove:'movebox', appcal:'icsbox', appsos:'sos' };
+
+export const KEY_ID = key => 'sg_' + key;   // 추천에서 담은 것의 번호 (두 사람이 같은 추천을 동시에 담아도 하나로)
+// 앱에서 해 두면 저절로 챙김으로: 담아 둔 추천이 있고 아직 안 챙겼을 때만 바꿀 준비물을 돌려줌 (없으면 null)
+export function tickFrom(pack, key, by){
+  const it = (pack || {})[KEY_ID(key)]; if(!it || it.hide || it.done) return null;
+  return Object.assign({}, it, { done:true, doneBy:by || '' });
+}
 
 // 아직 목록에 없는(숨기지도 않은) 추천
 export function missingSuggestions(pack, sugg){ return sugg.filter(x => !(pack || {})[KEY_ID(x.key)]); }
+// '한 번에 담기'용: 앱에 챙겨 두기는 빼고 (원하는 사람만 하나씩 골라 담게)
+export const bulkSuggestions = (pack, sugg) => missingSuggestions(pack, sugg).filter(x => x.c !== 'app');
 
 // 추천을 목록에 넣을 모양으로 { id: 준비물 }
 export function seedItems(sugg, now){
