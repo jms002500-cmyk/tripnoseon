@@ -2,11 +2,11 @@
 // 파일 목록을 바꾸면 CACHE 이름의 숫자를 올려 주세요.
 // GitHub Pages는 파일을 10분 동안 브라우저 캐시에 두라고 해서, 앱 파일은 늘 서버에 새것인지 물어봄(no-cache).
 // 안 그러면 새 버전을 올려도 10분 동안 옛 파일과 새 파일이 섞여 열릴 수 있음(2026-10-29 실제 폰에서 확인)
-const CACHE = 'tripnoseon-v45';
+const CACHE = 'tripnoseon-v46';
 const SHELL = [
   './', './index.html', './css/styles.css', './manifest.webmanifest',
   './js/app.js', './js/data.js', './js/logic.js', './js/map.js', './js/ui.js', './js/views.js',
-  './js/gimport.js', './js/geocode.js', './js/rakuten.js', './js/weather.js', './js/prices.js', './js/share.js', './js/sharecore.js', './js/firebase-config.js', './js/vault.js', './js/vaultdb.js', './js/backup.js', './js/ledger.js', './js/ledgerimport.js', './js/today.js', './js/packing.js', './js/rain.js', './js/safety.js', './js/food.js', './js/gplace.js', './js/gmap.js', './js/maps-config.js', './js/janame.js', './js/regions/hksz-data.js', './js/regions/hksz-guide.js', './js/net.js', './js/loc.js', './js/transit.js', './js/budget.js', './js/ledgerexport.js', './js/askai.js', './js/flight.js', './js/ics.js', './js/catchup.js', './js/record.js', './js/install.js',
+  './js/gimport.js', './js/geocode.js', './js/rakuten.js', './js/weather.js', './js/prices.js', './js/share.js', './js/sharecore.js', './js/firebase-config.js', './js/vault.js', './js/vaultdb.js', './js/backup.js', './js/ledger.js', './js/ledgerimport.js', './js/today.js', './js/packing.js', './js/rain.js', './js/safety.js', './js/food.js', './js/gplace.js', './js/gmap.js', './js/maps-config.js', './js/janame.js', './js/regions/hksz-data.js', './js/regions/hksz-guide.js', './js/net.js', './js/loc.js', './js/transit.js', './js/budget.js', './js/ledgerexport.js', './js/askai.js', './js/flight.js', './js/ics.js', './js/catchup.js', './js/record.js', './js/install.js', './js/moves.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'
 ];
 

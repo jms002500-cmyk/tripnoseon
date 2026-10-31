@@ -2,6 +2,7 @@
 import { AREAS, PLACES, PACE, WD, REGION, disneyArea, cityOfArea, CITY_KO } from './data.js';
 import { ratesOf } from './ledger.js';
 import { arriveInfo, departInfo, capBetween } from './flight.js';
+import { legOverride } from './moves.js';
 import { bestPrice } from './prices.js';
 
 export function clone(o){ return JSON.parse(JSON.stringify(o)); }
@@ -49,8 +50,8 @@ export function buildDays(s){
   for(let d = new Date(a); d <= b && dates.length < 10; d.setDate(d.getDate()+1)) dates.push(new Date(d));
   const base = PACE[s.pace].hours;
   // 비행기 시간을 넣었으면 첫날은 시내에 나서는 시각부터, 마지막 날은 공항 가러 숙소를 나서기 전까지 (js/flight.js)
-  //   공항~숙소 시간은 첫날은 처음 가는 도시, 마지막 날은 마지막 도시 기준 (홍콩 → 선전 순)
-  const cs = tripCities(s); const A = arriveInfo(s.flight, s.city, cs[0] || '', base), Z = departInfo(s.flight, s.city, cs[cs.length - 1] || '', base);
+  //   공항~숙소 시간은 첫날은 처음 가는 도시, 마지막 날은 마지막 도시 기준 (홍콩 → 선전 순). 오가는 길(js/moves.js)에 시각·걸리는 시간을 넣었으면 그 값
+  const cs = tripCities(s); const A = arriveInfo(s.flight, s.city, cs[0] || '', base, legOverride(s, 'in')), Z = departInfo(s.flight, s.city, cs[cs.length - 1] || '', base, legOverride(s, 'out'));
   return dates.map((d, i) => {
     const kind = dates.length === 1 ? 'single' : i === 0 ? 'arrive' : i === dates.length-1 ? 'depart' : 'full';
     let cap = (kind === 'arrive' || kind === 'depart') ? Math.max(2, Math.round(base/2)) : base;

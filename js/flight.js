@@ -26,14 +26,22 @@ export const dayEnd = base => DAY_START + Math.round((base + 2.5) * 60);
 export const capBetween = (from, to, base) => Math.max(0, Math.min(base, Math.round((to - from) / 60 * base / (base + 2.5) * 2) / 2));
 
 // 첫날: 도착 → 시내에 나서는 시각(ready)·다닐 시간. city: 첫 밤을 자는 도시('' = 도시 하나인 지역)
-export function arriveInfo(f, region, city, base){
+//   o: 오가는 길(js/moves.js legOverride)에 넣은 공항 → 숙소 { time:타는 시각(분), min:걸리는 시간 } — 있으면 어림 대신 씀
+//   예약한 차가 입국·짐 찾기(1시간)보다 이르면 early: 비행기가 늦으면 기사님께 알려야 함
+export function arriveInfo(f, region, city, base, o){
   const t = toMin(f && f.arr); if(t == null) return null;
-  const ap = airportOf(region, f.ap); const tr = transferMin(ap, city); const ready = t + AFTER_LANDING + tr + HOTEL_DROP;
-  return { at:t, ready, transfer:tr, ap, cap:capBetween(ready, dayEnd(base), base) };
+  const ap = airportOf(region, f.ap); const tr = o && o.min ? o.min : transferMin(ap, city);
+  const pick = o && o.time != null && o.time >= t ? o.time : null;   // 도착보다 이른 시각은 날짜를 잘못 넣은 것으로 보고 무시
+  const ready = Math.max(t + AFTER_LANDING, pick || 0) + tr + HOTEL_DROP;
+  return { at:t, ready, transfer:tr, ap, cap:capBetween(ready, dayEnd(base), base),
+    ...(pick != null ? { pick } : {}), ...(pick != null && pick < t + AFTER_LANDING ? { early:true } : {}) };
 }
 // 마지막 날: 출발 → 숙소에서 나서야 하는 시각(leave)·다닐 시간 (짐 찾으러 숙소에 들르는 30분 빼고)
-export function departInfo(f, region, city, base){
+//   o: 숙소 → 공항 { time, min } — 시각을 넣었으면 그 시각에 나섬. 출발 1시간 30분 전에도 공항에 못 닿으면 late
+export function departInfo(f, region, city, base, o){
   const t = toMin(f && f.dep); if(t == null) return null;
-  const ap = airportOf(region, f.ap); const tr = transferMin(ap, city); const leave = t - EARLY - tr;
-  return { at:t, leave, transfer:tr, ap, cap:capBetween(DAY_START, leave - BAG_PICKUP, base) };
+  const ap = airportOf(region, f.ap); const tr = o && o.min ? o.min : transferMin(ap, city);
+  const set = !!(o && o.time != null && o.time < t); const leave = set ? o.time : t - EARLY - tr;
+  return { at:t, leave, transfer:tr, ap, cap:capBetween(DAY_START, leave - BAG_PICKUP, base),
+    ...(set ? { set:true } : {}), ...(set && leave + tr > t - 90 ? { late:true } : {}) };
 }
