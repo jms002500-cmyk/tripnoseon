@@ -62,3 +62,8 @@ test('변경 기록 문장과 기본 제목', () => {
   assert.equal(defaultTitle(base()), '도쿄 3/7~3/11');
   assert.equal(defaultTitle(clone(DEFAULT)), '도쿄 여행');
 });
+
+test('기기마다 두는 설정(글씨 크기·AI 덧붙일 말)은 함께 짜기로 안 보냄, 비행기 시간·도시 고르기는 보냄', () => {
+  ['textSize', 'askNote'].forEach(k => assert.ok(!SHARED_KEYS.includes(k), k));
+  ['flight', 'cityOnly'].forEach(k => assert.ok(SHARED_KEYS.includes(k), k));
+});
