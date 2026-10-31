@@ -1,6 +1,6 @@
 {
   "name": "tripnoseon",
-  "version": "0.30.0",
+  "version": "0.31.0",
   "private": true,
   "description": "여행 계획 앱 시제품 (동행 → 여행지 → 꼭 갈 곳 → 장소 담기 → 숙소 동네 → 일정 → 준비물 → 보관함 → 가계부)",
   "type": "module",

@@ -1014,6 +1014,11 @@ export function vLedger(s){
     <form class="box" id="ledgerform" autocomplete="off">
       <h2>한 줄로 적기</h2>
       <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="예: ${esc(lexOne())}" aria-label="지출을 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
+      <details class="more aipaste"><summary>🧾 AI 영수증 답 붙여 넣기</summary>
+        <p class="fine">📷로 영수증을 AI에게 보낸 뒤, AI 답을 통째로 복사해 붙여 넣으세요. 가계부에 적을 한 줄을 찾아 위 칸에 채워 드려요.</p>
+        <textarea id="aipaste" rows="4" placeholder="AI 답을 여기에 붙여 넣기"></textarea>
+        <div><button type="button" class="ghost small" data-act="aipaste">가계부 줄 찾기</button></div>
+      </details>
       <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today, cur:mainCur(s) }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
       <p class="fine lex">이렇게도 돼요: ${lexOf().map(x => `<button type="button" class="link" data-act="lex" data-v="${esc(x)}">${esc(x)}</button>`).join(' · ')}</p>
@@ -1323,6 +1328,11 @@ export function vToday(s){
       ${g ? `<ul class="tspend">${g.items.map(e => `<li><span>${catOf(e.cat).icon} ${esc(e.what || catOf(e.cat).label)}</span><b>${lmoney(e.amt, e.cur)}</b></li>`).join('')}</ul>` : ''}
       ${lp ? `<p class="lat">📍 <b>${esc(lp.name)}</b>에서 쓴 돈으로 적어요. 금액만 써도 돼요. <button type="button" class="link" data-act="lplacex">장소 빼기</button></p>` : ''}
       <div class="lline"><input id="lline" type="text" maxlength="120" enterkeyhint="done" placeholder="${lp ? (REGION.key === 'tokyo' ? '예: 3000엔 또는 기념품 1500엔' : '예: 120 또는 기념품 80') : `예: ${esc(lexOne())}`}" aria-label="이날 쓴 돈 한 줄로 적기" aria-describedby="lprev"><button type="submit" class="primary small">적기</button></div>
+      <details class="more aipaste"><summary>🧾 AI 영수증 답 붙여 넣기</summary>
+        <p class="fine">📷로 영수증을 AI에게 보낸 뒤, AI 답을 통째로 복사해 붙여 넣으세요. 가계부에 적을 한 줄을 찾아 위 칸에 채워 드려요.</p>
+        <textarea id="aipaste" rows="4" placeholder="AI 답을 여기에 붙여 넣기"></textarea>
+        <div><button type="button" class="ghost small" data-act="aipaste">가계부 줄 찾기</button></div>
+      </details>
       <p id="lprev" class="fine" aria-live="polite">${esc(ledgerHint(s, { today:date, cur:mainCur(s) }))}</p>
       ${sh.lmsg ? `<p class="lmsg${sh.lerr ? ' bad' : ''}" role="status">${esc(sh.lmsg)}${sh.lundo && (s.spend || {})[sh.lundo] ? ' <button type="button" class="link" data-act="lundo">되돌리기</button>' : ''}</p>` : ''}
     </form>

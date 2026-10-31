@@ -69,6 +69,19 @@ export function dayLabel(s, d){
 export function partyOf(s){ return s.party && s.party.length ? s.party : [{ id:'me', name:'나' }]; }
 export function defaultPayer(s){ const p = partyOf(s); return p.some(x => x.id === s.lby) ? s.lby : p[0].id; }
 
+/* ---------- AI 영수증 답에서 가계부 한 줄 찾기 ---------- */
+// 📷 영수증 부탁 문장(js/askai.js)은 마지막 줄을 "무엇 금액통화"로 달라고 함. 답을 통째로 붙여 넣으면 그 줄을 찾음:
+//   '가계부'가 들어간 줄의 콜론 뒤 > 아래 줄부터 현지 돈으로 읽히는 첫 줄 > 아래 줄부터 금액이 읽히는 첫 줄. 못 찾으면 ''
+export function lineFromAi(text, s, ctx){
+  const clean = l => l.replace(/[*`#>"“”‘’]/g, '').replace(/^\s*(?:[-•·]|\d+[.)])\s+/, '').trim();
+  const lines = String(text || '').split(/\r?\n/).map(clean).filter(Boolean);
+  const ok = l => { const r = parseLine(l, s, ctx); return r.ok && r.e.amt > 0 ? r.e : null; };
+  const tagged = lines.filter(l => /가계부/.test(l)).map(l => l.replace(/^.*?가계부[^:：]*[:：]\s*/, '').trim()).filter(l => l && ok(l)).pop();
+  if(tagged) return tagged;
+  const rev = lines.slice(-10).reverse();
+  return rev.find(l => { const e = ok(l); return e && e.cur !== 'KRW'; }) || rev.find(ok) || '';
+}
+
 /* ---------- 한 줄 읽기 ---------- */
 // 숫자 바로 뒤에 붙은 개수 단위 ('4장', '2명'). '1200 시부야'의 '시'는 개수가 아님
 // (정규식 뒤돌아보기(?<=)는 iOS 16.3 이하 사파리에서 앱 전체가 안 열리게 해서 쓰지 않음)
