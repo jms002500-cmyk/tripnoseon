@@ -17,7 +17,7 @@ import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
 import { loadFx, convert } from './prices.js';
 import { planTripleImport, applyTripleImport } from './ledgerimport.js';
-import { atPlace, parseLine, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, ratesOf, mainCur, personUsed, catOf } from './ledger.js';
+import { atPlace, parseLine, lineFromAi, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, ratesOf, mainCur, personUsed, catOf } from './ledger.js';
 import { parseWon, setBudget } from './budget.js';
 import { ledgerCsv, ledgerCsvName } from './ledgerexport.js';
 import { missingBookings, bookings, receiptOf, newReceipt } from './vault.js';
@@ -606,6 +606,12 @@ function ledgerAct(a, v){
   switch(a){
     case 'lfocus': focusLine(); return;
     case 'lex': { const i = document.getElementById('lline'); if(i){ i.value = v; updatePreview(); i.focus(); } return; }
+    case 'aipaste': {   // AI 영수증 답에서 가계부 한 줄을 찾아 칸에 채움 (적기는 사용자가 확인하고 누름)
+      const t = document.getElementById('aipaste'), i = document.getElementById('lline'); if(!t || !i) return;
+      const line = lineFromAi(t.value, state, ledgerCtx());
+      if(!line){ toast('금액이 있는 줄을 못 찾았어요. 영수증 합계를 직접 적어 주세요.'); return; }
+      i.value = line; updatePreview(); i.focus(); i.scrollIntoView({ block:'center' }); toast('찾은 줄을 채웠어요. 맞으면 \'적기\'를 누르세요.'); return;
+    }
     case 'lmore': sh.lmore = true; sh.ledit = null; render(); { const f = document.getElementById('ledgerdetail'); if(f){ f.scrollIntoView({ block:'start' }); document.getElementById('lamt').focus({ preventScroll:true }); } } return;
     case 'ledit': sh.ledit = v; sh.lmore = false; render(); { const f = document.getElementById('ledgerdetail'); if(f) f.scrollIntoView({ block:'start' }); } return;
     case 'lcancel': sh.ledit = null; sh.lmore = false; render(); return;
@@ -859,7 +865,7 @@ function act(a, v){
     case 'pkchk': { const it = s.pack[v]; if(!it) return; it.done = !it.done; it.doneBy = it.done && s.shareId && s.sh.user ? s.sh.user.name : ''; break; }
     case 'pkdel': { const it = s.pack[v]; if(!it) return; if(it.src){ it.hide = true; it.done = false; } else delete s.pack[v]; break; }   // 추천에서 온 건 숨겨서 다시 추천하지 않음
     case 'pkfilter': s.pfilter = v; break;
-    case 'lfocus': case 'lex': case 'lmore': case 'ledit': case 'lcancel': case 'lundo': case 'ldel': case 'lpadd': case 'lpdel': case 'lpmembers': case 'limpok': case 'limpcancel':
+    case 'lfocus': case 'lex': case 'aipaste': case 'lmore': case 'ledit': case 'lcancel': case 'lundo': case 'ldel': case 'lpadd': case 'lpdel': case 'lpmembers': case 'limpok': case 'limpcancel':
     case 'lbedit': case 'lbcats': case 'lbdone': case 'lexport':
       ledgerAct(a, v); return;
     case 'bkexport': exportBackup(); return;
