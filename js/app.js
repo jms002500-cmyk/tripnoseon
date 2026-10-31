@@ -3,6 +3,7 @@ import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from '
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
 import { VIEWS, SHEET, ASKSHEET, vToday, vSafety } from './views.js';
 import { askPrompt } from './askai.js';
+import { buildIcs } from './ics.js';
 import { phaseOf, shownDate, shouldAutoOpen, doneKey } from './today.js';
 import { suggestPacking, missingSuggestions, seedItems, customItems } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
@@ -865,6 +866,7 @@ function act(a, v){
     case 'shareopen': s.sh.open = true; startShare(); render(); return;
     case 'shareclose': s.sh.open = false; render(); return;
     case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
+    case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); return;
     case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; render(); return;
     case 'askclose': s.sh.ask.open = false; setAskPhoto(null); render(); return;
     case 'askkind': s.sh.ask.kind = v; render(); return;
@@ -882,6 +884,18 @@ function act(a, v){
       scroll = true; break;
   }
   save(); render(); if(scroll) window.scrollTo({ top:0 });
+}
+
+/* ---------- 폰 캘린더에 넣기 (js/ics.js) ---------- */
+async function sendIcs(share){
+  const s = state; const text = buildIcs(s, plan(s), bookings(s.vault), new Date());
+  const name = `tripnoseon-${s.start || 'trip'}.ics`; const file = new File([text], name, { type:'text/calendar' });
+  if(share && navigator.canShare && navigator.canShare({ files:[file] })){
+    try{ await navigator.share({ files:[file], title:'트립노선 여행 일정' }); return; }catch(e){ if(e && e.name === 'AbortError') return; }
+  }
+  const u = URL.createObjectURL(file); const a = document.createElement('a');
+  a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000);
+  toast(share ? '바로 보내기가 안 돼서 파일로 받았어요. 받은 파일을 열어 캘린더에 저장하세요.' : '캘린더 파일을 받았어요. 파일을 열어 캘린더에 저장하세요.');
 }
 
 /* ---------- AI 도우미 (js/askai.js) ---------- */
