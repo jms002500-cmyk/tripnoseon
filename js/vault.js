@@ -17,8 +17,16 @@ export const kindOf = k => VAULT_KINDS.find(x => x.key === k) || VAULT_KINDS[VAU
 // 가계부 영수증 사진도 보관함 항목으로 둠(kind 'receipt', spendId: 지출 id) → 첨부 저장·크게 보기·백업을 그대로 씀.
 // 이 기기에만(보관함과 같음). 보관함 목록·예약 제안·오늘 꺼낼 예약에는 안 보임
 export const isReceipt = it => !!it && it.kind === 'receipt';
-// 여행 기록 사진(kind 'photo', js/record.js)도 예약이 아님
-export const bookings = vault => (vault || []).filter(it => !isReceipt(it) && it.kind !== 'photo');
+// 여행 기록 사진(kind 'photo', js/record.js)·여권 사본(kind 'idcopy')도 예약이 아님
+export const bookings = vault => (vault || []).filter(it => !isReceipt(it) && it.kind !== 'photo' && it.kind !== 'idcopy');
+
+// 여권·사진 사본(kind 'idcopy'): 여권을 잃어버렸을 때 영사관에서 여행증명서를 빨리 받으려고 챙기는 여권 사진면·여권용 사진.
+// 사람마다 하나(title: 누구 것), 첨부 여러 장. 이 기기에만(함께 짜기 안 함), 백업에는 사용자가 고를 때만, 여행이 끝나면 지우라고 알림
+export const isIdCopy = it => !!it && it.kind === 'idcopy';
+export const idCopies = vault => (vault || []).filter(isIdCopy);
+export const newIdCopy = (id, who) => ({ id, kind:'idcopy', title:String(who || '').trim().slice(0, 30) || '여권 사본', date:'', time:'', code:'', link:'', memo:'', placeId:null, files:[] });
+// 오는 날이 지났는데 사본이 남아 있으면 지우라고 알림. s.idLater: '나중에'를 누르면 그날까지 안 보임 (이 기기에만)
+export const idWipeDue = (s, today) => !!(s.end && today && today > s.end && idCopies(s.vault).some(x => (x.files || []).length) && !(s.idLater && today <= s.idLater));
 export const receiptOf = (vault, spendId) => (vault || []).find(it => isReceipt(it) && it.spendId === spendId) || null;
 export function newReceipt(spendId, e, id){
   return { id, kind:'receipt', spendId, title:`영수증 · ${(e && e.what) || ''}`.trim().slice(0, 60), date:e && /^\d{4}-\d{2}-\d{2}$/.test(e.d) ? e.d : '',

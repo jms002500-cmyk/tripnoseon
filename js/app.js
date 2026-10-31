@@ -1,7 +1,7 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, recordHead, moveCtx } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, recordHead, moveCtx, idWipeCard } from './views.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
@@ -25,7 +25,7 @@ import { planTripleImport, applyTripleImport } from './ledgerimport.js';
 import { atPlace, parseLine, lineFromAi, previewText, ledgerHint, defaultPayer, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, ratesOf, mainCur, personUsed, catOf } from './ledger.js';
 import { parseWon, setBudget } from './budget.js';
 import { ledgerCsv, ledgerCsvName } from './ledgerexport.js';
-import { missingBookings, bookings, receiptOf, newReceipt } from './vault.js';
+import { missingBookings, bookings, receiptOf, newReceipt, idCopies, isIdCopy, newIdCopy } from './vault.js';
 import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } from './vaultdb.js';
 import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blobToB64, b64ToBlob } from './backup.js';
 import { sizeText } from './vault.js';
@@ -335,7 +335,7 @@ function render(){
   s.sh.today = ymd(new Date()); { const n = new Date(); s.sh.nowMin = n.getHours() * 60 + n.getMinutes(); }
   const todayMode = s.mode === 'today', sosMode = s.mode === 'sos', recMode = s.mode === 'record';
   if(todayMode || sosMode || recMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
-  document.getElementById('view').innerHTML = (sosMode || recMode ? '' : installCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : VIEWS[s.step](s));
+  document.getElementById('view').innerHTML = (sosMode || recMode ? '' : installCard(s) + idWipeCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : VIEWS[s.step](s));
   document.getElementById('line').style.setProperty('--n', STEPS.length);
   document.getElementById('bar').innerHTML = (sosMode
     ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="sbig" data-v="hotel">숙소 카드 보여 주기</button>`
@@ -491,14 +491,15 @@ function downloadBlob(blob, name){
 async function exportBackup(){
   const s = state; const sh = s.sh; if(sh.bkbusy) return;
   const withKeys = !!(document.getElementById('bkkeys') || {}).checked;
+  const withId = !!(document.getElementById('bkid') || {}).checked;   // 여권 사본은 고를 때만 백업에
   sh.bkbusy = true; sh.bkmsg = ''; render();
   try{
-    const files = [];
-    for(const it of s.vault || []) for(const f of it.files || []){
+    const files = []; const vault = (s.vault || []).filter(it => withId || !isIdCopy(it));
+    for(const it of vault) for(const f of it.files || []){
       const rec = await getFile(f.fid);
       if(rec) files.push({ fid:f.fid, name:rec.name, type:rec.type, size:rec.size, data:await blobToB64(rec.blob) });
     }
-    const now = new Date(); const b = makeBackup(s, files, withKeys ? rkKeys() : null, now);
+    const now = new Date(); const b = makeBackup(Object.assign({}, s, { vault }), files, withKeys ? rkKeys() : null, now);
     const blob = new Blob([JSON.stringify(b)], { type:'application/json' }); const name = backupName(now);
     const file = new File([blob], name, { type:'application/json' });
     // 폰에서는 공유 창(파일 앱·메일·카톡으로 저장), PC에서는 내려받기
@@ -506,7 +507,7 @@ async function exportBackup(){
       try{ await navigator.share({ files:[file], title:'트립노선 백업' }); }
       catch(e){ if(e && e.name === 'AbortError'){ sh.bkbusy = false; render(); return; } downloadBlob(blob, name); }
     } else downloadBlob(blob, name);
-    s.lastBackup = stamp(); sh.bkmsg = `백업 파일 ${name}을(를) 만들었어요 (${sizeText(blob.size)}).${withKeys ? ' 라쿠텐 키가 들어 있으니 남에게 보내지 마세요.' : ''}`;
+    s.lastBackup = stamp(); sh.bkmsg = `백업 파일 ${name}을(를) 만들었어요 (${sizeText(blob.size)}).${withKeys || withId ? ` ${[withKeys ? '라쿠텐 키' : '', withId ? '여권 사본' : ''].filter(Boolean).join('·')}이(가) 들어 있으니 남에게 보내지 마세요.` : ''}`;
     saveLocal();
   }catch(e){ sh.bkmsg = '백업 파일을 만들지 못했어요. 저장 공간을 확인하고 다시 해 주세요.'; }
   sh.bkbusy = false; render();
@@ -850,6 +851,10 @@ function act(a, v){
     }
     case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
     case 'vapply': applyVaultAll(); return;
+    case 'idwipe':
+      if(!s.sh.idwipe){ s.sh.idwipe = true; render(); setTimeout(() => { if(state.sh.idwipe){ state.sh.idwipe = false; render(); } }, 4000); return; }
+      s.sh.idwipe = false; wipeIdCopies(); return;
+    case 'idlater': { const d = new Date(); d.setDate(d.getDate() + 3); s.idLater = ymd(d); toast('3일 뒤에 다시 알려 드릴게요.'); break; }
     case 'tfood': s.mode = 'today'; s.tday = +v; save(); render(); { const b = document.getElementById('foodbox'); if(b) b.scrollIntoView({ block:'start' }); } return;
     case 'ffind': {   // 끼니 자리 근처 식당 (구글)
       const [di, k] = v.split('|').map(Number); const P = plan(s); const d = P.days[di]; const m = d && mealSlots(d, d.from, d.to)[k]; if(!m) return;
@@ -978,6 +983,19 @@ async function addDayPhotos(date, files){
   if(files.length > room) toast(`하루 ${MAX_DAY_PHOTOS}장까지 넣을 수 있어요.`); else if(skipped && skipped.length) toast(`너무 큰 사진은 빼고 넣었어요: ${skipped.join(', ')}`);
 }
 
+/* ---------- 여권·사진 사본 (js/vault.js idcopy) ---------- */
+async function addIdFiles(it, files){
+  toast('사진을 넣고 있어요…');
+  const skipped = await storeFiles(it, files);
+  keepStorage(); save(); render(); refreshUsage();
+  toast(skipped.length ? '너무 크거나 저장 공간이 모자라 넣지 못한 사진이 있어요.' : `${it.title}에 사진을 넣었어요. 이 기기에만 있어요.`);
+}
+async function wipeIdCopies(){
+  const ids = idCopies(state.vault).map(x => x.id);
+  for(const id of ids) await deleteVault(id);
+  state.idLater = ''; save(); render(); toast('여권 사본을 모두 지웠어요.');
+}
+
 /* ---------- 보관함 예약 → 일정 (js/bookings.js) ---------- */
 // 숙소 위치: 구글 지도 주소에서 좌표를 읽고 여행 지역 안이면 { pt:{ lat, lng, area }, mapUrl }
 function hotelPt(raw){
@@ -1049,6 +1067,12 @@ function onChange(e){
     const k = t.dataset.rnote; let it = photoOf(s.vault, k);
     if(!it){ if(!t.value.trim()) return; it = newPhotoItem(k, 'v' + Date.now().toString(36)); s.vault = (s.vault || []).concat(it); }
     it.memo = t.value.trim().slice(0, 100);
+  }
+  else if(t.dataset.idnew != null || t.dataset.idadd){   // 여권·사진 사본 (js/vault.js idcopy)
+    const f = Array.from(t.files || []).filter(x => /^image\//.test(x.type)); t.value = ''; if(!f.length) return;
+    let it = t.dataset.idadd ? s.vault.find(x => x.id === t.dataset.idadd) : null;
+    if(!it){ const w = document.getElementById('idwho'); it = newIdCopy('v' + Date.now().toString(36), w && w.value); s.vault.push(it); }
+    addIdFiles(it, f); return;
   }
   else if(t.id === 'vkind'){ const f = document.getElementById('vaultform'); if(f) f.dataset.kind = t.value; return; }   // 종류마다 다른 칸 (다시 그리면 적던 게 지워짐)
   else if(t.dataset.mv){

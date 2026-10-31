@@ -17,7 +17,7 @@ import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
 import { SITES, siteUrl, priceOptions, sitesFor } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
-import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText, bookings, receiptOf } from './vault.js';
+import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText, bookings, receiptOf, idCopies, idWipeDue } from './vault.js';
 import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDates, ledgerSummary, ledgerHint, money as lmoney, personUsed, mainCur, ratesOf, rateOf, CUR_NAME } from './ledger.js';
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
@@ -963,6 +963,7 @@ function backupBox(s){
   return `<div class="box" id="backupbox">
     <h2>백업 · 되돌리기<small>${s.lastBackup ? `마지막 백업 ${esc(s.lastBackup)}` : '아직 백업하지 않았어요'}</small></h2>
     <p class="fine">일정·숙소 후보·가져온 장소·가계부·보관함(첨부 사진·PDF 포함)을 파일 하나로 저장해요. 폰을 바꾸거나 데이터가 지워져도 이 파일로 되돌릴 수 있어요. 파일은 '파일' 앱이나 메일·카톡 '나에게 보내기'로 보관하세요.</p>
+    ${idCopies(s.vault).some(x => (x.files || []).length) ? '<label class="chk"><input type="checkbox" id="bkid"> 여권 사본도 넣기 <span class="fine">(넣으면 파일을 남에게 보내지 마세요)</span></label>' : ''}
     ${s.rkOn ? '<label class="chk"><input type="checkbox" id="bkkeys"> 라쿠텐 키도 넣기 <span class="fine">(키가 든 파일은 남에게 보내지 마세요)</span></label>' : ''}
     <div class="pfoot"><button type="button" class="primary small" data-act="bkexport"${sh.bkbusy ? ' disabled' : ''}>${sh.bkbusy ? '만드는 중…' : '백업 파일 만들기'}</button>
       <label class="ghost small filebtn">백업 파일로 되돌리기<input type="file" accept=".json,application/json" data-bkimport hidden></label></div>
@@ -993,6 +994,7 @@ export function vVault(s){
     <h1>예약과 티켓을 한곳에</h1>
     <p class="lead">항공권·숙소·입장권·${REGION.key === 'tokyo' ? '입국 QR을' : '입국카드를'} 모아 두면 공항·호텔·입구에서 인터넷 없이 바로 꺼내 보여 줄 수 있어요.</p>
     <div class="box tip"><p>보관함은 <b>이 기기에만</b> 저장돼요. 예약번호·QR은 민감한 정보라 함께 짜기로 공유하지 않아요. 가족에게 줄 티켓은 사진을 열어 '보내기'로 전해 주세요.${s.sh && s.sh.vusage ? ` 이 앱이 기기에서 쓰는 저장 공간은 약 ${sizeText(s.sh.vusage)}이에요.` : ''}</p></div>
+    ${idBox(s, 'vault')}
     ${miss.length ? `<div class="box"><h2>아직 보관함에 없는 예약<small>${miss.length}가지</small></h2>
       <ul class="implist">${miss.map((m, i) => `<li class="imp"><div class="sbody"><b>${kindOf(m.kind).icon} ${esc(m.title)}</b><span>${esc(m.why)}</span></div>
         <button type="button" class="ghost small" data-act="vaddq" data-v="${i}">넣기</button></li>`).join('')}</ul></div>` : ''}
@@ -1023,6 +1025,38 @@ export function vVault(s){
     </form>
     ${backupBox(s)}
   </section>`;
+}
+
+// 여권·사진 사본 (js/vault.js idcopy): 보관함에서 넣고 지우기, 긴급 정보에서 바로 꺼내 보기.
+//   어깨 너머로 보이지 않게 미리 보기 그림 없이 '보기' 버튼만
+function idBox(s, where){
+  const list = idCopies(s.vault); const sh = s.sh || {}; const sos = where === 'sos';
+  if(sos && !list.length) return `<div class="box"><h2>🛂 여권 사본</h2><p class="fine">여권을 잃어버리면 여권 사진면 사본과 여권용 사진이 있어야 여행증명서를 빨리 받아요. <button type="button" class="link" data-act="go" data-v="${STEP('보관함')}">보관함에 여권 사본 넣기</button></p></div>`;
+  const row = it => { const armed = sh.vdel === it.id;
+    return `<li><div class="sbody"><b>🛂 ${esc(it.title)}</b><span>${it.files.length ? `사진 ${it.files.length}장` : '아직 사진 없음'}</span>
+      <span class="idviews">${it.files.map((f, j) => `<button type="button" class="ghost small" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}">${j + 1}번 보기</button>`).join('')}</span></div>
+      ${sos ? '' : `<div class="idacts"><label class="ghost small filebtn">＋ 사진<input type="file" accept="image/*" multiple data-idadd="${esc(it.id)}" hidden></label>
+        <button type="button" class="link${armed ? ' warnlink' : ''}" data-act="vdel" data-v="${esc(it.id)}">${armed ? '한 번 더 누르면 지워요' : '지우기'}</button></div>`}</li>`; };
+  return `<div class="box idbox${idWipeDue(s, sh.today) && !sos ? ' warnbox' : ''}" id="idbox">
+    <h2>🛂 여권·사진 사본<small>이 기기에만</small></h2>
+    ${idWipeDue(s, sh.today) && !sos ? '<p class="warnline">여행이 끝났어요. 다 쓴 여권 사본은 지워 두세요.</p>' : ''}
+    ${sos ? '<p class="fine">여권을 잃어버렸으면 경찰 분실 신고 뒤 영사관에 이 사본과 여권용 사진을 보여 주세요.</p>'
+      : '<p class="fine">여권을 잃어버리면 영사관에서 여행증명서를 받을 때 <b>여권 사진면 사본과 여권용 사진</b>이 있으면 빨라요. 가족마다 찍어 넣어 두세요. 이 기기에만 저장되고 함께 짜기로 가지 않아요. 백업 파일에는 따로 고를 때만 들어가요.</p>'}
+    ${list.length ? `<ul class="soslist idlist">${list.map(row).join('')}</ul>` : ''}
+    ${sos ? '' : `<div class="idnew"><label class="shlabel" for="idwho">누구 것<input id="idwho" type="text" maxlength="30" placeholder="예: 아빠 여권"></label>
+      <label class="primary small filebtn">📷 사진 넣기<input type="file" accept="image/*" multiple data-idnew hidden></label></div>
+      <p class="fine">사진은 글자가 잘 보이게 그대로 저장해요(아주 큰 사진만 조금 줄여요). 원본은 사진첩에서 지우셔도 돼요.</p>
+      ${list.length ? `<div class="pfoot"><button type="button" class="ghost small${sh.idwipe ? ' warnlink' : ''}" data-act="idwipe">${sh.idwipe ? '한 번 더 누르면 모두 지워요' : '여권 사본 모두 지우기'}</button></div>` : ''}`}
+  </div>`;
+}
+// 여행이 끝났는데 여권 사본이 남아 있으면 화면 맨 위에 알림
+export function idWipeCard(s){
+  if(!idWipeDue(s, (s.sh || {}).today)) return '';
+  const sh = s.sh || {}; const n = idCopies(s.vault).reduce((a, x) => a + (x.files || []).length, 0);
+  return `<div class="box warnbox idwipe"><h2>🛂 여권 사본을 지울까요?</h2>
+    <p class="fine">여행이 끝났어요. 이 기기에 여권·사진 사본 ${n}장이 남아 있어요. 잃어버리면 다른 사람이 볼 수 있으니 이제 지워 두세요.</p>
+    <div class="pfoot"><button type="button" class="${sh.idwipe ? 'ghost warnlink' : 'primary'} small" data-act="idwipe">${sh.idwipe ? '한 번 더 누르면 모두 지워요' : '지금 모두 지우기'}</button><button type="button" class="ghost small" data-act="idlater">3일 뒤에 다시 알려 주기</button></div>
+  </div>`;
 }
 
 // 종류마다 더 받는 칸 (보이고 숨기는 건 form의 data-kind, app.js가 종류를 바꿀 때 고침)
@@ -1283,6 +1317,7 @@ function vSafetyHKSZ(s){
       ${['hk', 'sz'].map(c => HK.MONEY[c] ? `<h3>${esc(HK.CITY_NAMES[c])} (${esc(HK.MONEY[c].cur)})</h3><ul class="sosq">${HK.MONEY[c].tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '').join('')}
     </div>
     <div class="box"><h2>홍콩 태풍·폭우 경보 때</h2><ol class="sosq">${HK.WEATHER.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>
+    ${idBox(s, 'sos')}
     <div class="box"><h2>잃어버렸을 때</h2>
       <ul class="soslist">${HK.LOST.slice(0, -1).map(x => `<li><div class="sbody"><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div></li>`).join('')}</ul>
     </div>
@@ -1341,6 +1376,7 @@ export function vSafety(s){
       <ol class="sosq">${QUAKE.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
       <p class="fine">출발 전에 일본 관광청이 감수한 'Safety tips' 앱(한국어, 지진·쓰나미·기상 경보)을 설치해 두면 좋아요.</p>
     </div>
+    ${idBox(s, 'sos')}
     <div class="box"><h2>잃어버렸을 때</h2>
       <ul class="soslist">${LOST.slice(0, -1).map(x => `<li><div class="sbody"><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div></li>`).join('')}</ul>
     </div>
