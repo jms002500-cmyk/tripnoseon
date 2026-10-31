@@ -23,6 +23,7 @@ import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js'
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
 import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
+import { AIRPORTS, koTime, minText as fminText } from './flight.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 
@@ -179,13 +180,38 @@ export function vWhere(s){
       <label for="dstart">가는 날<input id="dstart" type="date" value="${s.start}" data-date="start"></label>
       <label for="dend">오는 날<input id="dend" type="date" value="${s.end}"${s.start ? ` min="${s.start}"` : ''} data-date="end"></label>
     </div>
+    ${days.length ? flightBox(s, days) : ''}
     ${days.length ? `<div class="box">
       <div class="row"><h2>${days.length-1}박 ${days.length}일</h2><span class="fine">${PACE[s.pace].label} 기준</span></div>
-      <ol class="daystrip">${days.map(d => `<li>${badge(d.i)}<div><b>${d.label}</b><span>${kindLabel(d.kind)} · 쓸 수 있는 시간 약 ${d.cap}시간</span></div></li>`).join('')}</ol>
+      <ol class="daystrip">${days.map(d => `<li>${badge(d.i)}<div><b>${d.label}</b><span>${kindLabel(d.kind)} · 쓸 수 있는 시간 약 ${d.cap}시간${d.arrive ? ` · ${koTime(d.arrive.ready)}부터` : ''}${d.depart && d.depart.leave >= 0 ? ` · ${koTime(d.depart.leave)} 숙소에서 공항으로` : ''}</span></div></li>`).join('')}</ol>
       ${days.length >= 10 ? '<p class="fine">시제품은 최대 10일까지만 계산해요.</p>' : ''}
     </div>` : '<p class="fine">가는 날과 오는 날을 고르면 하루씩 나눠서 쓸 수 있는 시간을 보여 드려요.</p>'}
     ${days.length ? weatherBox(s) : ''}
   </section>`;
+}
+
+// 비행기 시간 (js/flight.js): 넣으면 첫날·마지막 날 쓸 수 있는 시간을 비행기에 맞춤
+function flightBox(s, days){
+  const f = s.flight || {}; const aps = AIRPORTS[s.city] || []; const first = days[0], last = days[days.length - 1];
+  const a = first.arrive, z = last.depart;
+  const lines = [];
+  if(a) lines.push(a.cap > 0
+    ? `첫날 ${koTime(a.at)} 도착 → 입국·짐 찾기 1시간, ${esc(a.ap.name)}에서 숙소까지 약 ${fminText(a.transfer)}, 짐 맡기기 → <b>${koTime(a.ready)}쯤부터 약 ${first.cap}시간</b> 다닐 수 있어요.`
+    : `첫날 ${koTime(a.at)} 도착이라 숙소에 들어가 쉬는 날로 둘게요.`);
+  if(z) lines.push(z.leave < 0 ? '출발이 새벽이에요. 자정을 넘기는 비행기면 오는 날을 하루 앞당겨 주세요.'
+    : `마지막 날 ${koTime(z.at)} 출발 → 2시간 30분 전 공항 도착, 숙소에서 공항까지 약 ${fminText(z.transfer)} → <b>${koTime(z.leave)}에 숙소에서 나가요</b>.${last.cap > 0 ? ` 그 전에 약 ${last.cap}시간 다닐 수 있어요.` : ' 이날은 짐 싸고 공항 가는 날로 둘게요.'}`);
+  return `<div class="box">
+    <h2>비행기 시간<small>현지 시각 · 몰라도 돼요</small></h2>
+    <div class="dates">
+      ${aps.length > 1 ? `<label for="fap">공항<select id="fap" data-flight="ap">${aps.map(x => `<option value="${x.code}"${(f.ap || aps[0].code) === x.code ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}
+    </div>
+    <div class="dates">
+      <label for="farr">첫날 도착<input id="farr" type="time" value="${esc(f.arr || '')}" data-flight="arr"></label>
+      <label for="fdep">마지막 날 출발<input id="fdep" type="time" value="${esc(f.dep || '')}" data-flight="dep"></label>
+    </div>
+    ${lines.length ? `<p class="pnote">${lines.join('<br>')}</p>` : '<p class="fine">넣으면 첫날은 입국·공항에서 숙소까지 시간을 빼고, 마지막 날은 공항 가러 나서기 전까지만 일정을 짜요. 비우면 첫날·마지막 날은 반나절로 계산해요.</p>'}
+    ${f.arr || f.dep ? '<div><button type="button" class="link" data-act="flightclear">비행기 시간 지우기</button></div>' : ''}
+  </div>`;
 }
 
 // 여행 날짜 날씨: 지난 10년 같은 날짜 평균 + (16일 안이면) 예보
@@ -684,6 +710,8 @@ export function vPlan(s){
       return `<article class="day${d.locked ? ' locked' : ''}" style="--day:${col}">
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${T.travelMin ? ` · 이동 약 ${minText(T.travelMin)}` : ''}${(r => r ? ` · 예보 ${esc(r.text || '')}${r.prob != null ? ` ${r.prob}%` : ''}` : '')(dayRain(s.wx, ymdStr(d.date)))}</p></div></header>
         ${tight ? `<p class="warnline">이동까지 넣으면 약 ${minText(Math.round(d.used * 60 + T.travelMin))}이라 하루가 빠듯해요. 한 곳을 다른 날로 옮겨 보세요.</p>` : ''}
+        ${d.arrive ? `<p class="fine">✈️ ${koTime(d.arrive.at)} 도착 · ${koTime(d.arrive.ready)}쯤부터 다녀요</p>` : ''}
+        ${d.depart && d.depart.leave >= 0 ? `<p class="fine">✈️ ${koTime(d.depart.at)} 출발 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로</b> (짐 찾는 30분 포함해서 그 전까지만 짰어요)</p>` : ''}
         ${split ? `<p class="fine">🏨 ${d.from.name !== d.to.name ? `🧳 숙소 옮기는 날: ${esc(d.from.name)} → ${esc(d.to.name)}${d.cross ? ' · 짐 옮기고 국경 넘는 2시간을 빼고 짰어요' : ''}` : `${esc(d.to.name)}`}</p>` : ''}
         ${body}
         ${rainBox(s, P, d)}
@@ -1236,6 +1264,8 @@ export function vToday(s){
     ${todayWeatherLine(dayWeather(s.wx, date))}
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
+    ${d.depart && d.depart.leave >= 0 ? `<p class="warnline">✈️ ${koTime(d.depart.at)} 비행기 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로 출발</b>해야 해요. 짐 찾을 시간도 챙기세요.</p>` : ''}
+    ${d.arrive ? `<p class="fine">✈️ ${koTime(d.arrive.at)} 도착 · 입국·이동 후 ${koTime(d.arrive.ready)}쯤부터 다니는 걸로 짰어요.</p>` : ''}
     ${next}
     ${locBox(s, today)}
     ${rainBox(s, P, d)}

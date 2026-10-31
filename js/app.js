@@ -864,6 +864,7 @@ function act(a, v){
     case 'bkundo': undoRestore(); return;
     case 'shareopen': s.sh.open = true; startShare(); render(); return;
     case 'shareclose': s.sh.open = false; render(); return;
+    case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
     case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; render(); return;
     case 'askclose': s.sh.ask.open = false; setAskPhoto(null); render(); return;
     case 'askkind': s.sh.ask.kind = v; render(); return;
@@ -920,6 +921,7 @@ function onChange(e){
     });
     t.value = ''; return;
   }
+  else if(t.dataset.flight){ s.flight = Object.assign({ ap:'', arr:'', dep:'' }, s.flight, { [t.dataset.flight]:t.value }); }
   else if(t.dataset.askphoto != null){ const f = t.files && t.files[0]; t.value = ''; if(f){ setAskPhoto(f); render(); } return; }
   else if(t.dataset.asknote != null){ s.askNote = t.value.trim().slice(0, 200); }
   else if(t.dataset.bkimport != null){ const f = t.files && t.files[0]; t.value = ''; if(f) readBackupFile(f); return; }
