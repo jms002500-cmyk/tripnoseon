@@ -38,7 +38,12 @@ export function allPlaces(s){
   return c ? all.filter(p => placeCity(p) === c) : all;
 }
 export function pickedPlaces(s){ return allPlaces(s).filter(p => s.picked[p.id]); }
-export function closedText(p){ return p.closed && p.closed.length ? p.closed.map(w => WD[w]).join('·') + '요일 휴무' : ''; }
+// 쉬는 날이 많으면(조명 쇼처럼 금·토만 하는 곳) 여는 요일로
+export function closedText(p){
+  if(!p.closed || !p.closed.length) return '';
+  const open = [0, 1, 2, 3, 4, 5, 6].filter(w => !p.closed.includes(w));
+  return open.length && open.length <= 3 ? open.map(w => WD[w]).join('·') + '요일만 해요' : p.closed.map(w => WD[w]).join('·') + '요일 휴무';
+}
 export function kindLabel(k){ return { arrive:'도착하는 날', depart:'돌아오는 날', full:'온종일', single:'당일' }[k]; }
 
 // 여행 날짜 목록. 첫날·마지막 날은 이동 때문에 쓸 수 있는 시간이 절반
