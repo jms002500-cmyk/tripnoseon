@@ -24,7 +24,7 @@
 
 ## 현재 상태 (v0.24 시제품)
 
-GitHub Pages 배포, 상태는 브라우저 localStorage. 여행 지역은 **도쿄**(장소 65곳·동네 9곳, `js/data.js`)와 **홍콩·선전**(한 여행, 장소 63곳·동네 13곳, `js/regions/hksz-data.js`, 안내 `js/regions/hksz-guide.js`). 지역 키는 `s.city`('tokyo' | 'hksz'), `data.js`의 `REGIONS`·`loadRegion()`이 지금 지역의 `AREAS`·`PLACES`(살아 있는 바인딩)를 바꿈.
+GitHub Pages 배포, 상태는 브라우저 localStorage. 여행 지역은 **도쿄**(장소 65곳·동네 9곳, `js/data.js`)와 **홍콩·선전**(한 여행, 장소 69곳·동네 13곳, `js/regions/hksz-data.js`, 안내 `js/regions/hksz-guide.js`). 지역 키는 `s.city`('tokyo' | 'hksz'), `data.js`의 `REGIONS`·`loadRegion()`이 지금 지역의 `AREAS`·`PLACES`(살아 있는 바인딩)를 바꿈.
 **기능마다 자세한 동작·저장 칸·한계·파일 구조는 [`docs/FEATURES.md`](docs/FEATURES.md)** — 고치는 기능의 절만 찾아 읽고, 바꾸면 같이 고친다.
 
 - 계획: 동행 맞춤 추천(이유 표시)·꼭 갈 곳·장소 담기(구글 지도 시트 `gmap.js`/`gplace.js`, 25일 지나면 새로 받기, 테이크아웃 가져오기 `gimport.js`)·숙소 동네 순위·숙소 후보 비교·라쿠텐 빈방(`rakuten.js`, 한글 이름 `janame.js`)·사이트별 가격 비교(`prices.js`)·이맘때 날씨(`weather.js`)
