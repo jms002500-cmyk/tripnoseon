@@ -57,12 +57,12 @@ export function moveText(m, ctx, minText){
   return `${h ? `${h.icon} ${h.label}` : `${legOf(m.k).icon} 수단 미정`} · ${e.from} → ${e.to}${n ? ` · 약 ${minText ? minText(n) : `${n}분`}` : ''}`;
 }
 
-// 시간표·예약 바로가기: 배·기차·공항버스 같은 수단은 그날 운행 시간을 공식 누리집에서 바로 확인 (주소 확인 2026-10-31)
+// 시간표·예약 바로가기: 배·기차·공항버스 같은 수단은 그날 운행 시간을 공식 누리집에서 바로 확인 (주소 확인 2026-11-01)
 //   주소만 여는 링크라 앱이 아무 정보도 보내지 않음. area: 'kr'(집 ↔ 공항) | 지역 키, how: 수단, legs: 이 구간에만
-export const TT_CHECKED = '2026-10-31';
+export const TT_CHECKED = '2026-11-01';
 export const TIMETABLES = [
   { id:'arex', label:'공항철도(AREX) 시간표', url:'https://www.arex.or.kr/', area:'kr', how:['rail'] },
-  { id:'icnbus', label:'인천공항 버스 노선·시간 검색', url:'https://www.airport.kr/ap_ko/974/subview.do', area:'kr', how:['abus', 'bus'] },
+  { id:'icnbus', label:'인천공항 버스 노선·시간 검색', url:'https://www.airport.kr/ap_ko/976/subview.do', area:'kr', how:['abus', 'bus'] },
   { id:'mtrae', label:'홍콩 공항철도(Airport Express) 운행 안내', url:'https://www.mtr.com.hk/en/customer/services/airport_express_index.html', area:'hksz', how:['rail'], legs:['in', 'out'] },
   { id:'mtrjp', label:'MTR 경로·시간 검색', url:'https://www.mtr.com.hk/en/customer/jp/index.php', area:'hksz', how:['metro', 'rail'] },
   { id:'xrl', label:'홍콩 고속철(서구룡역 ↔ 선전·광저우) 시간표·표', url:'https://www.highspeed.mtr.com.hk/en/main/index.html', area:'hksz', how:['rail'], legs:['etc'] },
