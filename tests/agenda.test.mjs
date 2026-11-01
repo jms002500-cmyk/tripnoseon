@@ -127,3 +127,23 @@ test('캘린더: 보관함 가는 편은 한국 시각', async () => {
     assert.match(t, /DTSTART:20270307T000000Z/); assert.ok(t.includes('SUMMARY:✈️ 가는 편'));   // 09:00 한국 = 00:00 UTC
   } finally { D.useRegion('tokyo'); }
 });
+
+test('밤 비행기: 전날 집에서 나선 건 지난 일, 자정 넘어 집에 가는 건 마지막 날 맨 뒤', async () => {
+  await D.loadRegion('hksz');
+  try{
+    const s = trip({ city:'hksz', picked:{ hk_space:true }, flight:{ ap:'HKG', arr:'02:40', dep:'22:30' },
+      moves:[mv('go', { how:'car', time:'20:30' }), mv('back', { how:'taxi', time:'03:20' })] });
+    const P = plan(s);
+    const first = dayAgenda(s, P.days[0], ctx); const go = first.find(x => x.m && x.m.k === 'go');
+    assert.ok(go.min < 0, '전날 저녁(현지 19:30)이라 첫날 0시보다 앞'); assert.equal(go.kst, 20 * 60 + 30); assert.match(go.sub, /전날/);
+    assert.equal(nextUp(first, 9 * 60).past.includes(go), true);
+    const last = dayAgenda(s, P.days[P.days.length - 1], ctx); const back = last.find(x => x.m && x.m.k === 'back');
+    assert.equal(last[last.length - 1], back, '비행기 출발보다 뒤');
+    assert.equal(back.min, 2 * 60 + 20 + 1440); assert.match(back.sub, /다음 날/);
+    assert.notEqual(nextUp(last, 23 * 60).next, null, '현지 23시에도 집에 가는 길은 아직 남은 일');
+    assert.match(planText(s, P, ctx, '홍콩 여행'), /03:20\(한국, 다음 날\)/);
+    // 자정 조금 넘어 집에서 나서는 이른 비행기: 그날 맨 앞 (예전엔 현지 23:30으로 바뀌어 하루 끝에 붙었음)
+    const s2 = trip({ city:'hksz', picked:{ hk_space:true }, flight:{ ap:'HKG', arr:'06:00', dep:'18:00' }, moves:[mv('go', { how:'car', time:'00:30' })] });
+    const L2 = dayAgenda(s2, plan(s2).days[0], ctx); assert.equal(L2[0].m && L2[0].m.k, 'go'); assert.equal(L2[0].min, -30);
+  } finally { D.useRegion('tokyo'); }
+});

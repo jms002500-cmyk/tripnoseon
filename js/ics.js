@@ -5,11 +5,23 @@ import { legMinutes } from './transit.js';
 import { DAY_START, dayEnd, hm, toMin } from './flight.js';
 import { movesOn, moveEnds, moveMin, howOf, legOf, isEmptyMove } from './moves.js';
 import { prepTasks } from './prep.js';
-import { flightDir } from './bookings.js';
+import { flightDir, addDay } from './bookings.js';
 import { PACE } from './data.js';
 
 export const TZ_OFFSET = { tokyo:9, hksz:8 };   // 현지 시각 → UTC (두 곳 다 서머타임 없음)
 const HOME_TZ = 9;                       // 집 ↔ 공항은 한국 시각
+
+// 집 ↔ 공항(한국 시각) 이동이 그날 몇 시인지 → { min: 그날 0시 기준 현지 분, day: 한국 날짜가 그날과 며칠 다른지 } | null(시각 없음)
+//   밤 비행기로 가는 날 전날 집에서 나서면(현지 시각이 비행기 도착보다 늦음) 전날(-1, min은 음수),
+//   자정 넘어 한국에 내려 집에 가면(현지 시각이 비행기 출발보다 이름) 다음 날(+1, min은 1440 이상). 비행기 시각을 모르면 예전처럼 그날 안에서
+export function homeTime(s, m){
+  const t = toMin(m && m.time); if(t == null) return null;
+  const diff = (HOME_TZ - (TZ_OFFSET[s.city] ?? HOME_TZ)) * 60; const f = s.flight || {};
+  const a = m.k === 'go' ? toMin(f.arr) : null, z = m.k === 'back' ? toMin(f.dep) : null; const x = t - diff;
+  if(a != null) return x > a ? { min:x - 1440, day:-1 } : { min:x, day:0 };
+  if(z != null) return x < z ? { min:x + 1440, day:1 } : { min:x, day:0 };
+  return { min:(x + 1440) % 1440, day:0 };
+}
 
 // 그날 장소마다 어림 시각 [{ p, start, end }] (분). 하루 종일 곳은 나서는 시각 ~ 하루 끝
 export function dayTimes(s, d){
@@ -42,7 +54,7 @@ const alarm = (min, text) => ['BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${e
 // P: plan(s) 결과, vault: 보관함 예약(영수증 빼고). now: 만든 시각(Date). ctx: 오가는 길 기본 이름(views.js moveCtx)
 export function buildIcs(s, P, vault, now, ctx){
   const tz = TZ_OFFSET[s.city] != null ? TZ_OFFSET[s.city] : 9; const stamp = utc(new Date(now).toISOString().slice(0, 10), 0, 0);
-  const ev = []; let seq = 0;
+  const ev = []; let seq = 0; const shown = new Set();   // 이벤트로 넣은 이동 id (그 이동에서 만든 교통 예약은 다시 안 넣음)
   const add = (key, start, end, title, o = {}) => {
     ev.push(['BEGIN:VEVENT', `UID:${key}-${++seq}-${o.id || 'x'}@tripnoseon`, `DTSTAMP:${stamp}`,
       ...(start == null ? [`DTSTART;VALUE=DATE:${key.replace(/-/g, '')}`] : [`DTSTART:${utc(key, start, o.tz || tz)}`, `DTEND:${utc(key, Math.max(end, start + 15), o.tz || tz)}`]),
@@ -55,7 +67,8 @@ export function buildIcs(s, P, vault, now, ctx){
     mv.filter(m => m.k !== 'out' && (toMin(m.time) != null || m.k === 'etc')).forEach(m => {
       const st = toMin(m.time); const e = moveEnds(m, ctx); const h = howOf(m.how); const L = legOf(m.k);
       const title = `${h ? h.icon : L.icon} ${h ? h.label : L.label} · ${e.from} → ${e.to}${m.booked ? ' (예약)' : ''}`;
-      add(d.key, st, st == null ? null : st + (moveMin(m) || 30), title, { id:'mv' + m.id, tz:L.home ? HOME_TZ : 0,
+      const ht = L.home ? homeTime(s, m) : null; shown.add(m.id);
+      add(ht && ht.day ? addDay(d.key, ht.day) : d.key, st, st == null ? null : st + (moveMin(m) || 30), title, { id:'mv' + m.id, tz:L.home ? HOME_TZ : 0,
         alarms:st == null ? [] : m.k === 'go' ? [[60, `1시간 뒤 ${e.to}(으)로 출발해요.`], [15, `15분 뒤 ${e.to}(으)로 출발해요.`]] : [[30, `30분 뒤 ${h ? h.label : '이동'} 출발 · ${e.from} → ${e.to}`]],
         desc:[moveMin(m) ? `약 ${moveMin(m)}분` : '', m.note || '', L.home ? '한국 시각' : '', m.booked ? '예약번호·바우처는 트립노선 보관함에서 보세요.' : ''].filter(Boolean).join('\n') });
     });
@@ -78,10 +91,11 @@ export function buildIcs(s, P, vault, now, ctx){
   const today = new Date(now).toISOString().slice(0, 10);
   prepTasks(s).filter(x => !x.done && x.date >= today).forEach(x => add(x.date, 9 * 60, 9 * 60 + 30, `🗓 D-${x.dday || 'day'} ${x.t}`, { id:'prep' + x.key, tz:HOME_TZ,
     alarms:[[0, `오늘 할 일: ${x.t}`]], desc:x.why }));
-  (vault || []).filter(it => /^\d{4}-\d{2}-\d{2}$/.test(it.date || '')).forEach(it => {
+  (vault || []).filter(it => /^\d{4}-\d{2}-\d{2}$/.test(it.date || '') && !(it.moveId && shown.has(it.moveId))).forEach(it => {   // 오가는 길에서 만든 교통 예약은 위 이동 이벤트로
     const m = /^(\d{1,2}):(\d{2})$/.exec(it.time || ''); const st = m ? +m[1] * 60 + +m[2] : null;
     const icon = { flight:'✈️', hotel:'🏨', transport:'🚆', entry:'🛂', insurance:'🛡️' }[it.kind] || '🎟️';
-    const home = it.kind === 'flight' && flightDir(s, it) === 'out';   // 가는 편 출발 시각은 한국 시각
+    const mv = it.moveId ? (s.moves || []).find(x => x.id === it.moveId) : null;
+    const home = (it.kind === 'flight' && flightDir(s, it) === 'out') || !!(mv && legOf(mv.k).home);   // 가는 편 출발·집 ↔ 공항 시각은 한국 시각
     add(it.date, st, st == null ? null : st + 60, `${icon} ${it.title || '예약'}`, { id:it.id, tz:home ? HOME_TZ : 0, alarms:st == null ? [] : [[60, `${it.title || '예약'}: 1시간 뒤`]],
       desc:'보관함에 넣은 예약이에요. 예약번호·QR은 트립노선 보관함에서 보세요.' });
   });

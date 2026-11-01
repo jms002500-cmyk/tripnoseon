@@ -1,14 +1,13 @@
 // 하루의 '시간 정해진 일'(오가는 길·비행기·숙소 체크인/체크아웃·입장권·시내 체크인)을 시각순으로 모으고,
 // 오늘 화면 맨 위에 '다음에 할 일'을 고름. 가족 단톡에 보낼 일정표 글도 여기서. 순수 함수(테스트 대상).
-//   시각은 현지 분(0~1439). 집 ↔ 공항은 한국 시각이라 현지로 바꿔서 줄 세움(home:true, kst: 한국 시각 분)
+//   시각은 현지 분(0~1439). 집 ↔ 공항은 한국 시각이라 현지로 바꿔서 줄 세움(home:true, kst: 한국 시각 분, kday: 밤 비행기라 전날 -1·다음 날 +1이면 min이 음수·1440 이상)
 import { movesOn, moveText, moveMin, isEmptyMove, legOf } from './moves.js';
 import { bookingRows } from './bookings.js';
 import { AFTER_LANDING, DAY_START, hm, toMin, minText } from './flight.js';
-import { TZ_OFFSET } from './ics.js';
+import { homeTime } from './ics.js';
 import { bookings } from './vault.js';
 
-const HOME_TZ = 9;
-const localOf = (s, kst) => kst == null ? null : (kst - (HOME_TZ - (TZ_OFFSET[s.city] ?? HOME_TZ)) * 60 + 1440) % 1440;
+const DAY_WORD = { '-1':'전날', '1':'다음 날' };   // 밤 비행기라 집 ↔ 공항이 한국 날짜로 하루 다를 때 (ics.js homeTime)
 
 // d: plan(s).days의 하루, ctx: views.js moveCtx (공항·숙소 이름)
 //   → [{ min, icon, text, sub, kind:'move'|'flight'|'book'|'itc', m?(이동), home?, kst?, guess? }] 시각순(시각 없는 건 뒤)
@@ -16,10 +15,10 @@ export function dayAgenda(s, d, ctx){
   const out = []; const c = ctx || {};
   const ms = movesOn(s, d.key).filter(m => !isEmptyMove(m)); const has = k => ms.some(m => m.k === k);
   ms.forEach(m => {
-    const t = toMin(m.time); const home = !!legOf(m.k).home;
+    const t = toMin(m.time); const home = !!legOf(m.k).home; const ht = home ? homeTime(s, m) : null;
     if(m.k === 'out' && d.depart && d.depart.leave >= 0 && t == null) return;   // 시각 없는 숙소 → 공항은 아래 '공항으로 출발'로
     const guessIn = m.k === 'in' && t == null && d.arrive ? d.arrive.at + AFTER_LANDING : null;   // 시각을 안 넣은 공항 → 숙소는 입국 뒤로 줄 세움
-    out.push({ min:home ? localOf(s, t) : t != null ? t : guessIn, icon:'', text:moveText(m, c, minText), sub:[m.booked ? '예약함' : '', guessIn != null ? '시각은 어림' : '', m.note || ''].filter(Boolean).join(' · '), kind:'move', m, home, kst:home ? t : null });
+    out.push({ min:home ? (ht ? ht.min : null) : t != null ? t : guessIn, icon:'', text:moveText(m, c, minText), sub:[ht && DAY_WORD[ht.day] || '', m.booked ? '예약함' : '', guessIn != null ? '시각은 어림' : '', m.note || ''].filter(Boolean).join(' · '), kind:'move', m, home, kst:home ? t : null, kday:ht ? ht.day : 0 });
   });
   const a = d.arrive, z = d.depart && d.depart.leave >= 0 ? d.depart : null;
   if(a){
@@ -51,7 +50,7 @@ export function planText(s, P, ctx, head){
   if(f.arr || f.dep) lines.push(`✈️ ${[f.arr ? `가는 날 ${f.arr} 도착` : '', f.dep ? `오는 날 ${f.dep} 출발` : ''].filter(Boolean).join(' · ')} (현지 시각)`);
   P.days.forEach((d, i) => {
     lines.push('', `${d.i + 1}일차 ${d.label}`);
-    dayAgenda(s, d, ctx).filter(x => !x.guess).forEach(x => lines.push(`  ${x.home && x.kst != null ? `${hm(x.kst)}(한국)` : x.min != null ? hm(x.min) : '     '} ${x.icon ? x.icon + ' ' : ''}${x.text}`));
+    dayAgenda(s, d, ctx).filter(x => !x.guess).forEach(x => lines.push(`  ${x.home && x.kst != null ? `${hm(x.kst)}(한국${x.kday ? `, ${DAY_WORD[x.kday]}` : ''})` : x.min != null ? hm(x.min) : '     '} ${x.icon ? x.icon + ' ' : ''}${x.text}`));
     const names = d.full ? [d.full.name] : d.items.map(p => p.name);
     lines.push(names.length ? `  📍 ${names.join(' → ')}` : '  📍 쉬어 가는 날');
     if(i < P.days.length - 1 && d.to && d.to.name) lines.push(`  🏨 ${d.to.name}`);
