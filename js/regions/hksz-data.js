@@ -11,13 +11,30 @@
 //     hk_apliu(삼수이포역 C2 출구), hk_k11(스타의 거리와 우주박물관 사이, 솔즈베리로드 18), hk_centralmarket(미드레벨 에스컬레이터 아래 끝),
 //     hk_taikwun(할리우드로드 10, 에스컬레이터 옆), hk_leetung(완차이역 D출구), sz_dafen(다펀역 옆), sz_museum(시민센터 위키백과 좌표 두 개 사이),
 //     sz_dji(OCT 하버 안), sz_talent(인재공원역·선전베이 문화광장 옆).
-//   확인 못 해서 넣지 않은 곳: 선전 야생동물원(좌표가 분 단위로만 나옴), 푸톈 맹그로브 공원, 선전베이 만상성, BYD 전시관(예약 단체 방문만 받는 것으로 보임).
 //   뺀 곳: 스카이100 전망대(2025-05-17부터 보수 공사로 닫음, 다시 여는 날 미정 — sky100.com.hk FAQ, 2026-11-01 확인).
 //   더한 곳: 홍콩 역사박물관(새 상설전 'Hong Kong Story' 2026-04-01 공개 — info.gov.hk 2026-03-31 보도자료, 좌표는 위키백과, 과학관 바로 옆).
+// - 빈 곳 채우기 (2026-11-01). 좌표는 아래 두 곳 이상을 대조해 0.5km 안, 시간은 공식 누리집 또는 서로 다른 두 곳.
+//   중국 지도 앱·트립닷컴 좌표는 GCJ-02라 WGS-84 대조에 쓰지 않았어요(선전에서 약 0.5km 어긋남).
+//   더한 곳:
+//     sz_safari   좌표 Mapcarta(OSM)·위키데이터(약 0.4km 차이, OSM 쪽), 시간 9:30~18:00·17시 입장 마감·매일(선전 본지바오·트립닷컴·chinaexplorertour), 표를 사서 개인 입장
+//     sz_mixcbay  좌표 위키데이터·위키백과 화룬 본사 빌딩(상가가 그 발치, 약 0.3km 차이, 가운데), 시간 일~목 10~22시·금토 22시 반(본지바오·불가리 매장 안내)
+//     sz_hqbmuseum 좌표 위키미디어 커먼스·outdooractive(30m 안), 시간 화~일 10~18시·월 휴관(박물관 참관 안내 — 본지바오 전재·씨트립), 위챗 실명 예약(무료)
+//     hk_maritime 좌표 위키백과·Google Arts & Culture·GoCity, 시간 hkmaritimemuseum.org(평일 9:30~17:30, 주말·공휴일 10~19시, 음력설 첫 이틀 휴관)
+//     hk_birdgarden 좌표 위키백과·My Guide Hong Kong(0.1km 안), 시간 매일 7~20시(My Guide·TouchScreenTravels)
+//     hk_walledcity 좌표 위키백과·GeoNames(0.1km 안), 시간 공원 매일 6:30~23시(LCSD 안내를 옮긴 Waze·트립닷컴·Little Steps), 전시실 수요일 휴무(두 곳)
+//   넣지 않은 곳:
+//     푸톈 맹그로브 생태공원 — 좌표가 여행 사이트 한 곳(소수점)뿐. 시간(6~23시, 무료)은 선전시 정부 누리집으로 확인됨
+//     BYD 전시관(핑산 본사) — 산업 관광 예약을 학교·기관 단체(최대 50명, 10일 전)만 받음(BYD 공지를 옮긴 기사들)
+//     선전베이 문화광장 — 좌표가 위키백과(위키데이터는 같은 값)뿐이고, 실명 예매에 외국 여권이 되는지 못 찾음
+//     선전시 소년궁(과학 체험관) — 2026-08-01부터 일부만 시험 운영, 실명 예약에 외국 여권이 되는지 못 찾음
+//     수이웨이 1368 먹자거리 — 좌표가 트립닷컴(GCJ-02로 보임) 한 곳뿐
+//     디자인 소사이어티(셔커우) — 위키데이터와 다른 두 곳이 0.5km 넘게 다름(GCJ-02 차이로 보임). sz_seaworld 설명에 이미 있음
+//     홍콩 문화박물관(사틴) — 이소룡 전시가 2026-07 끝났고 12월 전시를 못 찾음
 // - 중국 본토 지도는 GCJ-02 좌표를 써서, 구글 지도 그림 위에 여기 좌표(WGS-84)를 찍으면 선전 쪽이 수백 m 어긋나 보일 수 있어요.
 // - 휴무 요일(closed): 공식 누리집으로 확인한 곳만 넣었어요.
 //   홍콩: LCSD 우주박물관(화)·과학관(목)·예술관(목)·역사박물관(화), M+(월), 고궁문화박물관(화). M+ 말고는 공휴일엔 열어요.
 //   선전: 선전 박물관(월, 선전시 정부 누리집·shenzhenmuseum.com), 현대미술·도시계획관(월, 선전시 문화광전여유체육국 박물관 목록 2026-01).
+//         화창베이 박물관(월, 박물관 참관 안내).
 //   푸톈 CBD 조명 쇼는 금·토요일·공휴일(그 전날 포함)에만 해서 일~목을 closed로 둠(선전시 도시관리국 안내).
 // - 이 작업 환경은 공식 누리집에 직접 접속이 막혀 있어(2026-11-01), 검색 도구로 공식 도메인 페이지 내용만 골라 확인했어요.
 // - 이동 시간·가격대·국경 소요 시간은 대략값이에요. 화면에 "대략값"을 같이 보여 주세요.
@@ -84,6 +101,8 @@ export const PLACES = [
   {id:'hk_goldfish', kind:'거리·시장', indoor:'part', name:'금붕어 시장', ja:'金魚街', area:'mongkok', lat:22.3210, lng:114.1703, hours:0.5, tags:['관광명소'], kid:'kids', note:'비닐봉지에 담긴 금붕어가 가게 앞에 줄줄이 걸려 있어요.'},
   {id:'hk_apliu', kind:'거리·시장', indoor:'part', name:'삼수이포 압리우 거리', ja:'鴨寮街', area:'mongkok', lat:22.3302, lng:114.1616, hours:1.5, tags:['쇼핑'], kid:'teen', note:'중고 전자제품·부품 노점 거리예요. 근처 원단·단추 골목도 구경거리예요.'},
   {id:'hk_wongtaisin', kind:'신사·절', indoor:false, name:'웡타이신 사원', ja:'黃大仙祠', area:'mongkok', lat:22.3426, lng:114.1936, hours:1, anchor:true, tags:['문화·역사'], kid:'all', note:'소원이 잘 이루어진다는 도교 사원이에요. MTR 웡타이신역 바로 앞이에요.'},
+  {id:'hk_birdgarden', kind:'공원·정원', indoor:false, name:'위엔포 거리 새 정원·꽃시장', ja:'園圃街雀鳥花園', area:'mongkok', lat:22.3259, lng:114.1738, hours:0.5, tags:['관광명소','자연·산책'], kid:'all', note:'새장을 들고 나온 어르신들이 모이는 중국식 작은 정원이에요. 바로 아래 꽃시장 거리를 지나 금붕어 시장까지 걸어서 이어져요. 매일 아침 7시~밤 8시에 열어요.'},
+  {id:'hk_walledcity', kind:'공원·정원', indoor:false, name:'구룡성채 공원', ja:'九龍寨城公園', area:'mongkok', lat:22.3319, lng:114.1900, hours:1, tags:['문화·역사','자연·산책'], kid:'all', note:'빌딩이 빽빽했던 옛 구룡성채 자리를 정원으로 바꾼 곳이에요. 남아 있는 옛 관청 건물에서 성채 시절 모습을 보여 줘요. 공원은 매일 아침 6시 반~밤 11시, 전시실은 수요일에 쉬어요. 무료예요.'},
   {id:'hk_chilin', kind:'공원·정원', indoor:false, name:'치린 수도원·난롄 정원', ja:'志蓮淨苑', area:'mongkok', lat:22.3407, lng:114.2052, hours:1.5, tags:['문화·역사','자연·산책'], kid:'all', note:'못을 쓰지 않고 나무로 지은 당나라 양식 절과 길 건너 정원이에요. 무료예요. 절은 오전 9시~오후 4시 반, 정원은 아침 7시~밤 9시에 열어요.'},
   // 홍콩 · 센트럴·성완
   {id:'hk_peak', kind:'전망대', indoor:false, name:'빅토리아 피크 (피크 트램)', ja:'凌霄閣', area:'central', lat:22.2712, lng:114.1500, hours:2.5, anchor:true, tags:['관광명소','자연·산책'], kid:'all', note:'피크 트램을 타고 올라가 홍콩 전체를 내려다봐요. 트램은 매일 아침 7시 반~밤 11시에 다니고, 해 질 녘엔 줄이 길어요.'},
@@ -95,6 +114,7 @@ export const PLACES = [
   {id:'hk_centralmarket', kind:'먹거리', indoor:true, name:'센트럴 마켓', ja:'中環街市', area:'central', lat:22.2848, lng:114.1557, hours:1, tags:['맛집','쇼핑'], kid:'all', note:'1930년대 시장 건물을 고친 푸드홀·상점가예요.'},
   {id:'hk_zoo', kind:'수족관·동물원', indoor:false, name:'홍콩 동식물공원', ja:'香港動植物公園', area:'central', lat:22.2780, lng:114.1562, hours:1, tags:['자연·산책'], kid:'kids', note:'무료로 들어가는 도심 속 작은 동물원·식물원이에요.'},
   {id:'hk_wheel', kind:'전망대', indoor:'part', name:'홍콩 관람차', ja:'香港摩天輪', area:'central', lat:22.2852, lng:114.1618, hours:0.5, tags:['관광명소'], kid:'all', note:'센트럴 바닷가 대관람차예요. 밤에 타면 항구 야경이 좋아요.'},
+  {id:'hk_maritime', kind:'박물관·미술관', indoor:true, name:'홍콩 해사박물관', ja:'香港海事博物館', area:'central', lat:22.2866, lng:114.1620, hours:1.5, tags:['체험','문화·역사'], kid:'all', note:'배 모형과 함께 홍콩 항구와 바닷길 이야기를 보여 주는 박물관이에요. 센트럴 8번 부두 2층이라 스타페리를 내려 바로 가요. 평일 9시 반~5시 반, 주말·공휴일 10시~7시에 열고 음력설 첫 이틀만 쉬어요.'},
   // 홍콩 · 코즈웨이베이·완차이
   {id:'hk_timessquare', kind:'쇼핑', indoor:true, name:'타임스스퀘어', ja:'時代廣場', area:'cwb', lat:22.2783, lng:114.1821, hours:1.5, tags:['쇼핑'], kid:'all', note:'코즈웨이베이 대표 쇼핑몰이에요. 주변에 백화점과 식당이 많아요.'},
   {id:'hk_victoriapark', kind:'공원·정원', indoor:false, name:'빅토리아 공원', ja:'維多利亞公園', area:'cwb', lat:22.2822, lng:114.1885, hours:1, tags:['자연·산책'], kid:'all', note:'도심의 큰 공원이에요. 놀이터와 산책길이 있어요.'},
@@ -117,6 +137,7 @@ export const PLACES = [
   // 선전 · 화창베이
   {id:'sz_huaqiangbei', kind:'거리·시장', indoor:'part', name:'화창베이 전자상가 거리', ja:'华强北商业街', area:'huaqiang', lat:22.5440, lng:114.0804, hours:2, anchor:true, tags:['쇼핑','체험'], kid:'teen', note:'세계 전자제품 부품이 모이는 거리예요. 드론·로봇·휴대폰 액세서리 가게가 빌딩마다 가득해요.'},
   {id:'sz_seg', kind:'쇼핑', indoor:true, name:'SEG 전자시장', ja:'赛格电子市场', area:'huaqiang', lat:22.5436, lng:114.0811, hours:1.5, tags:['쇼핑','체험'], kid:'teen', note:'1~10층이 전자부품 가게예요. 부품을 사서 직접 만드는 사람들이 찾는 곳이에요.'},
+  {id:'sz_hqbmuseum', kind:'박물관·미술관', indoor:true, name:'화창베이 박물관', ja:'华强北博物馆', area:'huaqiang', lat:22.5466, lng:114.0821, hours:1, tags:['체험','문화·역사'], kid:'teen', closed:[1], note:'화창베이가 전자상가 거리로 자라 온 이야기와 옛 전자제품을 보여 줘요. 광보 현대지창 빌딩 5층이에요. 무료지만 위챗 미니프로그램 실명 예약을 받아요(여권으로 되는지 미리 확인하세요). 화~일 오전 10시~오후 6시, 월요일 휴관.'},
   // 선전 · 푸톈 CBD
   {id:'sz_pingan', kind:'전망대', indoor:true, name:'평안금융센터 전망대 (Free Sky)', ja:'平安金融中心 云际观光层', area:'futian', lat:22.5364, lng:114.0504, hours:1.5, anchor:true, tags:['관광명소'], kid:'all', note:'599m 빌딩 116층 실내 전망대예요. 선전 빌딩숲이 한눈에 보여요. 표 살 때 여권을 챙기세요.'},
   {id:'sz_lianhuashan', kind:'공원·정원', indoor:false, name:'롄화산 공원', ja:'莲花山公园', area:'futian', lat:22.5562, lng:114.0539, hours:1.5, tags:['자연·산책','문화·역사'], kid:'all', note:'언덕 위 덩샤오핑 동상 앞에서 푸톈 CBD가 내려다보여요.'},
@@ -133,6 +154,8 @@ export const PLACES = [
   // 선전 · 난산·셔커우
   {id:'sz_baypark', kind:'공원·정원', indoor:false, name:'선전베이 공원', ja:'深圳湾公园', area:'nanshan', lat:22.5140, lng:113.9640, hours:1.5, tags:['자연·산책'], kid:'all', note:'바닷가를 따라 길게 이어진 공원이에요. 건너편이 홍콩이고 겨울엔 철새가 와요.'},
   {id:'sz_talent', kind:'공원·정원', indoor:false, name:'인재공원', ja:'人才公园', area:'nanshan', lat:22.5140, lng:113.9440, hours:1, tags:['자연·산책','관광명소'], kid:'all', note:'호숫가에서 선전베이 빌딩 야경이 보여요. 밤 산책하기 좋아요.'},
+  {id:'sz_mixcbay', kind:'쇼핑', indoor:true, name:'선전베이 만상성', ja:'深圳湾万象城', area:'nanshan', lat:22.5174, lng:113.9400, hours:1.5, tags:['쇼핑','맛집'], kid:'all', note:'화룬 본사 빌딩 아래 큰 쇼핑몰이에요. 식당이 많아 선전베이 공원·인재공원 다녀오며 밥 먹기 좋아요. 일~목 오전 10시~밤 10시, 금·토는 밤 10시 반까지 열어요.'},
+  {id:'sz_safari', kind:'수족관·동물원', indoor:false, name:'선전 야생동물원', ja:'深圳野生动物园', area:'nanshan', lat:22.5999, lng:113.9658, hours:4, anchor:true, tags:['체험','자연·산책'], kid:'all', note:'시리 호수 옆 넓은 언덕에 동물이 풀려 있는 동물원이에요. 걸어서 보는 구역과 차를 타고 도는 맹수 구역, 동물 공연이 있어요. 매일 오전 9시 반~오후 6시(5시 입장 마감)이고, 지하철 7호선 시리후역에서 가까워요. 다른 곳과 떨어져 있어 반나절은 잡으세요.'},
   {id:'sz_huawei', kind:'쇼핑', indoor:true, name:'만상천지 (화웨이 매장)', ja:'深圳万象天地', area:'nanshan', lat:22.5450, lng:113.9511, hours:1.5, tags:['쇼핑','체험'], kid:'teen', note:'화웨이가 2019년 첫 글로벌 플래그십 매장을 연 쇼핑몰이에요. 둘레가 기술 기업이 모인 난산 과기원이에요. 매장은 매일 오전 10시~밤 10시에 열어요.'},
   {id:'sz_nantou', kind:'거리·시장', indoor:'part', name:'난터우 고성', ja:'南头古城', area:'nanshan', lat:22.5409, lng:113.9200, hours:1.5, tags:['문화·역사','맛집'], kid:'all', note:'오래된 성 마을을 고친 골목이에요. 카페와 간식 가게가 많아요.'},
   {id:'sz_seaworld', kind:'거리·시장', indoor:'part', name:'셔커우 해상세계', ja:'海上世界', area:'nanshan', lat:22.4863, lng:113.9120, hours:1.5, tags:['관광명소','맛집'], kid:'all', note:'육지에 올라앉은 옛 여객선(밍화호) 둘레에 식당가가 모여 있어요. 걸어서 갈 거리에 디자인 박물관 디자인 소사이어티가 있어요.'},
