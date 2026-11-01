@@ -51,6 +51,19 @@ test('숙소 카드: 그날 밤 숙소, 예약에 넣은 현지어 주소가 먼
   assert.deepEqual(otherHotelCards(s, 'a').map(x => x.id), ['b']);
 });
 
+test('숙소 카드: 자정 넘어 새벽(4시 전)엔 아직 어젯밤 숙소로 돌아가는 길', async () => {
+  const { tonightKey } = await import('../js/safety.js');
+  const s = Object.assign(clone(DEFAULT), { start:'2027-03-07', end:'2027-03-10', hotelPick:'a',
+    hotels:[{ id:'a', name:'A', addr:'香港九龍彌敦道1號', lat:22.3, lng:114.17 }, { id:'b', name:'B', addr:'深圳福田1號', lat:22.54, lng:114.05 }],
+    nights:{ '2027-03-09':'b' } });
+  // 3/9 밤부터 선전 숙소 B. 3/9 00:30(3/8 밤에 놀다 들어가는 길)에는 아직 홍콩 숙소 A를 보여 줘야 택시가 맞는 곳으로 감
+  assert.equal(tonightKey(s, '2027-03-09', 30), '2027-03-08');
+  assert.equal(hotelCard(s, '2027-03-09', 30).name, 'A');
+  assert.equal(hotelCard(s, '2027-03-09', 4 * 60).name, 'B');   // 새벽 4시부터는 그날 밤 숙소
+  assert.equal(hotelCard(s, '2027-03-09').name, 'B');           // 시각을 모르면 예전처럼
+  assert.equal(tonightKey(s, '2027-03-07', 30), '2027-03-07');  // 첫날 새벽(도착 전)은 첫날 밤 숙소
+});
+
 test('미아 카드 문장', () => {
   assert.equal(kidCardJa('+82-10-0000-0000', 'ホテルA'), '迷子になりました。\nこの番号に電話してください: +82-10-0000-0000\nホテル: ホテルA');
   assert.equal(kidCardJa('', ''), '迷子になりました。');

@@ -4,7 +4,7 @@ import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, R
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, bulkSuggestions, packView, PACK_GO } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as tonightCard, otherHotelCards, kidCardJa } from './safety.js';
-const sosHotel = s => tonightCard(s, (s.sh || {}).today);   // 그날 밤 숙소 카드
+const sosHotel = s => tonightCard(s, (s.sh || {}).today, (s.sh || {}).nowMin);   // 그날 밤 숙소 카드 (새벽 4시 전엔 어젯밤 숙소)
 import * as HK from './regions/hksz-guide.js';
 import { mealSlots, rankFood, moreFoodUrl, foodKey, walkMin } from './food.js';
 import { canShareLoc, locList, kmText, locMapUrl } from './loc.js';

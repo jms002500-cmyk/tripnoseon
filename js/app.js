@@ -12,7 +12,7 @@ import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend } from '.
 import { planText } from './agenda.js';
 import { whereOf, tzOffset, HOME_TZ, HERE_FRESH } from './clock.js';
 import { catchUp, applyCatchUp } from './catchup.js';
-import { phaseOf, shownDate, shouldAutoOpen, doneKey, tripClock } from './today.js';
+import { phaseOf, shouldAutoOpen, doneKey, tripClock, entryDate } from './today.js';
 import { suggestPacking, bulkSuggestions, seedItems, customItems, PACK_GO, KEY_ID, tickFrom } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
@@ -430,7 +430,7 @@ async function saveVault(){
   Object.assign(s, r.patch);
   if(kind === 'flight' || kind === 'hotel') packTick('tickets');
   // 예약 금액 → 가계부 (js/bookings.js bookingSpend). 여행 전이면 '여행 전'으로
-  const sp = bookingSpend(s, it, { by:defaultPayer(s), now:Date.now(), day:cat => defaultDay(s, ymd(new Date()), cat) });
+  const sp = bookingSpend(s, it, { by:defaultPayer(s), now:Date.now(), day:cat => defaultDay(s, tripClock(new Date(), REGION.tz).date, cat) });
   if(sp && sp.del) delete s.spend[sp.id]; else if(sp){ s.spend[sp.id] = sp.e; r.msgs.push(`가계부에 ${money(sp.e.amt, sp.e.cur)}`); }
   keepStorage(); save(); render(); refreshUsage();
   if(r.locate) findHotelLocations();
@@ -566,7 +566,7 @@ function undoRestore(){
 /* ---------- 가계부 (함께 짜기 여행이면 참여자 모두와 공유) ---------- */
 // 오늘 하루 화면에서 적으면 그 화면에서 보고 있는 날짜가 기준(날짜를 안 쓰면 그날, '어제'는 그 전날)
 function ledgerCtx(){
-  const s = state; const real = ymd(new Date()); const today = s.mode === 'today' ? (shownDate(s, real) || real) : real;
+  const s = state; const today = entryDate(s, new Date(), REGION.tz);   // 여행지 날짜 (폰 시계가 아직 한국 시간이어도)
   return { today, cur:dayCur(s, today), by:defaultPayer(s) };
 }
 // 통화를 안 썼을 때 기본값: 지역 기본 통화. 홍콩·선전이면 그날(또는 '여기서 쓴 돈' 장소)이 선전 쪽이면 위안
@@ -789,7 +789,7 @@ function act(a, v){
     }
     case 'lplacex': s.sh.lplace = null; render(); focusLine(); return;
     case 'tdone': {   // 다녀옴 표시: 오늘 화면에서 보고 있는 날짜 기준
-      const k = doneKey(shownDate(s, ymd(new Date())), v); s.tdone = Object.assign({}, s.tdone);
+      const k = doneKey(entryDate(s, new Date(), REGION.tz), v); s.tdone = Object.assign({}, s.tdone);   // 화면(vToday)과 같은 여행지 날짜
       if(s.tdone[k]) delete s.tdone[k]; else s.tdone[k] = true; break;
     }
     case 'who': s.who = v; if(v === 'solo') s.adults = 1; else if(v === 'couple') s.adults = 2; break;
@@ -1344,7 +1344,7 @@ window.addEventListener('online', () => setTimeout(refreshGoogle, 3000));
 // 여행 중 그날 처음 열면 오늘 하루 화면부터 (계획으로 돌아가면 그날은 다시 안 띄움)
 // 고른 여행 지역의 데이터를 먼저 불러옴 (홍콩·선전은 따로 받는 파일). 못 불러오면 도쿄로 보여 주고 지역 단계에서 알림
 if(!(await loadRegion(state.city))){ await loadRegion('tokyo'); state.sh.cityMsg = `${(REGIONS[state.city] || {}).name || '이 지역'} 데이터를 불러오지 못했어요. 인터넷을 확인하고 다시 열어 주세요.`; }
-{ const td = ymd(new Date()); if(shouldAutoOpen(state, td)){ state.mode = 'today'; state.tday = null; state.todayOpened = td; saveLocal(); } }
+{ const td = tripClock(new Date(), REGION.tz).date; if(shouldAutoOpen(state, td)){ state.mode = 'today'; state.tday = null; state.todayOpened = td; saveLocal(); } }
 render();
 if(state.step === VAULT_STEP) refreshUsage();
 setTimeout(refreshGoogle, 4000);   // 첫 화면을 먼저 그린 뒤

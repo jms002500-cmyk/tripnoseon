@@ -36,3 +36,42 @@ test('홍콩(+8), 보관함 예약: 시간 있으면 알림, 없으면 하루 �
     assert.match(t, /DTSTART;VALUE=DATE:20270307/); assert.doesNotMatch(t, /SECRET123/);
   } finally { D.useRegion('tokyo'); }
 });
+
+test('오가는 길에서 만든 교통 예약은 그 이동과 겹쳐 넣지 않음 (집 → 공항은 한국 시각)', async () => {
+  await D.loadRegion('hksz');
+  try{
+    const mv = (k, o) => Object.assign({ id:k, k, date:'', time:'', how:'', min:null, from:'', to:'', booked:true, note:'' }, o);
+    const s = trip({ city:'hksz', picked:{ hk_space:true }, flight:{ ap:'HKG', arr:'11:00', dep:'18:00' },
+      moves:[mv('go', { how:'car', time:'06:00' }), mv('in', { how:'pick', time:'12:30', min:50 })] });
+    // 보관함 '예약 넣기'로 만든 교통 예약(vaultDraft): 날짜·시각을 이동에서 그대로 가져옴
+    const v = [{ id:'vg', kind:'transport', moveId:'go', title:'자가용 · 집 → 공항', date:'2027-03-07', time:'06:00' },
+      { id:'vi', kind:'transport', moveId:'in', title:'픽업 차량 · 공항 → 숙소', date:'2027-03-07', time:'12:30' }];
+    const t = buildIcs(s, plan(s), v, NOW);
+    assert.equal((t.match(/SUMMARY:[^\r]*집 → 공항/g) || []).length, 1, '집 → 공항은 한 번만');
+    assert.equal((t.match(/SUMMARY:[^\r]*공항 → 숙소/g) || []).length, 1, '공항 → 숙소는 한 번만');
+    assert.match(t, /DTSTART:20270306T210000Z/);       // 06:00 한국 시각 = UTC 전날 21:00
+    assert.doesNotMatch(t, /DTSTART:20270306T220000Z/); // 홍콩 시각으로 잘못 읽은 07:00(한국) 이벤트가 없어야
+    // 이동을 지운 뒤 남은 교통 예약, 이동에 시각이 없을 때는 예약 쪽 시각으로 넣음
+    const s2 = trip({ city:'hksz', picked:{ hk_space:true }, moves:[mv('in', { how:'pick' })] });
+    const t2 = buildIcs(s2, plan(s2), [Object.assign({}, v[1], { moveId:'in' }), { id:'vx', kind:'transport', moveId:'gone', title:'지운 이동 예약', date:'2027-03-08', time:'10:00' }], NOW);
+    assert.match(t2, /SUMMARY:🚆 픽업 차량 · 공항 → 숙소/); assert.match(t2, /SUMMARY:🚆 지운 이동 예약/);
+  } finally { D.useRegion('tokyo'); }
+});
+
+test('밤 비행기: 집 → 공항은 전날, 자정 넘어 한국에 내리면 공항 → 집은 다음 날 (한국 시각)', async () => {
+  await D.loadRegion('hksz');
+  try{
+    const mv = (k, o) => Object.assign({ id:k, k, date:'', time:'', how:'', min:null, from:'', to:'', booked:false, note:'' }, o);
+    // 3/6 23:55 인천 출발 → 3/7 02:40 홍콩 도착(가는 날 3/7), 3/9 22:30 홍콩 출발 → 3/10 03:00 인천 도착
+    const s = trip({ city:'hksz', picked:{ hk_space:true }, flight:{ ap:'HKG', arr:'02:40', dep:'22:30' },
+      moves:[mv('go', { how:'car', time:'20:30' }), mv('back', { how:'taxi', time:'03:20' })] });
+    const t = buildIcs(s, plan(s), [], NOW);
+    assert.match(t, /DTSTART:20270306T113000Z/);   // 3/6 20:30 한국 = UTC 11:30 (3/7로 넣으면 하루 늦게 알림)
+    assert.match(t, /DTSTART:20270309T182000Z/);   // 3/10 03:20 한국 = UTC 3/9 18:20 (3/9 03:20으로 넣으면 하루 이르게)
+    // 낮 비행기는 그대로
+    const s2 = trip({ city:'hksz', picked:{ hk_space:true }, flight:{ ap:'HKG', arr:'11:00', dep:'18:00' },
+      moves:[mv('go', { how:'car', time:'06:00' }), mv('back', { how:'taxi', time:'23:00' })] });
+    const t2 = buildIcs(s2, plan(s2), [], NOW);
+    assert.match(t2, /DTSTART:20270306T210000Z/); assert.match(t2, /DTSTART:20270309T140000Z/);
+  } finally { D.useRegion('tokyo'); }
+});
