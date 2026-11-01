@@ -54,15 +54,18 @@ export const LOST = [
 
 // 숙소 일본어 카드: 정한 숙소 이름(라쿠텐에서 담았으면 일본어 이름) + 사용자가 넣은 주소·전화
 // today를 주면 그날 밤 숙소(나눠 자기 s.nights) 기준. 보관함 숙소 예약에 현지어 주소·전화를 넣었으면(h.addr·h.tel) 그것을, 없으면 손으로 적은 카드(s.safety)
-export function tonightKey(s, today){
+//   nowMin(여행지 지금 분)이 새벽 4시 전이면 아직 어젯밤 숙소로 돌아가는 길 (자정 넘어 택시를 탈 때 다음 밤 숙소를 보여 주지 않게)
+export const LATE_NIGHT = 4 * 60;
+export function tonightKey(s, today, nowMin){
   if(!s.start || !s.end || !today) return '';
+  if(nowMin != null && nowMin < LATE_NIGHT && today > s.start){ const [y, m, d] = today.split('-').map(Number); today = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10); }
   if(today < s.start) return s.start;
   if(today >= s.end){ const [y, m, d] = s.end.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10); }
   return today;
 }
 const cardOf = h => ({ id:h.id, name:h.name, addr:h.addr || '', tel:h.tel || '', mapUrl:h.lat != null ? `https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}` : '' });
-export function hotelCard(s, today){
-  const sf = s.safety || {}; const k = tonightKey(s, today); const hs = s.hotels || [];
+export function hotelCard(s, today, nowMin){
+  const sf = s.safety || {}; const k = tonightKey(s, today, nowMin); const hs = s.hotels || [];
   const h = hs.find(x => x.id === ((k && (s.nights || {})[k]) || s.hotelPick)) || hs.find(x => x.id === s.hotelPick);
   if(h && (h.addr || h.tel)) return cardOf(h);
   if(h && h.id !== s.hotelPick) return cardOf(h);   // 손으로 적은 카드(s.safety)는 정한 숙소 것
