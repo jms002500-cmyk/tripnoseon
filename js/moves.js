@@ -59,6 +59,9 @@ export function moveText(m, ctx, minText){
 
 // 시간표·예약 바로가기: 배·기차·공항버스 같은 수단은 그날 운행 시간을 공식 누리집에서 바로 확인 (주소 확인 2026-11-01)
 //   주소만 여는 링크라 앱이 아무 정보도 보내지 않음. area: 'kr'(집 ↔ 공항) | 지역 키, how: 수단, legs: 이 구간에만
+//   도쿄(2026-11-01 검색으로 공식 도메인 확인): N'EX는 JR동일본 다국어 안내(/en/multi/nex/, 한국어 제목으로 검색됨 — 예전 /ko/multi/ 주소는 못 찾음),
+//   스카이라이너 한국어 첫 화면(시각표·예약 링크 있음. 시각표 페이지 주소는 개정 때마다 바뀌어 첫 화면으로 둠), 리무진 버스 한국어 첫 화면,
+//   스마트EX 영어(도카이도·산요·규슈), NAVITIME 일본 여행 한국어(/ko/ 아래 경로 검색 화면).
 export const TT_CHECKED = '2026-11-01';
 export const TIMETABLES = [
   { id:'arex', label:'공항철도(AREX) 시간표', url:'https://www.arex.or.kr/', area:'kr', how:['rail'] },
@@ -71,10 +74,10 @@ export const TIMETABLES = [
   { id:'turbojet', label:'터보젯 배 시간표 (홍콩 ↔ 마카오)', url:'https://www.turbojet.com.hk/kr/', area:'hksz', how:['ferry'] },
   { id:'cotai', label:'코타이 워터젯 배 시간표 (홍콩 ↔ 마카오)', url:'https://www.cotaiwaterjet.com/', area:'hksz', how:['ferry'] },
   { id:'hzmb', label:'강주아오대교 셔틀버스 (홍콩 ↔ 마카오·주하이)', url:'https://www.hzmbus.com/', area:'hksz', how:['bus'], legs:['etc'] },
-  { id:'nex', label:"나리타 익스프레스(N'EX) 안내", url:'https://www.jreast.co.jp/ko/multi/nex/', area:'tokyo', how:['rail'], legs:['in', 'out'] },
+  { id:'nex', label:"나리타 익스프레스(N'EX) 안내", url:'https://www.jreast.co.jp/en/multi/nex/', area:'tokyo', how:['rail'], legs:['in', 'out'] },
   { id:'skyliner', label:'게이세이 스카이라이너 시간표·예약', url:'https://www.keisei.co.jp/keisei/tetudou/skyliner/kr/index.php', area:'tokyo', how:['rail'], legs:['in', 'out'] },
   { id:'limo', label:'공항 리무진 버스 시간표', url:'https://www.limousinebus.co.jp/ko/', area:'tokyo', how:['abus', 'bus'], legs:['in', 'out'] },
-  { id:'smartex', label:'신칸센 시간·예약 (도카이도·산요)', url:'https://smart-ex.jp/en/', area:'tokyo', how:['rail'], legs:['etc'] },
+  { id:'smartex', label:'신칸센 시간·예약 (도카이도·산요·규슈)', url:'https://smart-ex.jp/en/', area:'tokyo', how:['rail'], legs:['etc'] },
   { id:'navitime', label:'NAVITIME 일본 전철·버스 (날짜·시각으로 검색)', url:'https://japantravel.navitime.com/ko/', area:'tokyo', how:['rail', 'metro', 'bus', 'abus'] }
 ];
 // 이 이동에 맞는 바로가기. 수단을 안 골랐으면 없음
