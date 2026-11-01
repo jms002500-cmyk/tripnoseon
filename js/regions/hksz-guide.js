@@ -183,7 +183,9 @@ export function guideFor(city){
   };
 }
 
-// 홍콩 공항철도 시내 체크인 (홍콩역·구룡역): 참여 항공사만, 무료로 비행기 짐을 미리 부침. 받는 시간·항공사는 공식 페이지에서 확인
-//   www.hongkongairport.com/en/baggage/airport-express-check-in.page (2026-10-31 확인)
-export const ITC = { url:'https://www.hongkongairport.com/en/baggage/airport-express-check-in.page', checked:'2026-10-31',
-  text:'마지막 날 홍콩역·구룡역(공항철도)에서 비행기 짐을 미리 부치면 짐 없이 다니다 공항으로 가요. 참여 항공사만 되고 무료예요. 받는 시간·항공사는 꼭 확인하세요.' };
+// 홍콩 공항철도 시내 체크인 (홍콩역·구룡역): 참여 항공사만, 무료로 비행기 짐을 미리 부침
+//   MTR 시내 체크인 안내 www.mtr.com.hk/en/customer/services/complom_checkin.html (항공사·역별 시간 표, 2026-11-01 확인)
+//   참여: 캐세이퍼시픽·홍콩항공·콴타스(홍콩역·구룡역), 싱가포르항공·중화항공·에바항공·만다린항공(홍콩역만). 그 항공사가 직접 운항하는 편만(공동운항 제외).
+//   출발 24시간 전~90분 전. 홍콩역 캐세이퍼시픽 06:00~23:00, 구룡역은 늦어도 15:00까지. 홍콩 공항 안내 www.hongkongairport.com/en/baggage/airport-express-check-in.page
+export const ITC = { url:'https://www.mtr.com.hk/en/customer/services/complom_checkin.html', checked:'2026-11-01',
+  text:'마지막 날 홍콩역·구룡역(공항철도)에서 비행기 짐을 미리 부치면 짐 없이 다니다 공항으로 가요. 무료이고 비행기 출발 24시간 전부터 90분 전까지 돼요. 캐세이퍼시픽·홍콩항공 같은 참여 항공사 7곳이 직접 운항하는 편만 되고(공동운항 편은 안 돼요), 한국 항공사는 없어요. 받는 시간은 항공사·역마다 달라요(구룡역은 늦어도 오후 3시까지).' };
