@@ -335,13 +335,14 @@ export function vMust(s){
   const nearest = p => { let best = null, bd = Infinity; anchors.forEach(q => { if(q.id === p.id || (multi && placeCity(q) !== placeCity(p))) return; const d = dist(p, q); if(d < bd){ bd = d; best = q; } }); return best ? { q:best, km:bd } : null; };
   const nearText = n => n ? `가장 가까운 곳: ${anchors.indexOf(n.q) + 1}번 ${esc(n.q.name)} · ${n.km < 1 ? Math.round(n.km * 10) * 100 + 'm' : n.km.toFixed(1) + 'km'}${n.km <= 1.2 ? ` (걸어서 약 ${walkMin(n.km * 1.3)}분)` : ''}` : '';
   const card = p => { const on = !!s.must[p.id]; const n = anchors.indexOf(p) + 1;
-      return `<article class="pcard${on ? ' on' : ''}">
+      return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
         <div class="ptop"><div><h3><span class="pnum">${n}</span>${esc(p.name)}</h3><p class="ja">${esc(p.ja)}</p></div>
           <button type="button" class="mustbtn" data-act="anchor" data-v="${p.id}" aria-pressed="${on}">${on ? '꼭 갈 곳 ✓' : '꼭 갈 곳으로'}</button></div>
         <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
         ${anchors.length > 1 ? `<p class="near">${nearText(nearest(p))}</p>` : ''}
         ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
         ${on && p.full && fa[p.id] != null ? daySelect(p, days, fa, s) : ''}
+        <div class="pfoot"><button type="button" class="link" data-act="mapback" data-v="${esc(p.id)}">🗺 약도에서 ${n}번 보기</button></div>
       </article>`; };
   return `<section class="step">
     <p class="eyebrow">Step 3 · 꼭 갈 곳</p>
@@ -358,7 +359,7 @@ export function vMust(s){
 /* Step 4 · 장소 담기 */
 function placeCard(p, s, n){
   const on = !!s.picked[p.id]; const must = !!s.must[p.id]; const f = fitScore(p, s);
-  return `<article class="pcard${on ? ' on' : ''}">
+  return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
     <div class="ptop"><div><h3>${n ? `<span class="pnum">${n}</span>` : ''}${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
     <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
@@ -367,6 +368,7 @@ function placeCard(p, s, n){
     ${on ? voteBar(s, p) : ''}
     <div class="pfoot">
       <button type="button" class="link" data-act="must" data-v="${esc(p.id)}" aria-pressed="${must}">${must ? '★ 꼭 갈 곳' : '☆ 꼭 갈 곳으로'}</button>
+      ${n ? `<button type="button" class="link" data-act="mapback" data-v="${esc(p.id)}">🗺 약도에서 ${n}번 보기</button>` : ''}
       ${safeMapUrl(p.url) ? `<a class="link" href="${esc(safeMapUrl(p.url))}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}
       ${p.custom ? `<button type="button" class="link" data-act="customdel" data-v="${esc(p.id)}">목록에서 지우기</button>` : `<a class="link" href="${gmap(p.ja)}" target="_blank" rel="noopener">구글 지도 ↗</a>`}
     </div>

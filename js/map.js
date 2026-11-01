@@ -57,12 +57,13 @@ export function mapSVG(mode, s, P, focus){
   Object.values(AREAS).forEach(a => { if(!inB(a)) return; const [x, y] = px(a); g += `<text x="${x + a.lx}" y="${y + a.ly}" text-anchor="${a.anchor}" class="m-area">${esc(a.name)}</text>`; });
 
   if(focus && (mode === 'pick' || mode === 'must')){
-    // 목록 순서대로 번호 (카드의 번호와 같음). 담은 곳·꼭 갈 곳은 채워서
+    // 목록 순서대로 번호 (카드의 번호와 같음). 담은 곳·꼭 갈 곳은 채워서. 번호를 누르면 그 카드로 (app.js mapgo, 카드 id pc-장소id)
     focus.forEach((p, i) => {
       const [x, y] = px(p); const on = mode === 'must' ? !!s.must[p.id] : !!s.picked[p.id];
-      g += `<circle cx="${x}" cy="${y}" r="17" class="${on ? 'm-must' : 'm-num-off'}"/><text x="${x}" y="${y+6}" text-anchor="middle" class="${on ? 'm-num' : 'm-num dark'}">${i+1}</text>`;
+      g += `<g class="m-go" id="mk-${esc(p.id)}" data-act="mapgo" data-v="${esc(p.id)}" role="button" tabindex="0" aria-label="${i+1}번 ${esc(p.name)} 설명 보기"><circle cx="${x}" cy="${y}" r="28" class="m-hit"/>`
+        + `<circle cx="${x}" cy="${y}" r="17" class="${on ? 'm-must' : 'm-num-off'}"/><text x="${x}" y="${y+6}" text-anchor="middle" class="${on ? 'm-num' : 'm-num dark'}">${i+1}</text></g>`;
     });
-    legend = `<span class="lg"><i style="background:var(--accent)"></i>${mode === 'must' ? '꼭 갈 곳' : '담은 곳'}</span><span class="lg"><i style="background:var(--surface);border:2px solid var(--accent)"></i>번호 = 아래 목록 순서</span>`;
+    legend = `<span class="lg"><i style="background:var(--accent)"></i>${mode === 'must' ? '꼭 갈 곳' : '담은 곳'}</span><span class="lg"><i style="background:var(--surface);border:2px solid var(--accent)"></i>번호 = 아래 목록 순서 · 누르면 설명으로</span>`;
   } else if(mode === 'pick'){
     allPlaces(s).forEach(p => {
       const [x, y] = px(p); const on = !!s.picked[p.id]; const must = !!s.must[p.id];

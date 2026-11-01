@@ -905,6 +905,8 @@ function act(a, v){
     case 'prepchk': s.prep = Object.assign({}, s.prep, { [v]:!(s.prep || {})[v] }); break;
     case 'itc': s.flight = Object.assign({ ap:'', arr:'', dep:'' }, s.flight, { itc:!(s.flight || {}).itc }); break;
     case 'whereami': checkWhere(true); return;
+    case 'mapgo': { const c = document.getElementById('pc-' + v); if(c){ c.scrollIntoView({ block:'start' }); flash(c); } return; }   // 약도 번호 → 그 카드
+    case 'mapback': { const m = document.querySelector('#view .map') || document.querySelector('.map'); if(m){ m.scrollIntoView({ block:'start' }); const k = document.getElementById('mk-' + v); if(k) flash(k); } return; }   // 카드 → 약도의 그 번호
     case 'plansend': {   // 가족 단톡용 일정표 (js/agenda.js planText). 공유 창이 없으면 복사
       const P = plan(s); const text = planText(s, P, moveCtx(s, P), recordHead(s));
       if(navigator.share) navigator.share({ text }).catch(() => {});
@@ -1014,6 +1016,11 @@ function goTo(to){
   s.mode = null; s.step = to === 'movebox' || to === 'icsbox' ? PLAN_STEP : to === 'pack' ? PACK_STEP : to === 'where' ? STEPS.indexOf('여행지') : VAULT_STEP; save(); render();
   const el = document.getElementById(to === 'vault' ? 'vaultform' : to); if(el) el.scrollIntoView({ block:'start' }); else window.scrollTo(0, 0);
 }
+
+/* ---------- 약도 번호 ↔ 목록 카드 ---------- */
+function flash(el){ el.classList.remove('flash'); void el.getBoundingClientRect(); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1800); }
+// 약도 번호(svg g)는 버튼이 아니라서 키보드 Enter·Space도 누른 것으로
+document.addEventListener('keydown', e => { if(e.key !== 'Enter' && e.key !== ' ') return; const g = e.target.closest && e.target.closest('.m-go'); if(!g) return; e.preventDefault(); act(g.dataset.act, g.dataset.v); });
 
 /* ---------- 시차·내 위치 (js/clock.js) ---------- */
 // 지금 한국인지 여행지인지만 s.here에 (좌표는 안 남김). ask: 버튼으로 눌렀을 때만 허락 창이 뜰 수 있음
