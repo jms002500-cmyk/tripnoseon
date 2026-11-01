@@ -147,3 +147,23 @@ test('밤 비행기: 전날 집에서 나선 건 지난 일, 자정 넘어 집�
     const L2 = dayAgenda(s2, plan(s2).days[0], ctx); assert.equal(L2[0].m && L2[0].m.k, 'go'); assert.equal(L2[0].min, -30);
   } finally { D.useRegion('tokyo'); }
 });
+
+test('자정 넘어 출발하는 오는 편: 마지막 날 밤에 숙소에서 나서고, 오는 날은 비행기 날짜 전날', async () => {
+  const { depMin } = await import('../js/flight.js');
+  const { applyFlight } = await import('../js/bookings.js');
+  const { homeTime } = await import('../js/ics.js');
+  assert.equal(depMin({ dep:'00:55' }), 1495); assert.equal(depMin({ dep:'04:59' }), 1739); assert.equal(depMin({ dep:'05:00' }), 300); assert.equal(depMin({}), null);
+  // 보관함 항공권 3/10 00:55 출발 → 오는 날 3/9
+  const r = applyFlight(trip({ end:'' }), { id:'b', kind:'flight', dir:'back', date:'2027-03-10', time:'00:55' });
+  assert.equal(r.patch.end, '2027-03-09'); assert.equal(r.patch.flight.dep, '00:55'); assert.match(r.msgs.join(' '), /밤 비행기/);
+  assert.deepEqual(applyFlight(trip({ flight:{ ap:'', arr:'', dep:'00:55' } }), { id:'b', kind:'flight', dir:'back', date:'2027-03-10', time:'00:55' }).patch, {});   // 다시 반영해도 그대로
+  // 마지막 날(3/9)이 하루 일정이 되고 밤에 공항으로
+  const s = trip({ flight:{ ap:'HND', arr:'', dep:'00:55' }, moves:[mv('back', { how:'taxi', time:'05:30' })] });
+  const last = buildDays(s).pop(); assert.equal(last.depart.at, 1495); assert.ok(last.depart.leave > 18 * 60 && last.depart.leave < 1440, String(last.depart.leave)); assert.ok(last.cap >= 3, String(last.cap));
+  const L = dayAgenda(s, plan(s).days[2], ctx);
+  assert.ok(L.some(x => x.text.startsWith('숙소에서 공항으로 출발'))); const fl = L.find(x => x.kind === 'flight' && x.dir === 'back'); assert.match(fl.sub, /다음 날 새벽/);
+  assert.deepEqual(homeTime(s, s.moves[0]), { min:330 + 1440, day:1 });   // 한국 도착 뒤 집으로는 다음 날
+  const ics = buildIcs(s, plan(s), [], new Date('2027-01-01')).replace(/\r\n /g, '');
+  assert.match(ics, /DTSTART:20270309T155500Z/);   // 3/10 00:55 도쿄 = 3/9 15:55 UTC
+  assert.match(planText(s, plan(s), ctx, 't'), /마지막 날 밤 → 다음 날 00:55 출발/);
+});

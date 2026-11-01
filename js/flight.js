@@ -6,12 +6,15 @@ export const AFTER_LANDING = 60;        // 내려서 입국 심사·짐 찾기
 export const HOTEL_DROP = 30;           // 숙소에 짐 맡기기
 export const EARLY = 150;               // 국제선 출발 2시간 30분 전 공항 도착
 export const BAG_PICKUP = 30;           // 마지막 날 숙소에 들러 짐 찾기
+export const NIGHT_DEP = 5 * 60;         // 자정~새벽 5시 전 출발은 '마지막 날 밤' 비행기: 오는 날(s.end)은 비행기 날짜 전날, 그날 밤 숙소에서 나섬
 export const AIRPORTS = {
   tokyo:[{ code:'NRT', name:'나리타 공항', min:80 }, { code:'HND', name:'하네다 공항', min:40 }],
   hksz:[{ code:'HKG', name:'홍콩 국제공항', min:{ hk:50, sz:120 } }, { code:'SZX', name:'선전 바오안 공항', min:{ hk:130, sz:50 } }]   // 다른 도시로 가면 국경 포함
 };
 
 export const toMin = t => { const m = /^(\d{1,2}):(\d{2})$/.exec(t || ''); return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null; };
+// 오는 편 출발 시각(분, 마지막 날 0시 기준). 밤 비행기(NIGHT_DEP 전)는 다음 날 새벽이라 1440을 더함 (예: 00:55 → 1495)
+export const depMin = f => { const t = toMin(f && f.dep); return t != null && t < NIGHT_DEP ? t + 1440 : t; };
 export const hm = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 export const minText = m => m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}`;
 // '오후 1시', '오전 9:30'
@@ -57,7 +60,7 @@ export function arriveInfo(f, region, city, base, o){
 // 마지막 날: 출발 → 숙소에서 나서야 하는 시각(leave)·다닐 시간 (짐 찾으러 숙소에 들르는 30분 빼고)
 //   o: 숙소 → 공항 { time, min } — 시각을 넣었으면 그 시각에 나섬. 출발 1시간 30분 전에도 공항에 못 닿으면 late
 export function departInfo(f, region, city, base, o){
-  const t = toMin(f && f.dep); if(t == null) return null;
+  const t = depMin(f); if(t == null) return null;
   const ap = airportOf(region, f.ap); const tr = o && o.min ? o.min : transferMin(ap, city);
   const set = !!(o && o.time != null && o.time < t); const leave = set ? o.time : t - EARLY - tr;
   return { at:t, leave, transfer:tr, ap, cap:capBetween(DAY_START, leave - (f.itc ? 0 : BAG_PICKUP), base),   // 시내 체크인(f.itc)이면 짐은 아침에 미리 부침
