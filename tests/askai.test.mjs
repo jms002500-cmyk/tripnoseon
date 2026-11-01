@@ -50,3 +50,9 @@ test('상황마다 문장이 있고, 모르는 상황은 메뉴판으로', () =>
   ASK_KINDS.forEach(k => assert.ok(askPrompt(s, k.key).length > 80, k.key));
   assert.equal(askPrompt(s, 'nope'), askPrompt(s, 'menu'));
 });
+
+test('간판용 빠른 번역 바로가기: 자동 감지 → 한국어, https만', async () => {
+  const { QUICK_TRANSLATE } = await import('../js/askai.js');
+  assert.deepEqual(QUICK_TRANSLATE.map(x => x.key), ['google', 'papago']);
+  QUICK_TRANSLATE.forEach(x => { assert.match(x.url, /^https:\/\//); assert.match(x.url, /auto/); assert.match(x.url, /=ko\b/); });
+});

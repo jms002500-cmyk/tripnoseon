@@ -23,7 +23,7 @@ import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDat
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
-import { ASK_KINDS, askKindOf, askPrompt, AI_SITES } from './askai.js';
+import { ASK_KINDS, askKindOf, askPrompt, AI_SITES, QUICK_TRANSLATE } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 import { bookingRows, flightDir, PLACE_KINDS } from './bookings.js';
 import { dayAgenda, nextUp } from './agenda.js';
@@ -123,6 +123,9 @@ export function ASKSHEET(s, photo){
     <div class="mshead"><b>📷 AI에게 묻기</b><button type="button" class="ghost small" data-act="askclose">닫기</button></div>
     <div class="shbody">
       <p class="pnote">사진을 찍으면 상황에 맞는 부탁 문장을 붙여 <b>내 폰의 AI 앱</b>(제미나이·ChatGPT·Claude 등)으로 넘겨요. 무료 계정이어도 돼요.</p>
+      <div class="quicktr"><p class="fine">⚡ <b>간판·표지판처럼 한 단어만 빨리 볼 때</b>는 카메라를 비추면 바로 바뀌는 번역 앱이 더 빨라요. 메뉴판처럼 설명이 필요하면 아래 AI에게 물어보세요.</p>
+        <div class="chips">${QUICK_TRANSLATE.map(x => `<a class="chip" href="${x.url}" target="_blank" rel="noopener">${esc(x.label)} ↗</a>`).join('')}</div>
+        <p class="fine">${QUICK_TRANSLATE.map(x => esc(x.tip)).join(' ')}</p></div>
       <h2>무엇을 찍나요?</h2>
       <div class="chips">${ASK_KINDS.map(x => chip('askkind', x.key, `${x.icon} ${x.label}`, x.key === k.key)).join('')}</div>
       ${photo ? `<figure class="askphoto"><img src="${photo.url}" alt="고른 사진"><figcaption><button type="button" class="link" data-act="askclear">다른 사진 고르기</button></figcaption></figure>

@@ -90,6 +90,13 @@ export function askPrompt(s, kind, note){
 }
 
 // 사진 없이 AI 웹에서 열 곳 (공유가 안 되는 브라우저용)
+// 간판·표지판처럼 한 단어만 빨리 볼 때: 카메라를 비추면 바로 바뀌는 번역 앱(무료). 언어는 자동 감지 → 한국어 (주소 확인 2026-11-01)
+//   폰에 앱이 깔려 있으면 앱으로 열리고, 없으면 웹 사진 번역. 우리 앱은 주소만 열고 아무것도 보내지 않음
+export const QUICK_TRANSLATE = [
+  { key:'google', label:'구글 번역 카메라', url:'https://translate.google.com/?sl=auto&tl=ko&op=images', tip:'구글 번역 앱이 있으면 앱의 카메라 버튼을 누르세요.' },
+  { key:'papago', label:'파파고', url:'https://papago.naver.com/?sk=auto&tk=ko', tip:'파파고 앱이 있으면 앱의 이미지(카메라) 버튼을 누르세요.' }
+];
+
 export const AI_SITES = [
   { key:'gemini', label:'제미나이', url:'https://gemini.google.com/app' },
   { key:'chatgpt', label:'ChatGPT', url:'https://chatgpt.com/' },
