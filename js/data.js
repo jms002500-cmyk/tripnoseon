@@ -17,6 +17,29 @@
 //   book    예약 필요 여부
 //   note    짧은 안내 문구
 //   indoor  비 오는 날 기준: true 실내 | 'part' 반쯤(가게는 실내, 거리는 걸어 다님) | false 실외 (시부야 스카이는 옥상이라 실외)
+//
+// 도쿄 출처와 확인 (처음 넣은 때 2026-10, 운영 정보 다시 확인 2026-11-01)
+// - 이 작업 환경은 공식 누리집에 직접 접속이 막혀 있어(2026-11-01), 검색 도구로 공식 도메인 페이지 내용만 골라 확인했어요.
+//   좌표는 이번에 다시 보지 않았어요(tests/data.test.mjs가 약도 범위만 확인).
+// - 휴무 요일(closed): 공식 누리집으로 확인한 곳만 넣었어요.
+//   지브리 미술관(화, ghibli-museum.jp — 점검으로 며칠씩 닫을 때도 있음, 2026-05-12~19), 우에노 동물원(월, 공휴일이면 다음 날 — tokyo-zoo.net),
+//   도쿄 국립박물관(월, 공휴일이면 열고 다음 평일 — tnm.jp), 국립과학박물관(월, 일·월이 공휴일이면 화 — kahaku.go.jp),
+//   신주쿠 교엔(월, 공휴일이면 다음 평일, 3/25~4/24·11/1~11/15는 매일 엶 — fng.or.jp·env.go.jp),
+//   미라이칸(화 — miraikan.jst.go.jp), 고쿄 히가시교엔(월·금, 공휴일은 열지만 월요일 공휴일이면 다음 날 화요일 휴원 — kunaicho.go.jp),
+//   도요스 시장(일·공휴일과 시장 휴업일, 날짜는 해마다 달력으로 — shijou.metro.tokyo.lg.jp. 수요일 휴업이 며칠인지는 이번에 못 셌어요).
+//   도쿄도청 전망대는 남(첫째·셋째 화)·북(둘째·넷째 월)이 번갈아 쉬어서 closed에 안 넣었어요(zaimu.metro.tokyo.lg.jp).
+// - 오래 닫거나 바뀐 곳(2026-11-01 확인):
+//   미라이칸 2026-10-01~2027-04-22 시설 공사로 전체 휴관, 2027-04-23 다시 엶(miraikan.jst.go.jp 2026-03-24 안내). 2027년 안에 다시 열어서 남겨 둠.
+//   오다이바 다이버시티 앞 실물 크기 유니콘 건담 조각상 2026-08-31 전시 끝(unicorn-gundam-statue.jp). 쇼핑몰은 그대로라 남기고 안내만 고침.
+//   도쿄 시티 뷰 2026-10-28부터 11월 중순까지 전시 교체로 닫음, 11-13 다시 엶(art-view.roppongihills.com·tcv.roppongihills.com).
+//   도쿄 돔 시티 어트랙션즈 2026-04 사고 뒤 쉬었다가 2026-07-24 다시 연다고 알림(tokyo-dome.co.jp). 다시 연 날짜는 못 찾았어요.
+//   팀랩 플래닛은 2027년 말까지 연다고 안내(teamlab.art).
+// - 겨울 조명 날짜(2026 시즌): 마루노우치 11-12~2027-02-14(marunouchi.com), 에비스 바카라 샹들리에 11-14~2027-01-11(gardenplace.jp),
+//   롯폰기 게야키자카 11-05~12-25(roppongihills.com), 리쿠기엔 야간 관람 11-25~12-06 따로 표(tokyo-park.or.jp).
+//   요요기 공원 '푸른 동굴' 조명은 2026년 공식 안내를 못 찾아 그대로 둠.
+// - 휴무 요일 없이 확인한 곳: 스미다 수족관(연중무휴), 하마리큐 정원(연말연시만), 스몰 월드(11월~1월 초 매일), 시부야 스카이(1/1만).
+//   하나야시키는 쉬는 날이 행사마다 달라 closed에 안 넣음. 갓파바시는 가게마다 달라요(일·공휴일에 쉬는 가게가 많음, kappabashi.or.jp).
+// - 운영 시간을 적지 않은 곳(신사·절·거리·쇼핑몰 등)은 이번에 따로 보지 않았어요.
 
 const TOKYO_AREAS = {
   maihama:{name:'마이하마', station:'JR 마이하마역', q:'舞浜駅', lat:35.6365, lng:139.8838, hotel:true, disneyMin:0,
@@ -50,28 +73,28 @@ const TOKYO_AREAS = {
 const TOKYO_PLACES = [
   {id:'tdl', kind:'테마파크', indoor:false, name:'도쿄 디즈니랜드', ja:'東京ディズニーランド', area:'maihama', lat:35.6329, lng:139.8804, hours:0, full:true, anchor:true, tags:['테마파크'], kid:'kids', book:true, note:'날짜 지정 입장권이에요. 주말과 연말은 많이 붐벼요.'},
   {id:'tds', kind:'테마파크', indoor:false, name:'도쿄 디즈니씨', ja:'東京ディズニーシー', area:'maihama', lat:35.6267, lng:139.8851, hours:0, full:true, anchor:true, tags:['테마파크'], kid:'teen', book:true, note:'스릴 있는 놀이기구가 많아 10대 이상이 특히 좋아해요.'},
-  {id:'ghibli', kind:'박물관·미술관', indoor:true, name:'지브리 미술관', ja:'三鷹の森ジブリ美術館', area:'west', lat:35.6962, lng:139.5704, hours:2.5, anchor:true, tags:['문화·역사','체험'], kid:'all', closed:[2], book:true, note:'날짜·시간 지정 예약제예요.'},
-  {id:'teamlab', kind:'체험·캐릭터', indoor:true, name:'팀랩 플래닛', ja:'チームラボプラネッツ TOKYO', area:'bay', lat:35.6491, lng:139.7898, hours:2, anchor:true, tags:['체험'], kid:'all', book:true, note:'물속을 걷는 전시가 있어서 무릎까지 걷을 수 있는 바지가 편해요.'},
+  {id:'ghibli', kind:'박물관·미술관', indoor:true, name:'지브리 미술관', ja:'三鷹の森ジブリ美術館', area:'west', lat:35.6962, lng:139.5704, hours:2.5, anchor:true, tags:['문화·역사','체험'], kid:'all', closed:[2], book:true, note:'날짜·시간 지정 예약제예요. 화요일 휴관이고, 점검으로 며칠씩 닫을 때가 있어요.'},
+  {id:'teamlab', kind:'체험·캐릭터', indoor:true, name:'팀랩 플래닛', ja:'チームラボプラネッツ TOKYO', area:'bay', lat:35.6491, lng:139.7898, hours:2, anchor:true, tags:['체험'], kid:'all', book:true, note:'물속을 걷는 전시가 있어서 무릎까지 걷을 수 있는 바지가 편해요. 2027년 말까지 연다고 안내하고 있어요.'},
   {id:'skytree', kind:'전망대', indoor:true, name:'도쿄 스카이트리', ja:'東京スカイツリー', area:'asakusa', lat:35.7101, lng:139.8107, hours:2, anchor:true, tags:['관광명소','쇼핑'], kid:'all', note:'아래층 소라마치 쇼핑몰과 같이 둘러보면 좋아요.'},
   {id:'sensoji', kind:'신사·절', indoor:false, anchor:true, name:'센소지', ja:'浅草寺', area:'asakusa', lat:35.7148, lng:139.7967, hours:1.5, tags:['문화·역사','관광명소'], kid:'all', note:'절 앞 나카미세 거리의 길거리 간식이 유명해요.'},
   {id:'uenozoo', kind:'수족관·동물원', indoor:false, anchor:true, name:'우에노 동물원', ja:'恩賜上野動物園', area:'akiba', lat:35.7166, lng:139.7713, hours:2.5, tags:['자연·산책','체험'], kid:'kids', closed:[1]},
   {id:'ameyoko', kind:'거리·시장', indoor:'part', name:'아메요코 시장', ja:'アメ横商店街', area:'akiba', lat:35.7100, lng:139.7745, hours:1, tags:['맛집','쇼핑'], kid:'all', note:'과일 꼬치, 해산물 덮밥 같은 시장 먹거리가 많아요.'},
   {id:'akihabara', kind:'거리·시장', indoor:'part', name:'아키하바라 거리', ja:'秋葉原電気街', area:'akiba', lat:35.6984, lng:139.7731, hours:2, tags:['쇼핑'], kid:'teen', note:'애니·게임 굿즈 매장이 몰려 있어요.'},
-  {id:'domecity', kind:'테마파크', indoor:false, anchor:true, name:'도쿄 돔 시티 어트랙션즈', ja:'東京ドームシティ アトラクションズ', area:'akiba', lat:35.7056, lng:139.7536, hours:2, tags:['테마파크','체험'], kid:'kids', note:'도심 속 놀이공원이에요. 놀이기구마다 따로 요금을 내요.'},
+  {id:'domecity', kind:'테마파크', indoor:false, anchor:true, name:'도쿄 돔 시티 어트랙션즈', ja:'東京ドームシティ アトラクションズ', area:'akiba', lat:35.7056, lng:139.7536, hours:2, tags:['테마파크','체험'], kid:'kids', note:'도심 속 놀이공원이에요. 놀이기구마다 따로 요금을 내요. 2026년 4월부터 한동안 쉬었다가 다시 연다고 알렸어요. 가기 전에 공식 누리집에서 운영을 확인하세요.'},
   {id:'takeshita', kind:'거리·시장', indoor:false, name:'하라주쿠 다케시타 거리', ja:'竹下通り', area:'shibuya', lat:35.6716, lng:139.7031, hours:1.5, tags:['쇼핑','맛집'], kid:'teen', note:'크레페 가게와 10대 패션 매장이 모여 있어요.'},
   {id:'meiji', kind:'신사·절', indoor:false, anchor:true, name:'메이지 신궁', ja:'明治神宮', area:'shibuya', lat:35.6764, lng:139.6993, hours:1.5, tags:['문화·역사','자연·산책'], kid:'all', note:'도심 한가운데 큰 숲길이에요.'},
   {id:'scramble', kind:'거리·시장', indoor:false, name:'시부야 스크램블 교차로', ja:'渋谷スクランブル交差点', area:'shibuya', lat:35.6595, lng:139.7005, hours:0.5, tags:['관광명소'], kid:'all'},
   {id:'shibuyasky', kind:'전망대', indoor:false, anchor:true, name:'시부야 스카이', ja:'SHIBUYA SKY', area:'shibuya', lat:35.6584, lng:139.7022, hours:1.5, tags:['관광명소'], kid:'all', book:true, note:'해 질 녘 시간대 표가 가장 먼저 매진돼요.'},
   {id:'parco', kind:'체험·캐릭터', indoor:true, name:'시부야 파르코 (포켓몬센터·닌텐도)', ja:'渋谷PARCO', area:'shibuya', lat:35.6620, lng:139.6989, hours:1.5, tags:['쇼핑','체험'], kid:'teen'},
-  {id:'gyoen', kind:'공원·정원', indoor:false, name:'신주쿠 교엔', ja:'新宿御苑', area:'shinjuku', lat:35.6852, lng:139.7101, hours:1.5, tags:['자연·산책'], kid:'all', closed:[1], note:'넓은 정원이라 쉬어 가기 좋아요.'},
-  {id:'tocho', kind:'전망대', indoor:true, name:'도쿄도청 전망대', ja:'東京都庁展望室', area:'shinjuku', lat:35.6896, lng:139.6917, hours:1, tags:['관광명소'], kid:'all', note:'무료 전망대예요.'},
+  {id:'gyoen', kind:'공원·정원', indoor:false, name:'신주쿠 교엔', ja:'新宿御苑', area:'shinjuku', lat:35.6852, lng:139.7101, hours:1.5, tags:['자연·산책'], kid:'all', closed:[1], note:'넓은 정원이라 쉬어 가기 좋아요. 월요일 휴원이지만 벚꽃 때(3/25~4/24)와 11/1~11/15에는 매일 열어요. 10~3월은 16시 30분에 닫아요.'},
+  {id:'tocho', kind:'전망대', indoor:true, name:'도쿄도청 전망대', ja:'東京都庁展望室', area:'shinjuku', lat:35.6896, lng:139.6917, hours:1, tags:['관광명소'], kid:'all', note:'무료 전망대예요. 남·북 전망대가 한 달에 두 번씩 번갈아 쉬어요.'},
   {id:'omoide', kind:'먹거리', indoor:'part', name:'오모이데요코초', ja:'思い出横丁', area:'shinjuku', lat:35.6930, lng:139.6995, hours:1, tags:['맛집'], kid:'adult', note:'좁은 꼬치·선술집 골목이에요.'},
-  {id:'odaiba', kind:'쇼핑', indoor:true, name:'오다이바 다이버시티', ja:'ダイバーシティ東京 プラザ', area:'bay', lat:35.6252, lng:139.7756, hours:2.5, tags:['쇼핑','관광명소'], kid:'all', note:'실물 크기 건담 조각상 앞이 사진 명소예요.'},
-  {id:'miraikan', kind:'박물관·미술관', indoor:true, anchor:true, name:'미라이칸 (과학미래관)', ja:'日本科学未来館', area:'bay', lat:35.6192, lng:139.7767, hours:2, tags:['체험'], kid:'kids', closed:[2]},
+  {id:'odaiba', kind:'쇼핑', indoor:true, name:'오다이바 다이버시티', ja:'ダイバーシティ東京 プラザ', area:'bay', lat:35.6252, lng:139.7756, hours:2.5, tags:['쇼핑'], kid:'all', note:'푸드코트와 가게가 많은 큰 쇼핑몰이에요. 앞에 있던 실물 크기 유니콘 건담 조각상은 2026년 8월 말에 전시를 끝냈어요.'},
+  {id:'miraikan', kind:'박물관·미술관', indoor:true, anchor:true, name:'미라이칸 (과학미래관)', ja:'日本科学未来館', area:'bay', lat:35.6192, lng:139.7767, hours:2, tags:['체험'], kid:'kids', closed:[2], note:'공사로 2026년 10월 1일부터 2027년 4월 22일까지 문을 닫아요(4월 23일 다시 열어요). 평소엔 화요일 휴관이에요.'},
   {id:'kidzania', kind:'체험·캐릭터', indoor:true, anchor:true, name:'키자니아 도쿄', ja:'キッザニア東京', area:'bay', lat:35.6551, lng:139.7922, hours:4, tags:['체험'], kid:'kids', book:true, note:'직업 체험 테마파크예요. 진행은 일본어 위주예요.'},
-  {id:'toyosu', kind:'먹거리', indoor:true, name:'도요스 시장', ja:'豊洲市場', area:'bay', lat:35.6455, lng:139.7845, hours:1.5, tags:['맛집'], kid:'all', closed:[0], note:'아침 일찍 가야 해요. 수요일에 쉬는 날도 있어요.'},
-  {id:'tsukiji', kind:'먹거리', indoor:false, anchor:true, name:'츠키지 장외시장', ja:'築地場外市場', area:'tokyo', lat:35.6654, lng:139.7707, hours:1.5, tags:['맛집'], kid:'all', note:'오전에 가야 문 연 가게가 많아요.'},
-  {id:'ginza', kind:'쇼핑', indoor:'part', name:'긴자 거리', ja:'銀座', area:'tokyo', lat:35.6717, lng:139.7650, hours:2, tags:['쇼핑'], kid:'all', note:'주말 낮에는 중앙 대로가 보행자 거리가 돼요.'},
+  {id:'toyosu', kind:'먹거리', indoor:true, name:'도요스 시장', ja:'豊洲市場', area:'bay', lat:35.6455, lng:139.7845, hours:1.5, tags:['맛집'], kid:'all', closed:[0], note:'아침 일찍 가야 해요. 일요일·공휴일과 시장이 쉬는 날(수요일 며칠)엔 가게도 다 닫아요.'},
+  {id:'tsukiji', kind:'먹거리', indoor:false, anchor:true, name:'츠키지 장외시장', ja:'築地場外市場', area:'tokyo', lat:35.6654, lng:139.7707, hours:1.5, tags:['맛집'], kid:'all', note:'오전(9~14시)에 가야 문 연 가게가 많아요. 일요일·공휴일엔 쉬는 가게가 많아요.'},
+  {id:'ginza', kind:'쇼핑', indoor:'part', name:'긴자 거리', ja:'銀座', area:'tokyo', lat:35.6717, lng:139.7650, hours:2, tags:['쇼핑'], kid:'all', note:'토·일·공휴일 낮 12시부터 중앙 대로가 보행자 거리가 돼요(10~3월은 17시, 4~9월은 18시까지).'},
   {id:'charast', kind:'체험·캐릭터', indoor:true, name:'도쿄역 캐릭터 스트리트', ja:'東京キャラクターストリート', area:'tokyo', lat:35.6800, lng:139.7680, hours:1, tags:['쇼핑'], kid:'teen', note:'도쿄역 지하에 캐릭터 상점이 모여 있어요.'},
   {id:'tower', kind:'전망대', indoor:true, anchor:true, name:'도쿄 타워', ja:'東京タワー', area:'tokyo', lat:35.6586, lng:139.7454, hours:1.5, tags:['관광명소'], kid:'all'},
   {id:'sunshine', kind:'체험·캐릭터', indoor:true, anchor:true, name:'선샤인시티 (수족관·포켓몬센터)', ja:'サンシャインシティ', area:'ikebukuro', lat:35.7289, lng:139.7193, hours:3, tags:['쇼핑','체험'], kid:'kids'},
@@ -86,23 +109,23 @@ const TOKYO_PLACES = [
   {id:'sumida', kind:'수족관·동물원', indoor:true, name:'스미다 수족관', ja:'すみだ水族館', area:'asakusa', lat:35.7101, lng:139.8093, hours:1.5, anchor:true, tags:['체험'], kid:'kids', note:'스카이트리 아래 소라마치 안에 있어요. 펭귄 수조가 유명해요.'},
   {id:'kappabashi', kind:'쇼핑', indoor:false, name:'갓파바시 도구 거리', ja:'かっぱ橋道具街', area:'asakusa', lat:35.7131, lng:139.7885, hours:1, tags:['쇼핑'], kid:'all', note:'주방용품·칼·식품 모형 가게 거리. 일요일엔 쉬는 가게가 많아요.'},
   {id:'hanayashiki', kind:'테마파크', indoor:false, name:'하나야시키 놀이공원', ja:'浅草花やしき', area:'asakusa', lat:35.7155, lng:139.7946, hours:2, tags:['테마파크'], kid:'kids', note:'일본에서 가장 오래된 작은 놀이공원. 어린아이에게 맞아요.'},
-  {id:'tcv', kind:'전망대', indoor:true, name:'롯폰기 힐스 도쿄 시티 뷰', ja:'東京シティビュー', area:'tokyo', lat:35.6604, lng:139.7291, hours:1.5, anchor:true, tags:['관광명소'], kid:'all', note:'도쿄타워가 정면으로 보이는 실내 전망대. 야경이 좋아요.'},
+  {id:'tcv', kind:'전망대', indoor:true, name:'롯폰기 힐스 도쿄 시티 뷰', ja:'東京シティビュー', area:'tokyo', lat:35.6604, lng:139.7291, hours:1.5, anchor:true, tags:['관광명소'], kid:'all', note:'도쿄타워가 정면으로 보이는 실내 전망대. 야경이 좋아요. 전시를 바꿀 때 며칠씩 닫으니 가기 전에 확인하세요.'},
   {id:'borderless', kind:'체험·캐릭터', indoor:true, name:'팀랩 보더리스', ja:'チームラボボーダレス', area:'tokyo', lat:35.6620, lng:139.7434, hours:2.5, anchor:true, tags:['체험'], kid:'all', book:true, note:'아자부다이 힐스의 디지털 아트 미술관. 날짜·시간 지정 표예요.'},
   {id:'zojoji', kind:'신사·절', indoor:false, name:'조조지', ja:'増上寺', area:'tokyo', lat:35.6573, lng:139.7483, hours:1, tags:['문화·역사'], kid:'all', note:'도쿄타워를 배경으로 사진 찍기 좋은 절이에요.'},
-  {id:'palace', kind:'공원·정원', indoor:false, name:'고쿄 히가시교엔', ja:'皇居東御苑', area:'tokyo', lat:35.6867, lng:139.7574, hours:1.5, tags:['자연·산책','문화·역사'], kid:'all', closed:[1, 5], note:'옛 에도성 터의 정원. 무료, 월·금 휴원.'},
-  {id:'marunouchi', kind:'야경·일루미네이션', indoor:false, name:'마루노우치 나카도리', ja:'丸の内仲通り', area:'tokyo', lat:35.6800, lng:139.7628, hours:1, tags:['관광명소','쇼핑'], kid:'all', note:'11월~2월 가로수 샴페인 골드 일루미네이션. 저녁에 걷기 좋아요.'},
+  {id:'palace', kind:'공원·정원', indoor:false, name:'고쿄 히가시교엔', ja:'皇居東御苑', area:'tokyo', lat:35.6867, lng:139.7574, hours:1.5, tags:['자연·산책','문화·역사'], kid:'all', closed:[1, 5], note:'옛 에도성 터의 정원. 무료, 월·금 휴원. 11~2월은 16시에 닫아요.'},
+  {id:'marunouchi', kind:'야경·일루미네이션', indoor:false, name:'마루노우치 나카도리', ja:'丸の内仲通り', area:'tokyo', lat:35.6800, lng:139.7628, hours:1, tags:['관광명소','쇼핑'], kid:'all', note:'11월 중순~2월 중순 가로수 샴페인 골드 일루미네이션. 저녁에 걷기 좋아요.'},
   {id:'hamarikyu', kind:'공원·정원', indoor:false, name:'하마리큐 정원', ja:'浜離宮恩賜庭園', area:'tokyo', lat:35.6602, lng:139.7638, hours:1.5, tags:['자연·산책'], kid:'all', note:'바닷물을 끌어들인 연못 정원. 연못 위 찻집에서 말차를 마실 수 있어요.'},
   {id:'tsukishima', kind:'먹거리', indoor:'part', name:'쓰키시마 몬자 거리', ja:'月島もんじゃストリート', area:'tokyo', lat:35.6643, lng:139.7825, hours:1.5, tags:['맛집'], kid:'all', note:'도쿄식 철판 요리 몬자야키 가게가 줄지어 있어요.'},
   {id:'tokyost', kind:'거리·시장', indoor:false, name:'도쿄역 마루노우치 역사', ja:'東京駅丸の内駅舎', area:'tokyo', lat:35.6812, lng:139.7660, hours:0.5, tags:['관광명소','문화·역사'], kid:'all', note:'100년 넘은 붉은 벽돌 역 건물. 밤 조명도 예뻐요.'},
   {id:'ramenst', kind:'먹거리', indoor:true, name:'도쿄 라멘 스트리트', ja:'東京ラーメンストリート', area:'tokyo', lat:35.6804, lng:139.7679, hours:1, tags:['맛집'], kid:'all', note:'도쿄역 지하에 유명 라멘집이 모여 있어요. 점심엔 줄이 길어요.'},
-  {id:'ebisu', kind:'야경·일루미네이션', indoor:false, name:'에비스 가든 플레이스', ja:'恵比寿ガーデンプレイス', area:'shibuya', lat:35.6420, lng:139.7136, hours:1, tags:['쇼핑','관광명소'], kid:'all', note:'겨울엔 대형 바카라 샹들리에 일루미네이션을 해요.'},
+  {id:'ebisu', kind:'야경·일루미네이션', indoor:false, name:'에비스 가든 플레이스', ja:'恵比寿ガーデンプレイス', area:'shibuya', lat:35.6420, lng:139.7136, hours:1, tags:['쇼핑','관광명소'], kid:'all', note:'11월 중순~1월 초엔 대형 바카라 샹들리에 일루미네이션을 해요.'},
   {id:'omotesando', kind:'쇼핑', indoor:'part', name:'오모테산도', ja:'表参道', area:'shibuya', lat:35.6691, lng:139.7041, hours:1.5, tags:['쇼핑'], kid:'all', note:'명품 매장과 건축이 멋진 가로수길. 하라주쿠와 이어져요.'},
   {id:'yoyogi', kind:'공원·정원', indoor:false, name:'요요기 공원', ja:'代々木公園', area:'shibuya', lat:35.6714, lng:139.6952, hours:1, tags:['자연·산책'], kid:'all', note:'메이지 신궁 옆 넓은 공원. 겨울엔 파란 일루미네이션 행사가 열려요.'},
   {id:'miyashita', kind:'쇼핑', indoor:'part', name:'미야시타 파크', ja:'MIYASHITA PARK', area:'shibuya', lat:35.6620, lng:139.7019, hours:1, tags:['쇼핑','맛집'], kid:'all', note:'옥상 공원이 있는 쇼핑몰. 1층에 요코초 먹거리 골목이 있어요.'},
   {id:'shimokita', kind:'거리·시장', indoor:'part', name:'시모키타자와', ja:'下北沢', area:'shibuya', lat:35.6617, lng:139.6663, hours:1.5, tags:['쇼핑','맛집'], kid:'all', note:'빈티지 옷가게·카페·잡화점 골목.'},
   {id:'godzilla', kind:'거리·시장', indoor:false, name:'신주쿠 고질라 헤드', ja:'新宿東宝ビル', area:'shinjuku', lat:35.6954, lng:139.7020, hours:0.5, tags:['관광명소'], kid:'teen', note:'가부키초 건물 위 실물 크기 고질라 머리. 잠깐 사진 찍고 가요.'},
   {id:'nakano', kind:'쇼핑', indoor:true, name:'나카노 브로드웨이', ja:'中野ブロードウェイ', area:'shinjuku', lat:35.7093, lng:139.6656, hours:1.5, tags:['쇼핑'], kid:'teen', note:'애니·피규어·장난감 중고 가게가 빼곡한 건물이에요.'},
-  {id:'rikugien', kind:'공원·정원', indoor:false, name:'리쿠기엔', ja:'六義園', area:'ikebukuro', lat:35.7334, lng:139.7463, hours:1.5, anchor:true, tags:['자연·산책','문화·역사'], kid:'all', note:'에도 시대 정원. 12월 초까지 단풍이 남아 있고 야간 조명도 해요.'},
+  {id:'rikugien', kind:'공원·정원', indoor:false, name:'리쿠기엔', ja:'六義園', area:'ikebukuro', lat:35.7334, lng:139.7463, hours:1.5, anchor:true, tags:['자연·산책','문화·역사'], kid:'all', note:'에도 시대 정원. 12월 초까지 단풍이 남아 있고, 11월 말~12월 초엔 따로 표를 사는 야간 조명을 해요.'},
   {id:'koishikawa', kind:'공원·정원', indoor:false, name:'고이시카와 고라쿠엔', ja:'小石川後楽園', area:'akiba', lat:35.7054, lng:139.7492, hours:1, tags:['자연·산책'], kid:'all', note:'도쿄 돔 옆의 오래된 정원이에요.'},
   {id:'gotokuji', kind:'신사·절', indoor:false, name:'고토쿠지', ja:'豪徳寺', area:'shibuya', lat:35.6535, lng:139.6469, hours:1, tags:['문화·역사'], kid:'all', note:'수천 개의 복고양이(마네키네코) 인형이 놓인 절이에요.'},
   {id:'harmonica', kind:'먹거리', indoor:'part', name:'기치조지 하모니카 요코초', ja:'ハモニカ横丁', area:'west', lat:35.7038, lng:139.5793, hours:1, tags:['맛집','쇼핑'], kid:'all', note:'작은 가게가 하모니카 칸처럼 붙은 시장 골목.'},
@@ -111,7 +134,7 @@ const TOKYO_PLACES = [
   {id:'legoland', kind:'체험·캐릭터', indoor:true, name:'레고랜드 디스커버리 센터 도쿄', ja:'レゴランド・ディスカバリー・センター東京', area:'bay', lat:35.6288, lng:139.7757, hours:2, tags:['체험','테마파크'], kid:'kids', note:'3~10살 대상 실내 레고 놀이 시설. 어른끼리는 입장할 수 없어요.'},
   {id:'joypolis', kind:'테마파크', indoor:true, name:'도쿄 조이폴리스', ja:'東京ジョイポリス', area:'bay', lat:35.6290, lng:139.7757, hours:2.5, anchor:true, tags:['테마파크','체험'], kid:'teen', note:'실내 놀이공원. 비 오는 날에도 좋아요.'},
   {id:'maxell', kind:'수족관·동물원', indoor:true, name:'맥셀 아쿠아 파크 시나가와', ja:'マクセル アクアパーク品川', area:'shibuya', lat:35.6284, lng:139.7358, hours:2, anchor:true, tags:['체험'], kid:'kids', note:'시나가와역 앞 호텔 안 수족관. 돌고래 쇼가 있어요.'},
-  {id:'keyakizaka', kind:'야경·일루미네이션', indoor:false, name:'롯폰기 게야키자카', ja:'けやき坂', area:'tokyo', lat:35.6594, lng:139.7279, hours:0.5, tags:['관광명소'], kid:'all', note:'11~12월 하얀 LED 가로수 길 너머로 도쿄타워가 보여요.'},
+  {id:'keyakizaka', kind:'야경·일루미네이션', indoor:false, name:'롯폰기 게야키자카', ja:'けやき坂', area:'tokyo', lat:35.6594, lng:139.7279, hours:0.5, tags:['관광명소'], kid:'all', note:'11~12월(크리스마스까지) 하얀 LED 가로수 길 너머로 도쿄타워가 보여요.'},
   {id:'kiyosumi', kind:'공원·정원', indoor:false, name:'기요스미 정원', ja:'清澄庭園', area:'tokyo', lat:35.6800, lng:139.7978, hours:1, tags:['자연·산책'], kid:'all', note:'연못 위 징검돌을 건너는 조용한 정원이에요.'}
 ];
 

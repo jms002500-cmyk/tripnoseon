@@ -51,7 +51,7 @@ export function suggestPacking(s, wx){
   // 서류·돈
   add('passport', 'doc', '여권', '만료일이 여행 끝나는 날보다 넉넉한지 확인하세요.');
   add('tickets', 'doc', '항공권·숙소 예약 확인서', '보관함에 넣어 두면 인터넷 없이도 열려요.');
-  if(jp) add('vjw', 'doc', 'Visit Japan Web 입국 QR', '입국 심사·세관 QR이에요. 가족 한 사람씩 각자 등록해야 해요.');
+  if(jp) add('vjw', 'doc', 'Visit Japan Web 입국 QR', '입국 심사·세관을 한 QR로 해요. 한 계정에 같이 가는 가족(10명까지)을 넣을 수 있고, QR은 한 사람씩 따로 나와요.');
   if(jp) add('yen', 'doc', '엔화 현금·동전 지갑', '작은 식당·자판기·코인로커는 아직 현금만 받는 곳이 많아요.');
   add('card', 'doc', '해외 결제 카드', '수수료가 적은 카드를 하나 챙기면 좋아요.');
   if(jp) add('ic', 'doc', '교통카드 (Suica·PASMO 또는 휴대폰 교통카드)', kids.some(a => a >= 6 && a <= 12) ? '초등학생은 어린이 요금 카드가 따로 있어요(역 창구에서 만들어요).' : '지하철·버스·편의점에서 찍고 다녀요.');
