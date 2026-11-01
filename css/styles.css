@@ -171,6 +171,15 @@ p{margin:0}
 .m-num{fill:#FFFFFF; font:600 18px var(--f-mono)}
 .m-num.dark{fill:var(--ink)}
 .m-num-off{fill:var(--surface); stroke:var(--accent); stroke-width:4}
+.m-go{cursor:pointer; transform-box:fill-box; transform-origin:center}
+.m-go .m-hit{fill:transparent}
+.m-go:focus{outline:none}
+.m-go:focus-visible circle:not(.m-hit){stroke:var(--ink); stroke-width:6}
+.m-go.flash{animation:mkpulse .4s ease-in-out 4 alternate}
+@keyframes mkpulse{to{transform:scale(1.5)}}
+.map, .pcard{scroll-margin-top:160px}   /* 위에 고정된 단계 줄에 가리지 않게 */
+.pcard.flash{animation:cardflash 1.8s ease-out}
+@keyframes cardflash{0%, 45%{box-shadow:0 0 0 4px var(--accent)} 100%{box-shadow:0 0 0 0 transparent}}
 .m-scale{fill:none; stroke:var(--muted); stroke-width:4; stroke-linejoin:round}
 .cityhead{display:flex; align-items:baseline; gap:8px; margin-top:22px}
 .pnum{display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 5px; margin-right:6px; border-radius:11px; background:var(--accent); color:#FFFFFF; font:600 12px var(--f-mono); vertical-align:2px}
