@@ -3,7 +3,7 @@
 //   입장권·교통·기타 예약에 장소를 연결하면 → 그 장소를 담고 그날 일정으로(s.picked, s.assign / 하루 종일 곳은 s.fullDay)
 // 예약번호·첨부는 보관함(이 기기)에만 남음. 여기서 바꾸는 칸은 일정 칸이라 함께 짜기로 공유됨(숙소 이름·위치 포함, 예약번호 없음).
 // 순수 함수(테스트 대상): 상태를 고치지 않고 바꿀 칸만 돌려줌 { patch, msgs, locate }. 저장·위치 찾기는 app.js.
-import { AIRPORTS, toMin } from './flight.js';
+import { AIRPORTS, toMin, NIGHT_DEP } from './flight.js';
 import { buildDays, allPlaces } from './logic.js';
 
 const isKey = k => /^\d{4}-\d{2}-\d{2}$/.test(k || '');
@@ -34,7 +34,9 @@ export function applyFlight(s, it){
     if(day && day !== s.start){ patch.start = day; msgs.push(`가는 날 ${md(day)}`); }
     if(arr != null && f.arr !== it.time2){ f.arr = it.time2; msgs.push(`첫날 ${it.time2} 도착`); }
   } else {
-    if(isKey(it.date) && it.date !== s.end){ patch.end = it.date; msgs.push(`오는 날 ${md(it.date)}`); }
+    const night = toMin(it.time) != null && toMin(it.time) < NIGHT_DEP;   // 자정 넘어 출발: 오는 날은 그 전날(그날 밤 숙소에서 나섬)
+    const end = isKey(it.date) ? (night ? addDay(it.date, -1) : it.date) : '';
+    if(end && end !== s.end){ patch.end = end; msgs.push(`오는 날 ${md(end)}${night ? `(밤 비행기 · ${md(it.date)} ${it.time} 출발)` : ''}`); }
     if(toMin(it.time) != null && f.dep !== it.time){ f.dep = it.time; msgs.push(`마지막 날 ${it.time} 출발`); }
   }
   if(JSON.stringify(f) !== JSON.stringify(Object.assign({ ap:'', arr:'', dep:'' }, s.flight))) patch.flight = f;

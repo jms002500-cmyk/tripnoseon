@@ -2,7 +2,7 @@
 // 시각은 어림: 그날 나서는 시각(보통 9:30, 첫날은 비행기 도착 뒤)부터 이동 시간(transit.js 어림)과 머무는 시간을 차례로 더함.
 // 순수 함수(테스트 대상). 파일 만들기·보내기는 app.js.
 import { legMinutes } from './transit.js';
-import { DAY_START, dayEnd, hm, toMin } from './flight.js';
+import { DAY_START, dayEnd, hm, toMin, depMin } from './flight.js';
 import { movesOn, moveEnds, moveMin, howOf, legOf, isEmptyMove } from './moves.js';
 import { prepTasks } from './prep.js';
 import { flightDir, addDay } from './bookings.js';
@@ -17,7 +17,7 @@ const HOME_TZ = 9;                       // 집 ↔ 공항은 한국 시각
 export function homeTime(s, m){
   const t = toMin(m && m.time); if(t == null) return null;
   const diff = (HOME_TZ - (TZ_OFFSET[s.city] ?? HOME_TZ)) * 60; const f = s.flight || {};
-  const a = m.k === 'go' ? toMin(f.arr) : null, z = m.k === 'back' ? toMin(f.dep) : null; const x = t - diff;
+  const a = m.k === 'go' ? toMin(f.arr) : null, z = m.k === 'back' ? depMin(f) : null; const x = t - diff;   // 밤 비행기면 z는 1440 이상
   if(a != null) return x > a ? { min:x - 1440, day:-1 } : { min:x, day:0 };
   if(z != null) return x < z ? { min:x + 1440, day:1 } : { min:x, day:0 };
   return { min:(x + 1440) % 1440, day:0 };
@@ -83,7 +83,7 @@ export function buildIcs(s, P, vault, now, ctx){
     if(d.depart && d.depart.leave >= 0){
       const h = out && howOf(out.how);
       add(d.key, d.depart.leave, d.depart.leave + d.depart.transfer, `🧳 숙소에서 공항으로 출발${h ? ` · ${h.label}${out.booked ? '(예약)' : ''}` : ''} · ${d.depart.ap.name}`, { id:'leave',
-        alarms:[[60, '1시간 뒤 공항으로 출발해요. 짐을 챙기세요.'], [15, '15분 뒤 공항으로 출발해요.']], desc:[`비행기 ${hm(d.depart.at)} 출발 · ${d.depart.set ? '오가는 길에 넣은 시각' : '2시간 30분 전 공항 도착 기준'}`, out && out.note || ''].filter(Boolean).join('\n') });
+        alarms:[[60, '1시간 뒤 공항으로 출발해요. 짐을 챙기세요.'], [15, '15분 뒤 공항으로 출발해요.']], desc:[`비행기 ${hm(d.depart.at)}${d.depart.at >= 1440 ? '(다음 날 새벽)' : ''} 출발 · ${d.depart.set ? '오가는 길에 넣은 시각' : '2시간 30분 전 공항 도착 기준'}`, out && out.note || ''].filter(Boolean).join('\n') });
       add(d.key, d.depart.at, d.depart.at + 30, `✈️ ${tag} 출발 비행기`, { id:'dep' });
     }
   });

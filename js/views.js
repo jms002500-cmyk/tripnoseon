@@ -25,6 +25,7 @@ import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWea
 import { mapSVG } from './map.js';
 import { ASK_KINDS, askKindOf, askPrompt, AI_SITES, QUICK_TRANSLATE } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
+const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS } from './bookings.js';
 import { dayAgenda, nextUp } from './agenda.js';
 import { clockView, diffText } from './clock.js';
@@ -261,8 +262,12 @@ function flightBox(s, days){
   if(a) lines.push(a.cap > 0
     ? `첫날 ${koTime(a.at)} 도착 → 입국·짐 찾기 1시간, ${esc(a.ap.name)}에서 숙소까지 약 ${fminText(a.transfer)}, 짐 맡기기 → <b>${koTime(a.ready)}쯤부터 약 ${first.cap}시간</b> 다닐 수 있어요.`
     : `첫날 ${koTime(a.at)} 도착이라 숙소에 들어가 쉬는 날로 둘게요.`);
+  if(z && z.at >= 1440){   // 밤 비행기: 오는 날은 숙소에서 나서는 날
+    const k = last.key; const [y, mo, dd] = k.split('-').map(Number); const nx = new Date(Date.UTC(y, mo - 1, dd + 1));
+    lines.push(`자정 넘어 출발하는 밤 비행기로 계산해요: <b>${+k.slice(5, 7)}/${+k.slice(8)} 밤</b>에 숙소에서 나가 ${nx.getUTCMonth() + 1}/${nx.getUTCDate()} ${esc(f.dep)}에 출발. 비행기 날짜가 이와 다르면 '오는 날'을 비행기 날짜 전날로 맞춰 주세요(그 밤 숙소는 필요 없어요).`);
+  }
   if(z) lines.push(z.leave < 0 ? '출발이 새벽이에요. 자정을 넘기는 비행기면 오는 날을 하루 앞당겨 주세요.'
-    : `마지막 날 ${koTime(z.at)} 출발 → 2시간 30분 전 공항 도착, 숙소에서 공항까지 약 ${fminText(z.transfer)} → <b>${koTime(z.leave)}에 숙소에서 나가요</b>.${last.cap > 0 ? ` 그 전에 약 ${last.cap}시간 다닐 수 있어요.` : ' 이날은 짐 싸고 공항 가는 날로 둘게요.'}`);
+    : `마지막 날 ${koTime(z.at)}${nightTag(z.at)} 출발 → 2시간 30분 전 공항 도착, 숙소에서 공항까지 약 ${fminText(z.transfer)} → <b>${koTime(z.leave)}에 숙소에서 나가요</b>.${last.cap > 0 ? ` 그 전에 약 ${last.cap}시간 다닐 수 있어요.` : ' 이날은 짐 싸고 공항 가는 날로 둘게요.'}`);
   return `<div class="box">
     <h2>비행기 시간<small>현지 시각 · 몰라도 돼요</small></h2>
     <div class="dates">
@@ -1606,7 +1611,7 @@ export function vToday(s){
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
     ${ph.phase === 'before' ? prepBox(s, 'today') : ''}
-    ${d.depart && d.depart.leave >= 0 ? `<p class="warnline">✈️ ${koTime(d.depart.at)} 비행기 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로 출발</b>해야 해요. 짐 찾을 시간도 챙기세요.</p>` : ''}
+    ${d.depart && d.depart.leave >= 0 ? `<p class="warnline">✈️ ${koTime(d.depart.at)}${nightTag(d.depart.at)} 비행기 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로 출발</b>해야 해요. 짐 찾을 시간도 챙기세요.</p>` : ''}
     ${agendaBox(s, d, P, ph.phase === 'during' && date === today)}
     ${next}
     ${ph.phase === 'during' && date === today ? catchBox(s, P, i, date) : ''}

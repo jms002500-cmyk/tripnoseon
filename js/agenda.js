@@ -3,7 +3,7 @@
 //   시각은 현지 분(0~1439). 집 ↔ 공항은 한국 시각이라 현지로 바꿔서 줄 세움(home:true, kst: 한국 시각 분, kday: 밤 비행기라 전날 -1·다음 날 +1이면 min이 음수·1440 이상)
 import { movesOn, moveText, moveMin, isEmptyMove, legOf } from './moves.js';
 import { bookingRows } from './bookings.js';
-import { AFTER_LANDING, DAY_START, hm, toMin, minText } from './flight.js';
+import { AFTER_LANDING, DAY_START, hm, toMin, minText, depMin } from './flight.js';
 import { homeTime } from './ics.js';
 import { bookings } from './vault.js';
 
@@ -27,7 +27,7 @@ export function dayAgenda(s, d, ctx){
   }
   if(z){
     if(!ms.some(m => m.k === 'out' && toMin(m.time) != null)) out.push({ min:z.leave, icon:'🧳', text:`숙소에서 공항으로 출발 · 약 ${minText(z.transfer)}`, sub:(ms.find(m => m.k === 'out') ? moveText(ms.find(m => m.k === 'out'), c, minText) + ' · ' : '') + '짐 챙기기', kind:'move' });
-    out.push({ min:z.at, icon:'✈️', text:`${z.ap.name} 출발`, sub:'2시간 30분 전 공항 도착 기준', kind:'flight', dir:'back' });
+    out.push({ min:z.at, icon:'✈️', text:`${z.ap.name} 출발`, sub:`${z.at >= 1440 ? '다음 날 새벽 · ' : ''}2시간 30분 전 공항 도착 기준`, kind:'flight', dir:'back' });
   }
   bookingRows(bookings(s.vault), d.key).forEach(b => out.push({ min:b.time, icon:b.icon, text:b.text, sub:'예약', kind:'book' }));
   if(z && s.flight && s.flight.itc) out.push({ min:DAY_START, icon:'🧳', text:'시내 체크인 · 홍콩역·구룡역에서 짐 부치기', sub:'참여 항공사만 · 받는 시간 확인', kind:'itc' });
@@ -47,7 +47,7 @@ export function nextUp(list, nowMin){
 export function planText(s, P, ctx, head){
   const lines = [`🧳 ${head}`];
   const f = s.flight || {};
-  if(f.arr || f.dep) lines.push(`✈️ ${[f.arr ? `가는 날 ${f.arr} 도착` : '', f.dep ? `오는 날 ${f.dep} 출발` : ''].filter(Boolean).join(' · ')} (현지 시각)`);
+  if(f.arr || f.dep) lines.push(`✈️ ${[f.arr ? `가는 날 ${f.arr} 도착` : '', f.dep ? (depMin(f) >= 1440 ? `마지막 날 밤 → 다음 날 ${f.dep} 출발` : `오는 날 ${f.dep} 출발`) : ''].filter(Boolean).join(' · ')} (현지 시각)`);
   P.days.forEach((d, i) => {
     lines.push('', `${d.i + 1}일차 ${d.label}`);
     dayAgenda(s, d, ctx).filter(x => !x.guess).forEach(x => lines.push(`  ${x.home && x.kst != null ? `${hm(x.kst)}(한국${x.kday ? `, ${DAY_WORD[x.kday]}` : ''})` : x.min != null ? hm(x.min) : '     '} ${x.icon ? x.icon + ' ' : ''}${x.text}`));
