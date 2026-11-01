@@ -44,6 +44,12 @@ export function shownDate(s, today){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// 지출·다녀옴을 적을 날짜: 여행지 날짜(폰 시계가 아직 한국 시간이어도 tripClock으로), 오늘 하루 화면이면 그 화면에서 보고 있는 날
+export function entryDate(s, now, tz){
+  const t = tripClock(now, tz).date;
+  return s.mode === 'today' ? (shownDate(s, t) || t) : t;
+}
+
 // 처음 열었을 때 오늘 화면을 자동으로 띄울지: 여행 중이고 오늘 아직 자동으로 안 열었으면
 export function shouldAutoOpen(s, today){ return phaseOf(s, today).phase === 'during' && s.todayOpened !== today; }
 

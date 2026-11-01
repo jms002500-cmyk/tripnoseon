@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT } from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { phaseOf, dayToShow, shouldAutoOpen, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from '../js/today.js';
+import { phaseOf, dayToShow, shouldAutoOpen, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey, entryDate } from '../js/today.js';
 import { SHARED_KEYS } from '../js/sharecore.js';
 
 const trip = extra => Object.assign(clone(DEFAULT), { start:'2027-03-07', end:'2027-03-11' }, extra);
@@ -68,6 +68,16 @@ test('머리 문구', () => {
   assert.equal(phaseText({ phase:'before', dday:10, n:5 }, 0), '출발 D-10 · 1일차 미리 보기');
   assert.equal(phaseText({ phase:'during', index:2, n:5 }, 2), '여행 3일째 · 5일 중');
   assert.equal(phaseText({ phase:'during', index:2, n:5 }, 3), '오늘은 3일차 · 4일차를 보고 있어요');
+});
+
+test('지출·다녀옴의 기준 날짜는 여행지 날짜 (폰 시계가 아직 한국 시간이어도)', () => {
+  // 홍콩 3/8 23:30 = 한국 3/9 00:30. 폰 시계(한국)로 날짜를 셈하면 3/9 지출·3/9 다녀옴으로 잘못 들어감
+  const now = new Date('2027-03-08T15:30:00Z');
+  assert.equal(entryDate(trip(), now, 'Asia/Hong_Kong'), '2027-03-08');
+  assert.equal(entryDate(trip({ mode:'today' }), now, 'Asia/Hong_Kong'), '2027-03-08');
+  assert.equal(entryDate(trip({ mode:'today', tday:0 }), now, 'Asia/Hong_Kong'), '2027-03-07');   // 오늘 화면에서 고른 날
+  assert.equal(entryDate(trip(), now, 'Asia/Seoul'), '2027-03-09');
+  assert.equal(entryDate(clone(DEFAULT), now, 'Asia/Hong_Kong'), '2027-03-08');                   // 여행 날짜가 없어도
 });
 
 test('다녀옴 표시와 화면 상태는 공유하지 않음', () => {
