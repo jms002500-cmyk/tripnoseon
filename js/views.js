@@ -23,7 +23,7 @@ import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDat
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
-import { ASK_KINDS, askKindOf, askPrompt, AI_SITES, QUICK_TRANSLATE } from './askai.js';
+import { ASK_KINDS, askKindOf, askPrompt, AI_SITES, QUICK_TRANSLATE, planPrompt } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS } from './bookings.js';
@@ -380,6 +380,36 @@ function placeCard(p, s, n){
   </article>`;
 }
 
+// AI에게 추천 받아 담기: 질문 보내기(사용자의 AI 앱) → 답 붙여 넣기 → 우리 목록에 있으면 담기, 없으면 '가져온 곳'으로 (app.js aiplan*)
+function aiPlanBox(s){
+  const ap = s.sh.aiPlan || {}; const found = ap.found || [];
+  const byId = id => allPlaces(s).find(p => p.id === id);
+  const have = found.filter(x => x.id && byId(x.id)); const toPick = have.filter(x => !s.picked[x.id]).length;
+  const rest = found.filter(x => !(x.id && byId(x.id)) && !x.sent);
+  const row = x => { const p = x.id && byId(x.id);
+    if(p) return `<li class="imp ok"><div class="sbody"><b>${esc(x.name)}</b><span>우리 목록의 '${esc(p.name)}'</span></div>
+      <button type="button" class="link" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${!!s.picked[p.id]}">${s.picked[p.id] ? '✓ 담았어요' : '담기'}</button></li>`;
+    return `<li class="imp${x.sent ? ' skip' : ''}"><div class="sbody"><b>${esc(x.name)}</b><span>${x.sent ? '아래 \'가져온 곳\'으로 보냈어요' : `목록에 없는 곳${x.local ? ` · ${esc(x.local)}` : ''}`}</span></div></li>`; };
+  return `<div class="box" id="aiplan">
+      <h2>🤖 AI에게 추천 받아 담기</h2>
+      <p class="fine">쓰시는 AI(제미나이·ChatGPT·Claude 등, 무료 계정도 돼요)에 우리 여행에 맞춘 질문을 보내요. 받은 답을 붙여 넣으면 장소를 찾아 담아 드려요. 앱이 AI를 직접 부르지 않아서 돈이 들지 않아요.</p>
+      <label for="aiwant">원하는 것 (안 써도 돼요)<input id="aiwant" type="text" maxlength="100" value="${esc(ap.want || '')}" placeholder="예: 비 와도 갈 곳, 야경, 아이가 좋아할 체험"></label>
+      <div><button type="button" class="primary small" data-act="aiplansend">① AI에게 질문 보내기</button></div>
+      <p class="fine">AI 앱이 안 열리면 질문이 복사돼 있으니 아래에서 AI를 열고 붙여 넣으세요.</p>
+      <div class="chips">${AI_SITES.map(x => `<a class="chip" href="${x.url}" target="_blank" rel="noopener">${x.label} 열기 ↗</a>`).join('')}</div>
+      <details class="more"><summary>보낼 질문 보기</summary><pre class="askprompt">${esc(planPrompt(s, ap.want))}</pre></details>
+      <label for="aiplanpaste">② AI 답을 통째로 복사해 붙여 넣기<textarea id="aiplanpaste" rows="4" placeholder="AI 답을 여기에 붙여 넣기"></textarea></label>
+      <div><button type="button" class="ghost small" data-act="aiplanread">장소 찾기</button></div>
+      ${ap.msg ? `<p class="warnline">${esc(ap.msg)}</p>` : ''}
+      ${found.length ? `<div class="row"><h2>AI가 추천한 곳 ${found.length}곳</h2><button type="button" class="link" data-act="aiplanclear">지우기</button></div>
+        <ul class="implist">${found.map(row).join('')}</ul>
+        <div class="chips">${toPick ? `<button type="button" class="primary small" data-act="aiplanpick">목록에 있는 ${toPick}곳 모두 담기</button>` : ''}
+          ${rest.length ? `<button type="button" class="ghost small" data-act="aiplanimport">없는 ${rest.length}곳 위치 찾아 가져오기</button>` : ''}</div>
+        ${rest.length ? '<p class="fine">목록에 없는 곳은 아래 \'가져온 곳\'에서 이름으로 위치를 찾은 뒤, 맞는지 보고 담아요.</p>' : ''}` : ''}
+      <p class="fine">질문에 들어가는 것: 여행지·날짜·동행(아이 나이)·좋아하는 것·담은 장소 이름·적은 말. 이름·연락처·예약 정보는 넣지 않아요. AI 추천은 틀리거나 문 닫은 곳일 수 있으니 구글 지도로 한 번 확인해 주세요.</p>
+    </div>`;
+}
+
 // 구글 지도에서 가져오기: 파일·붙여넣기 입력 + 가져온 곳 확인 목록
 function importRow(r){
   const areaName = r.area ? AREAS[r.area].name : '';
@@ -468,6 +498,7 @@ export function vPick(s){
       <p class="fine">한국어 구글 지도에서 이름으로 찾거나 장소 아이콘을 눌러, 평점·영업시간을 보고 몇 일차에 갈지 골라 바로 담아요. 쉬는 요일은 일정 짜기가 알아서 피해요.</p>
       <div><button type="button" class="primary small" data-act="mapopen">구글 지도 열기</button></div>
     </div>
+    ${aiPlanBox(s)}
     ${importBox(s)}
     <div class="scroller" role="group" aria-label="동네로 거르기">
       ${chip('filter', 'all', '추천순 전체', s.areaFilter === 'all')}
