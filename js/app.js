@@ -5,7 +5,7 @@ import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, recordHead, moveCtx, 
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
-import { askPrompt } from './askai.js';
+import { askPrompt, planPrompt, parseAiPlaces, matchPlace } from './askai.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
 import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend } from './bookings.js';
@@ -592,7 +592,8 @@ function updatePreview(){
   const r = withPlace(parseLine(i.value, s, ctx));
   p.textContent = r.ok ? `→ ${previewText(s, r.e)}` : r.error; p.classList.toggle('bad', !r.ok);
 }
-document.addEventListener('input', e => { if(e.target.id === 'lline') updatePreview(); });
+document.addEventListener('input', e => { if(e.target.id === 'lline') updatePreview();
+  if(e.target.id === 'aiwant') (state.sh.aiPlan = state.sh.aiPlan || {}).want = e.target.value.slice(0, 100); });
 
 // 오늘 하루 화면에서 장소의 '여기서 쓴 돈'을 눌렀으면 그 장소를 단 지출로
 function withPlace(r){
@@ -698,7 +699,7 @@ function unpick(s, id){ delete s.picked[id]; delete s.must[id]; delete s.assign[
 function addImports(list){
   const s = state; const base = Date.now().toString(36);
   const have = new Set(allPlaces(s).flatMap(p => [p.name, p.ja]).concat(s.imports.map(r => r.name)).filter(Boolean).map(n => n.toLowerCase()));
-  list.forEach((x, i) => { const r = toRow(x, `i${base}${i}`); if(have.has(r.name.toLowerCase())){ r.dup = true; r.skip = true; } s.imports.push(r); });
+  list.forEach((x, i) => { const r = toRow(x, `i${base}${i}`); if(x.q) r.q = x.q; if(have.has(r.name.toLowerCase())){ r.dup = true; r.skip = true; } s.imports.push(r); });
   save(); render(); findLocations();
 }
 
@@ -710,7 +711,8 @@ async function locate(listKey, busy, err){
   for(;;){
     const r = s[listKey].find(x => x.st === 'need' && !x.skip); if(!r) break;
     try{
-      const hit = await geocode(r.name);
+      // q: AI 추천의 현지 이름(영어·한자). 그걸로 먼저 찾고, 못 찾으면 한국어 이름으로 (1초에 1번은 geocode.js가 지킴)
+      const hit = (r.q && await geocode(r.q)) || await geocode(r.name);
       if(state !== s) return;   // 그사이 '처음부터'를 눌렀으면 그만
       if(!s[listKey].includes(r)) continue;   // 그사이 지웠으면 다음으로
       if(hit){ Object.assign(r, { lat:hit.lat, lng:hit.lng, label:hit.label, st:'ok', src:'geo' }); if(!r.area) r.area = nearestArea(hit).key; }
@@ -842,6 +844,26 @@ function act(a, v){
     case 'dlock': lockDay(s, +v); toast(`${+v + 1}일차를 확정했어요. 이날 장소는 자동으로 바뀌지 않아요.`); break;
     case 'dunlock': unlockDay(s, +v); break;
     case 'impfind': findLocations(); return;
+    case 'aiplansend': sendPlanAsk(); return;
+    case 'aiplanread': {   // AI 답에서 장소 이름을 읽어 우리 목록과 맞춰 봄
+      const t = document.getElementById('aiplanpaste'); const ap = s.sh.aiPlan = s.sh.aiPlan || {};
+      const list = parseAiPlaces(t ? t.value : ''); const places = allPlaces(s);
+      ap.found = list.map(x => Object.assign(x, { id:matchPlace(x, places) }));
+      ap.msg = list.length ? '' : (t && t.value.trim() ? '답에서 장소 이름을 못 찾았어요. 답 끝의 [담기 목록]까지 통째로 복사했는지 봐 주세요.' : 'AI 답을 먼저 붙여 넣어 주세요.');
+      render(); return;
+    }
+    case 'aiplanpick': { const ap = s.sh.aiPlan || {}; const n = (ap.found || []).filter(x => x.id && !s.picked[x.id]);
+      n.forEach(x => { s.picked[x.id] = true; }); if(n.length) toast(`${n.length}곳을 담았어요.`); break; }
+    case 'aiplanimport': {   // 목록에 없는 곳 → 구글 지도 가져오기의 대기 목록(이름으로 위치 찾기 → 확인 → 담기)
+      const ap = s.sh.aiPlan || {}; const places = allPlaces(s);
+      const rest = (ap.found || []).filter(x => !(x.id && places.some(p => p.id === x.id)) && !x.sent);
+      if(!rest.length) return;
+      rest.forEach(x => { x.sent = true; });
+      addImports(rest.map(x => ({ name:x.name, url:'', note:x.local ? `AI 추천 · ${x.local}` : 'AI 추천', lat:null, lng:null, q:x.local })));
+      toast(`${rest.length}곳의 위치를 찾고 있어요. 아래 '가져온 곳'에서 확인하고 담아 주세요.`);
+      return;
+    }
+    case 'aiplanclear': s.sh.aiPlan = { want:(s.sh.aiPlan || {}).want || '' }; break;
     case 'hfind': findHotelLocations(); return;
     case 'mapopen': openLiveMap(); return;
     case 'wxretry': ensureWeather(true); return;
@@ -1107,6 +1129,15 @@ function setAskPhoto(f){
   askPhoto = f ? { file:f, url:URL.createObjectURL(f) } : null;
 }
 async function clipText(t){ try{ await navigator.clipboard.writeText(t); return true; }catch(e){ return false; } }
+// 장소 추천 질문을 공유 창으로 (사용자가 AI 앱을 고름). 공유 창이 없거나 글을 빠뜨리는 앱이 있어서 복사도 해 둠
+async function sendPlanAsk(){
+  const text = planPrompt(state, (state.sh.aiPlan || {}).want); const copied = clipText(text);
+  if(navigator.share){
+    try{ await navigator.share({ text }); return; }
+    catch(e){ if(e && e.name === 'AbortError') return; }
+  }
+  toast(await copied ? '질문을 복사했어요. 아래에서 AI를 열고 입력칸에 붙여 넣으세요.' : '복사가 안 됐어요. \'보낼 질문 보기\'에서 길게 눌러 복사해 주세요.');
+}
 // 사진 + 부탁 문장을 공유 창으로 (사용자가 AI 앱을 고름). 일부 AI 앱은 같이 보낸 글을 빠뜨려서 문장은 복사도 해 둠
 async function sendAsk(){
   const s = state; const text = askPrompt(s, s.sh.ask.kind, s.askNote); const f = askPhoto && askPhoto.file;

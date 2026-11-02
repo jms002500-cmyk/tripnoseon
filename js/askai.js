@@ -1,7 +1,8 @@
 // AI 도우미: 사진(메뉴판·표지판·영수증·약·음식)에 상황에 맞는 부탁 문장을 붙여 사용자의 AI 앱(제미나이·ChatGPT·Claude 등)으로 넘김.
 // 앱이 AI를 직접 부르지 않음(비용 0, 키 없음). 보내는 것은 사용자가 고른 사진과 아래 문장뿐 — 보관함·영수증 첨부·위치는 넣지 않음.
 // 순수 함수(테스트 대상).
-import { tripCities, onlyCity } from './logic.js';
+import { tripCities, onlyCity, pickedPlaces } from './logic.js';
+import { PACE } from './data.js';
 import { ratesOf } from './ledger.js';
 
 export const ASK_KINDS = [
@@ -102,3 +103,90 @@ export const AI_SITES = [
   { key:'chatgpt', label:'ChatGPT', url:'https://chatgpt.com/' },
   { key:'claude', label:'Claude', url:'https://claude.ai/new' }
 ];
+
+/* ---------- 장소 담기: AI에게 추천 받아 담기 ----------
+   여행 정보로 추천 부탁 문장을 만들어 사용자의 AI 앱으로 넘기고(앱은 AI를 부르지 않음),
+   붙여 넣은 답의 '담기 목록'에서 장소 이름을 읽어 우리 목록과 맞춰 봄.
+   보내는 것: 여행지·날짜·동행(아이 나이)·좋아하는 것·담은 장소 이름·사용자가 적은 말. 이름·연락처·예약 정보는 넣지 않음 */
+export const PLAN_MARK = '담기 목록';
+const md = k => `${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일`;
+const isKey = k => /^\d{4}-\d{2}-\d{2}$/.test(k || '');
+
+export function planPrompt(s, want){
+  const w = where(s); const kids = s.who === 'family' ? (s.kids || []) : [];
+  let when = '';
+  if(isKey(s.start) && isKey(s.end) && s.end >= s.start){
+    const n = Math.round((Date.parse(s.end) - Date.parse(s.start)) / 864e5);
+    when = ` 날짜는 ${md(s.start)}~${md(s.end)}(${n ? `${n}박 ${n + 1}일` : '당일'}).`;
+  }
+  const picked = pickedPlaces(s); const must = picked.filter(p => s.must[p.id]); const others = picked.filter(p => !s.must[p.id]);
+  const names = ps => ps.slice(0, 30).map(p => p.name).join(', ');
+  const pace = PACE[s.pace] ? `${PACE[s.pace].label}(${PACE[s.pace].desc})` : '';
+  const extra = String(want || '').trim().slice(0, 200);
+  return [`${w.place} 여행을 계획 중이야. 일행은 한국인 ${partyLine(s)}.${when}`,
+    ...((s.styles || []).length ? [`좋아하는 것: ${s.styles.join(', ')}`] : []),
+    ...(pace ? [`하루 일정: ${pace}`] : []),
+    ...(must.length ? [`꼭 갈 곳: ${names(must)}`] : []),
+    ...(others.length ? [`이미 담은 곳: ${names(others)}`] : []),
+    ...(extra ? [`원하는 것: ${extra}`] : []),
+    '',
+    `1. 우리에게 맞는 가볼 곳을 8곳 추천해 줘.${picked.length ? ` ${must.length ? '꼭 갈 곳' : ''}${must.length && others.length ? '과 ' : ''}${others.length ? '이미 담은 곳' : ''}은 빼 줘.` : ''}`,
+    `2. 곳마다 왜 우리에게 맞는지 한 줄${kids.length ? `(${Math.min(...kids)}살 아이가 좋아할지 포함)` : ''}, 있는 동네, 머무는 시간 어림을 적어 줘.`,
+    '3. 실제로 있는 곳만 적고, 문을 닫았거나 공사 중인 곳은 빼 줘. 확실하지 않은 정보는 확실하지 않다고 적어 줘.',
+    `4. 답 맨 끝에 "[${PLAN_MARK}]"이라고 한 줄 쓰고, 그 아래에 추천한 곳을 한 줄에 하나씩 "- 한국어 이름 / 현지 이름(영어나 원래 글자)" 모양으로 적어 줘.`,
+    '답은 한국어로, 짧고 보기 쉽게 써 줘.'].join('\n');
+}
+
+// 한 줄 → { name, local }. '- 빅토리아 피크 / Victoria Peak', '1. **빅토리아 피크** (Victoria Peak) — 설명'
+const BULLET = /^\s*(?:[-*•·▪]|\d{1,2}[.)]|[①-⑳])\s*/;
+const NOT_PLACE = /^(?:이유|추천 ?이유|동네|위치|시간|머무는 ?시간|팁|주의|참고|가격|요금|교통|가는 ?법|영업 ?시간|일차|\d+일차)$/;
+function lineItem(l){
+  const t = l.replace(BULLET, '').replace(/[*_`#]/g, '').trim();
+  let name = t, local = '';
+  const sl = t.split(/\s+\/\s+|\s*／\s*/);
+  if(sl.length > 1){ name = sl[0]; local = sl[1]; }
+  else {
+    name = t.split(/\s+[—–-]\s+|:\s|：/)[0];
+    const pm = name.match(/^(.+?)\s*[(（]([^)）]+)[)）]\s*$/);
+    if(pm && /[A-Za-z\u3040-\u30ff\u3400-\u9fff]/.test(pm[2])){ name = pm[1]; local = pm[2]; }
+  }
+  local = local.split(/\s+[—–-]\s+|:\s|：|,\s/)[0];
+  const clean = x => x.replace(/^[\s"'“‘\[]+|[\s"'”’\].,。!?]+$/g, '').trim();
+  name = clean(name); local = clean(local);
+  if(name.length < 2 || name.length > 40) return null;
+  return { name, local:local.length <= 60 ? local : '' };
+}
+
+// AI 답 → 장소 이름 목록(최대 20곳). '[담기 목록]'이 있으면 그 아래만, 없으면 글머리표·번호 줄
+export function parseAiPlaces(text){
+  const lines = String(text || '').split(/\r?\n/);
+  let at = -1; lines.forEach((l, i) => { if(l.includes(PLAN_MARK)) at = i; });
+  // 목록 표시가 없으면 맨 앞 번호 줄이나 굵은 글씨 줄만 (들여 쓴 '- 이유: …' 같은 설명 줄은 빼고)
+  const cand = at >= 0 ? lines.slice(at + 1).filter(l => BULLET.test(l) || /\S\s*[/／]\s*\S/.test(l))
+    : lines.filter(l => /^\s?(?:\d{1,2}[.)]|[①-⑳])/.test(l) || /^\s?(?:[-*•]\s*)?\*\*/.test(l));
+  const seen = new Set(); const out = [];
+  for(const l of cand){
+    const x = lineItem(l); if(!x || NOT_PLACE.test(x.name)) continue;
+    const k = normName(x.name); if(!k || seen.has(k)) continue;
+    seen.add(k); out.push(x); if(out.length >= 20) break;
+  }
+  return out;
+}
+
+// 이름 비교용: 소문자·전각→반각, 띄어쓰기·문장부호 없앰
+export const normName = x => String(x || '').normalize('NFKC').toLowerCase().replace(/[\s·.,'’"“”()[\]\-–—_/:!?&]+/g, '');
+const keysOf = (...xs) => xs.flatMap(x => [x, String(x || '').replace(/\s*[(（][^)）]*[)）]/g, '')]).map(normName).filter(k => k.length >= 2);
+
+// 우리 목록(places)에서 같은 곳 찾기 → id | ''. 같은 이름이 먼저, 아니면 한쪽이 다른 쪽을 품을 때(4글자 이상)
+export function matchPlace(x, places){
+  const mine = keysOf(x.name, x.local); let best = '', bestLen = 0;
+  for(const p of places){
+    const theirs = keysOf(p.name, p.ja, p.en);
+    if(mine.some(a => theirs.includes(a))) return p.id;
+    for(const a of mine) for(const b of theirs){
+      const short = Math.min(a.length, b.length);
+      if(short >= 4 && short > bestLen && (a.includes(b) || b.includes(a))){ best = p.id; bestLen = short; }
+    }
+  }
+  return best;
+}
