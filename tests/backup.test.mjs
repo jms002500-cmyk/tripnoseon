@@ -48,3 +48,27 @@ test('첨부를 글자로 바꿨다가 되돌려도 내용이 같음', async () 
   assert.equal(back.length, bytes.length);
   assert.ok(back.every((v, i) => v === bytes[i]));
 });
+
+test('다른 지역 일정으로 되돌릴 때는 그 지역 데이터를 먼저 불러옴 (안 그러면 숙소 동네 화면이 멈춤)', async () => {
+  // 합친 뒤 점검(2026-11-03): 도쿄를 보던 기기에서 홍콩·선전 백업으로 되돌리거나(또는 그 반대), 다른 지역 공유 여행에 참여했다가
+  //   '참여 전 일정으로'를 누르면 일정은 바뀌는데 지역 데이터(AREAS·PLACES)는 옛 지역 그대로라 숙소 동네 화면이 멈췄음
+  const D = await import('../js/data.js'); const { loadRegion } = D;
+  const { vStay } = await import('../js/views.js');
+  await loadRegion('hksz'); const hkArea = Object.keys(D.AREAS)[0];
+  const st = Object.assign(clone(DEFAULT), { step:4, city:'hksz', country:'hk', start:'2026-12-06', end:'2026-12-10', hotelArea:hkArea, hotelCur:'HKD' });
+  await loadRegion('tokyo');
+  const next = restoreState({ state:st }); next.sh = {};
+  assert.equal(next.city, 'hksz'); assert.equal(D.REGION.key, 'tokyo');
+  assert.throws(() => vStay(next));                  // 옛 지역 그대로 그리면 멈춤 (고치기 전 모습)
+  await loadRegion(next.city); assert.doesNotThrow(() => vStay(next));
+  await loadRegion('tokyo');
+  // app.js: 일정을 통째로 바꾸는 세 곳(백업으로 바꾸기·되돌리기·참여 전 일정으로) 모두 새 일정의 지역을 먼저 불러온 뒤 바꿈
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+  const swaps = [...app.matchAll(/const next = (restoreState\([^;]*\)|Object\.assign\(clone\(DEFAULT\), bk[^;]*\)); await useRegionOf\(next\.city, \w+\);\s*state = next;/g)];
+  assert.equal(swaps.length, 3);
+  assert.equal((app.match(/state = restoreState\(|state = Object\.assign\(clone\(DEFAULT\), bk/g) || []).length, 0);
+  // 함께 짜기로 받은 일정이 다른 지역이면 불러온 뒤에 그림 (불러오기 전 옛 지역으로 한 번 그리지 않게)
+  assert.match(app, /if\(REGION\.key !== s\.city\)\{ regionWait = true; loadRegion\(s\.city\)\.then\(\(\) => renderRemote\(\)\); \}/);
+  assert.match(app, /if\(!regionWait\) renderRemote\(\);/);
+});

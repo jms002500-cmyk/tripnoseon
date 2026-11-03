@@ -157,6 +157,9 @@ export function cleanShared(s){
   s.budget = objOr(s.budget, DEFAULT.budget);
   s.safety = objOr(s.safety, DEFAULT.safety); fixStrs(s.safety, ['hname', 'addr', 'tel', 'meet']);
   ['picked', 'must', 'fullDay', 'assign', 'dlock', 'nights', 'prep'].forEach(k => { s[k] = objOr(s[k], DEFAULT[k]); delete s[k].__proto__; });
+  // 일정 순서는 날 번호(-1은 빼두기), 밤별 숙소는 숙소 후보 id·'area:동네' 글자만 (다른 모양이면 일정 계산이 멈춤)
+  Object.keys(s.assign).forEach(id => { if(!(typeof s.assign[id] === 'number' && Number.isFinite(s.assign[id]))) delete s.assign[id]; });
+  Object.keys(s.nights).forEach(k => { if(typeof s.nights[k] !== 'string') delete s.nights[k]; });
   s.spend = mapOfObjs(s.spend);
   Object.values(s.spend).forEach(e => {
     fixNums(e, ['amt', 'at'], 0); fixStrs(e, ['d', 'what', 'cat', 'pay', 'by', 'pl', 'vid', 'src']);
@@ -172,6 +175,7 @@ export function cleanShared(s){
     fixStrs(h, ['id', 'name', 'ko', 'pcur', 'mapUrl', 'bookUrl', 'memo', 'area', 'st', 'src', 'label', 'addr', 'tel', 'vid']);
     fixNums(h, ['price'], 0); fixNums(h, ['lat', 'lng'], null);
     if(typeof h.name !== 'string') h.name = '';
+    if(h.prices != null){ h.prices = mapOfObjs(h.prices); Object.values(h.prices).forEach(x => { fixNums(x, ['v'], 0); fixStrs(x, ['cur', 'at']); }); }   // 사이트별 가격 { 사이트: { v, cur, at } }
   });
   s.custom = listOfObjs(s.custom); s.custom.forEach(p => {
     fixStrs(p, ['id', 'name', 'ja', 'gid', 'area', 'kind', 'kid', 'url', 'note', 'src', 'addr']);
@@ -179,6 +183,8 @@ export function cleanShared(s){
     if(typeof p.name !== 'string') p.name = '';
     if(p.tags != null && !Array.isArray(p.tags)) p.tags = [];
     if(p.closed != null && !Array.isArray(p.closed)) delete p.closed;
+    // 날짜 휴관(logic.js closedOn·closedText)은 'YYYY-MM-DD' 글자 목록만
+    if(p.closedDates != null){ if(Array.isArray(p.closedDates)) p.closedDates = p.closedDates.filter(k => typeof k === 'string' && DATE.test(k)); else delete p.closedDates; }
   });
   return s;
 }
