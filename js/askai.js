@@ -190,3 +190,10 @@ export function matchPlace(x, places){
   }
   return best;
 }
+
+// '모두 담기'로 담을 id: 지금 보이는 우리 목록(places)에 있고 아직 안 담은 곳만.
+//   찾은 뒤 홍콩만·선전만으로 바꾸거나 지역을 바꾸면 남은 id가 숨은 곳·다른 지역 곳이어서, 화면 숫자와 달리 그곳까지 담았음
+export function aiToPick(found, places, picked){
+  const ids = new Set((places || []).map(p => p.id)); const pk = picked || {};
+  return [...new Set((found || []).map(x => x.id).filter(id => id && ids.has(id) && !pk[id]))];
+}

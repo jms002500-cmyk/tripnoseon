@@ -1,7 +1,7 @@
 // 공항 주차장 남은 자리: 공항 짐작 · 키 다듬기 · 답 읽기 · 붐빔 정도
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { guessKap, cleanKey, parkUrl, parseParking, xmlItems, crowdOf, krAirport } from '../js/parking.js';
+import { guessKap, moveKap, cleanKey, parkUrl, parseParking, xmlItems, crowdOf, krAirport } from '../js/parking.js';
 
 const ICN1 = krAirport('ICN1'), ICN2 = krAirport('ICN2'), GMP = krAirport('GMP');
 
@@ -78,4 +78,21 @@ test('붐빔 정도', () => {
   assert.equal(crowdOf({ free:10, total:100 }).k, 'busy');
   assert.equal(crowdOf({ free:30, total:100 }).k, 'mid');
   assert.equal(crowdOf({ free:60, total:100 }).k, 'ok');
+});
+
+test('이동의 공항: 고른 공항 먼저, 집 → 공항은 도착 이름, 공항 → 집은 출발 이름으로 짐작', () => {
+  assert.equal(moveKap({ k:'go', from:'김포 집', to:'인천공항 2터미널' }), 'ICN2');
+  assert.equal(moveKap({ k:'back', from:'인천공항 T1', to:'김포 집' }), 'ICN1');   // 집 이름(김포)을 공항으로 보지 않음
+  assert.equal(moveKap({ k:'back', from:'', to:'광주 집' }), '');
+  assert.equal(moveKap({ k:'back', kap:'GMP', from:'인천공항 T1' }), 'GMP');
+  assert.equal(moveKap(null), '');
+});
+
+test('엉뚱한 답(게이트웨이 오류 HTML·JSON)은 빈 목록이 아니라 못 읽은 답', () => {
+  assert.deepEqual(parseParking(ICN1, '<html><body><h1>502 Bad Gateway</h1></body></html>'), { ok:false, err:'bad' });
+  assert.deepEqual(parseParking(ICN1, '<!DOCTYPE html><html><head><title>Error</title></head></html>'), { ok:false, err:'bad' });
+  assert.deepEqual(parseParking(ICN1, JSON.stringify({ message:'Internal Server Error' })), { ok:false, err:'bad' });
+  // 정상 답에 자료가 없으면 그대로 '자료 없음'
+  assert.deepEqual(parseParking(ICN1, '<response><header><resultCode>00</resultCode></header><body><items/></body></response>'), { ok:false, err:'none' });
+  assert.deepEqual(parseParking(ICN1, JSON.stringify({ response:{ header:{ resultCode:'00' }, body:{ items:'' } } })), { ok:false, err:'none' });
 });
