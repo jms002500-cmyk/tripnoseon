@@ -82,3 +82,20 @@ test('이름 없이 좌표 링크만 붙여도 목록에 들어감', () => {
   const list = parseImport('https://maps.google.com/?q=35.6895,139.6917', '');
   assert.equal(list.length, 1); assert.match(list[0].name, /지도에 찍은 곳/); assert.equal(list[0].lat, 35.6895);
 });
+
+test('구글 지도 앱 공유로 열림: 이름·주소로 찾을 말, 짧은 주소는 링크로', async () => {
+  const { sharedPlace } = await import('../js/gimport.js');
+  const P = o => new URLSearchParams(o);
+  assert.equal(sharedPlace(P({})), null);
+  assert.equal(sharedPlace(P({ dev:'1' })), null);
+  // 구글 지도 앱이 보내는 모양: 글에 이름·주소·짧은 주소
+  assert.deepEqual(sharedPlace(P({ sx:'팀호완 삼수이포\n9-11 Fuk Wing St, Sham Shui Po\nhttps://maps.app.goo.gl/AbCd123' })),
+    { q:'팀호완 삼수이포 9-11 Fuk Wing St, Sham Shui Po', name:'팀호완 삼수이포', url:'https://maps.app.goo.gl/AbCd123' });
+  // 제목에 이름, 주소 칸에 링크
+  assert.deepEqual(sharedPlace(P({ st:'Tim Ho Wan', su:'https://maps.app.goo.gl/x9' })), { q:'Tim Ho Wan', name:'Tim Ho Wan', url:'https://maps.app.goo.gl/x9' });
+  // '구글 지도' 같은 머리말은 빼고, 이상한 주소는 링크로 안 씀
+  const r = sharedPlace(P({ st:'Google Maps', sx:'센소지\nhttps://evil.example/x' }));
+  assert.equal(r.name, '센소지'); assert.equal(r.url, '');
+  // 긴 주소 글은 120자까지
+  assert.ok(sharedPlace(P({ sx:'가'.repeat(80) + '\n' + '나'.repeat(80) })).q.length <= 120);
+});

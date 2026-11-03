@@ -154,3 +154,20 @@ export function rowToPlace(r, id, n){
   return { id, name:r.name, ja:'', area, lat, lng, hours:r.hours, tags:[], kid:'all', custom:true,
     url:r.url || '', note:r.note || '', approx, src:'gmap' };
 }
+
+// 구글 지도 앱 '공유' → 트립노선(manifest share_target, 설치한 앱만): ?st=제목&sx=글&su=주소
+//   구글 지도는 보통 글에 '장소 이름(·주소) + maps.app.goo.gl 짧은 주소'를 실어 보냄(짧은 주소엔 좌표가 없음)
+//   → { q: 구글에서 찾을 말(이름 + 주소 줄), name, url } | null(공유로 열린 게 아님)
+export function sharedPlace(params){
+  const g = k => String((params && params.get && params.get(k)) || '').trim();
+  const st = g('st'), sx = g('sx'), su = g('su');
+  if(!st && !sx && !su) return null;
+  const all = [st, sx, su].join('\n');
+  const url = (all.match(/https?:\/\/\S+/) || [''])[0];
+  const lines = [st].concat(sx.split(/\r?\n/)).map(l => l.replace(/https?:\/\/\S+/g, '').trim())
+    .filter(l => l && !/^(구글 ?지도|google ?maps)/i.test(l));
+  const uniq = [...new Set(lines)];
+  const name = (uniq[0] || nameFromUrl(url) || '').slice(0, 60);
+  const q = uniq.slice(0, 2).join(' ').slice(0, 120) || name;
+  return q || url ? { q, name, url:safeMapUrl(url) } : null;
+}

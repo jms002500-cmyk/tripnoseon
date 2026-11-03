@@ -15,6 +15,7 @@ import { withTimeout } from './net.js';
 const FIELDS = ['id', 'displayName', 'location', 'formattedAddress', 'types', 'rating', 'userRatingCount', 'regularOpeningHours', 'googleMapsURI', 'primaryTypeDisplayName'];
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 let G = null, map = null, sheet = null, cb = null, pins = [], temp = null, token = null, typing = null, cur = null, loading = null, script = null;
+let showRec = true;   // 안 담은 추천 장소도 지도에 (범례의 '추천도 보기')
 const MAPS_WAIT = 20000;   // 구글 지도 스크립트·라이브러리를 기다리는 시간
 
 // 구글 지도 불러오기 (키가 없거나 틀리면 실패)
@@ -28,7 +29,7 @@ export function loadMaps(){
     window.__tnMapsReady = () => { clearTimeout(t); ok(window.google.maps); };
     const onErr = () => { clearTimeout(t); loading = null; if(script){ script.remove(); script = null; } fail(new Error('load')); };
     if(script){ script.onerror = onErr; return; }   // 앞서 넣은 스크립트가 아직 오는 중이면 또 넣지 않음(구글 지도는 두 번 넣으면 오류)
-    const p = new URLSearchParams({ key:mapsConfig.apiKey, v:'weekly', language:'ko', region:'JP', loading:'async', callback:'__tnMapsReady' });
+    const p = new URLSearchParams({ key:mapsConfig.apiKey, v:'weekly', language:'ko', region:(REGION.gl || 'jp').toUpperCase(), loading:'async', callback:'__tnMapsReady' });
     script = document.createElement('script'); script.src = `https://maps.googleapis.com/maps/api/js?${p}`; script.async = true;
     script.onerror = onErr;
     document.head.appendChild(script);
@@ -46,41 +47,59 @@ function buildSheet(){
     <div class="mshead"><b>구글 지도에서 담기</b><button type="button" class="ghost small" data-gm="close">닫기</button></div>
     <div class="mssearch"><input type="search" id="gmq" placeholder="장소 이름 (예: 센소지, 이치란 시부야)" aria-label="장소 이름 검색" maxlength="60" autocomplete="off"></div>
     <ul class="gmsug" hidden></ul>
+    <div class="mslegend" aria-label="지도 표시">
+      <span><i class="lg-must"></i>꼭 갈 곳</span><span><i class="lg-on"></i>담은 곳</span><span><i class="lg-rec"></i>안 담은 추천</span><span><i class="lg-hotel"></i>숙소 후보</span><span><i class="lg-look"></i>지금 보는 곳</span>
+      <label><input type="checkbox" data-gmrec checked> 추천도 보기</label>
+    </div>
     <div class="msmap" id="gmmap"></div>
     <div class="msinfo" aria-live="polite"></div>`;
   document.body.appendChild(sheet);
   sheet.addEventListener('click', onClick);
+  sheet.addEventListener('change', e => { if(e.target.matches('[data-gmrec]')){ showRec = e.target.checked; drawPins(); } });
   sheet.addEventListener('input', e => { if(e.target.id === 'gmq'){ clearTimeout(typing); typing = setTimeout(() => suggest(e.target.value.trim()), 300); } });
 }
 
 function info(html){ sheet.querySelector('.msinfo').innerHTML = html; }
 const defaultInfo = () => info('<p class="fine">이름으로 찾거나, 지도의 장소 아이콘을 눌러 담아요. 검색어와 고른 장소는 구글로 보내요.</p>');
 
-// 담은 곳(주황)·숙소 후보(초록) 핀
+// 핀: 꼭 갈 곳(빨강, 크게) · 담은 곳(주황) · 안 담은 추천(흰 바탕·회색 테두리, 작게) · 숙소 후보(초록). 앞에 올수록 위에 그림
+//   색은 화면 토큰(styles.css --warn·--accent·--good)과 같은 값. 범례는 buildSheet .mslegend
+const PIN = {
+  must:{ background:'#B93226', borderColor:'#FFFFFF', glyphColor:'#FFFFFF', scale:1.1, z:4 },
+  on:{ background:'#D96F00', borderColor:'#FFFFFF', glyphColor:'#FFFFFF', scale:0.95, z:3 },
+  rec:{ background:'#FFFFFF', borderColor:'#5A6775', glyphColor:'#5A6775', scale:0.75, z:1 },
+  hotel:{ background:'#1D7F47', borderColor:'#FFFFFF', glyphColor:'#FFFFFF', scale:0.95, z:2 }
+};
+export const pinKind = (s, p) => s.must[p.id] ? 'must' : s.picked[p.id] ? 'on' : 'rec';
 function drawPins(){
   if(!map) return;
   pins.forEach(m => { m.map = null; }); pins = [];
   const s = cb.getState(); const { AdvancedMarkerElement, PinElement } = G.marker;
-  const add = (pos, color, title, onTap) => {
-    const pin = new PinElement({ background:color, borderColor:'#FFFFFF', glyphColor:'#FFFFFF', scale:0.9 });
-    const m = new AdvancedMarkerElement({ map, position:pos, title, content:pin.element, gmpClickable:true });
+  const add = (pos, kind, title, onTap) => {
+    const { z, ...o } = PIN[kind];
+    const pin = new PinElement(o);
+    const m = new AdvancedMarkerElement({ map, position:pos, title, content:pin.element, gmpClickable:true, zIndex:z });
     m.addListener('click', onTap); pins.push(m);
   };
-  allPlaces(s).filter(p => s.picked[p.id]).forEach(p => add({ lat:p.lat, lng:p.lng }, '#D96F00', p.name, () => p.gid ? showPlace(p.gid) : showKnown(p)));
-  (s.hotels || []).filter(h => h.lat != null).forEach(h => add({ lat:h.lat, lng:h.lng }, '#1D7F47', h.name, () => info(`<p><b>${esc(h.name)}</b> <span class="fine">숙소 후보</span></p>`)));
+  allPlaces(s).filter(p => p.lat != null && (showRec || s.picked[p.id])).forEach(p => {
+    const k = pinKind(s, p); add({ lat:p.lat, lng:p.lng }, k, p.name, () => p.gid ? showPlace(p.gid) : showKnown(p));
+  });
+  (s.hotels || []).filter(h => h.lat != null).forEach(h => add({ lat:h.lat, lng:h.lng }, 'hotel', h.name, () => info(`<p><b>${esc(h.name)}</b> <span class="fine">숙소 후보</span></p>`)));
 }
 
 function dayOptions(sel){
   return `<option value="">날짜는 자동으로</option>` + cb.getDays().map(d => `<option value="${d.i}"${sel === d.i ? ' selected' : ''}>${esc(d.label)}</option>`).join('');
 }
 
-// 이미 담은 도쿄 장소(구글 정보 없이)
+// 앱 추천 장소(구글 정보 없이): 담은 곳은 날 옮기기·빼기, 안 담은 곳은 담기
 function showKnown(p){
-  const s = cb.getState();
-  info(`<div class="gmcard"><b>${esc(p.name)}</b>${p.note ? `<p class="fine">${esc(p.note)}</p>` : ''}
+  const s = cb.getState(); const on = !!s.picked[p.id];
+  const tag = s.must[p.id] ? '꼭 갈 곳' : on ? '담은 곳' : '아직 안 담은 추천';
+  const meta = [p.kind, p.full ? '하루 종일' : p.hours ? `약 ${p.hours}시간` : ''].filter(Boolean).join(' · ');
+  info(`<div class="gmcard"><b>${esc(p.name)}</b><span class="fine">${esc(tag)}${meta ? ' · ' + esc(meta) : ''}</span>${p.note ? `<p class="fine">${esc(p.note)}</p>` : ''}
     <div class="pfoot"><select data-gmday aria-label="담을 날">${dayOptions(s.assign[p.id] != null && s.assign[p.id] >= 0 ? s.assign[p.id] : null)}</select>
-      <button type="button" class="primary small" data-gm="move" data-v="${esc(p.id)}">이 날로</button>
-      <button type="button" class="ghost small" data-gm="toggle" data-v="${esc(p.id)}">빼기</button></div></div>`);
+      <button type="button" class="primary small" data-gm="move" data-v="${esc(p.id)}">${on ? '이 날로' : '일정에 담기'}</button>
+      ${on ? `<button type="button" class="ghost small" data-gm="toggle" data-v="${esc(p.id)}">빼기</button>` : ''}</div></div>`);
 }
 
 // 구글 장소 카드
@@ -96,7 +115,9 @@ async function showPlace(placeOrId){
   const periods = oh && oh.periods ? oh.periods.map(p => ({ open:p.open && { day:p.open.day, hour:p.open.hour, minute:p.open.minute }, close:p.close && { day:p.close.day, hour:p.close.hour, minute:p.close.minute } })) : null;
   cur = { id:place.id, name:place.displayName || '', lat:loc.lat(), lng:loc.lng(), types:place.types || [], addr:place.formattedAddress || '', periods, mapsUrl:place.googleMapsURI || '' };
   if(temp) temp.map = null;
-  temp = new G.marker.AdvancedMarkerElement({ map, position:loc, title:cur.name });
+  // 지금 보는 곳(검색·공유·지도에서 고른 곳): 파랑, 크게 (기본 빨강 핀은 '꼭 갈 곳'과 헷갈려서)
+  const look = new G.marker.PinElement({ background:'#1A73E8', borderColor:'#FFFFFF', glyphColor:'#FFFFFF', scale:1.2 });
+  temp = new G.marker.AdvancedMarkerElement({ map, position:loc, title:cur.name, content:look.element, zIndex:5 });
   map.panTo(loc); if(map.getZoom() < 15) map.setZoom(16);
   const s = cb.getState(); const known = matchKnown(cur);
   const mine = known ? known : (s.custom || []).find(c => c.gid === cur.id);
@@ -139,7 +160,7 @@ function onClick(e){
   } else if(a === 'pick' && cur){
     const name = cb.onPick(cur, day); drawPins();
     info(`<p class="lmsg">'${esc(name)}'을(를) ${day == null ? '일정에' : `${day + 1}일차에`} 담았어요. 계속 찾거나 닫기를 눌러 주세요.</p>`);
-  } else if(a === 'move'){ cb.onPick(null, day, b.dataset.v); drawPins(); defaultInfo(); }
+  } else if(a === 'move'){ const name = cb.onPick(null, day, b.dataset.v); drawPins(); info(`<p class="lmsg">'${esc(name)}'을(를) ${day == null ? '일정에' : `${day + 1}일차에`} 담았어요.</p>`); }
   else if(a === 'toggle'){ cb.onToggle(b.dataset.v); drawPins(); defaultInfo(); }
 }
 
@@ -184,7 +205,8 @@ export async function refreshPlaces(gids){
   return out;
 }
 
-export async function openMap(callbacks){
+// query: 구글 지도 앱에서 공유받은 장소(이름·주소) — 지도를 연 뒤 그 장소 카드를 띄움. 지도를 못 열면 false
+export async function openMap(callbacks, query){
   cb = callbacks;
   if(!sheet) buildSheet();
   sheet.hidden = false; document.body.classList.add('noscroll');
@@ -193,7 +215,7 @@ export async function openMap(callbacks){
     info(e.message === 'nokey'
       ? '<p class="warnline">구글 지도 키를 아직 넣지 않았어요. js/maps-config.js에 키를 넣으면 여기에 구글 지도가 떠요.</p>'
       : '<p class="warnline">구글 지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>');
-    return;
+    return false;
   }
   if(!map){
     map = new G.maps.Map(sheet.querySelector('#gmmap'), { center:REGION.center, zoom:REGION.key === 'hksz' ? 11 : 12, mapId:mapsConfig.mapId || 'DEMO_MAP_ID',
@@ -201,6 +223,26 @@ export async function openMap(callbacks){
     map.addListener('click', ev => { if(ev.placeId){ ev.stop(); showPlace(ev.placeId); } });
   }
   drawPins(); defaultInfo();
+  if(query) findPlace(query);
+  return true;
+}
+
+// 이름(·주소)으로 구글 장소 하나 찾기 → 카드. 검색칸과 같은 자동 완성으로 찾음
+//   (글 검색 searchByText는 이 프로젝트에서 하루 한도를 0으로 막아 둠 — 돈이 나가지 않게, 2026-11-04 확인)
+async function findPlace(q){
+  info('<p class="fine">공유한 장소를 찾고 있어요…</p>');
+  const box = sheet.querySelector('#gmq'); if(box) box.value = q.slice(0, 60);
+  const name = q.split(/\s{2,}|\n/)[0];
+  for(const input of [q, q.split(' ').slice(0, 3).join(' ')].filter((x, i, a) => x && a.indexOf(x) === i)){
+    try{
+      if(!token) token = new G.places.AutocompleteSessionToken();
+      const { suggestions } = await withTimeout(G.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input:input.slice(0, 100), sessionToken:token, language:'ko', region:REGION.gl,
+        includedRegionCodes:REGION.codes, locationBias:REGION.center }), MAPS_WAIT);
+      const p = (suggestions || []).map(x => x.placePrediction).find(Boolean);
+      if(p){ const place = p.toPlace(); token = null; showPlace(place); return; }
+    }catch(e){}
+  }
+  info(`<p class="warnline">공유한 장소${name ? ` '${esc(name)}'` : ''}을(를) 못 찾았어요. 위 검색칸에서 이름을 고쳐 찾아 보세요.</p>`);
 }
 
 export function closeMap(){
