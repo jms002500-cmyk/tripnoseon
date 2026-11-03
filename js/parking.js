@@ -59,21 +59,29 @@ function stamp(d, t){
   return m ? `${+m[2]}/${+m[3]} ${m[4]}:${m[5]}` : '';
 }
 
-// 답 글 → { ok, rows:[{ name, used, total, free }], at, err }
-//   err: 'key' 키가 아직 안 열림·틀림 | 'limit' 하루 한도 | 'none' 이 공항 자료 없음 | 'bad' 알 수 없는 답
-export function parseParking(ap, text){
-  const t = String(text || '').trim(); let items = null, code = '';
+// 공공데이터포털 답 글(JSON·XML) → { ok:true, items:[…], total } | { ok:false, err }. 공항버스(airbus.js)도 같이 씀
+//   err: 'key' 키가 아직 안 열림·틀림·활용신청 안 함 | 'limit' 하루 한도 | 'bad' 알 수 없는 답
+export function readApi(text){
+  const t = String(text || '').trim(); let items = null, code = '', total = null;
   if(t.startsWith('{')){
     let j; try{ j = JSON.parse(t); }catch(e){ return { ok:false, err:'bad' }; }
     const auth = j.OpenAPI_ServiceResponse && j.OpenAPI_ServiceResponse.cmmMsgHeader;
-    if(auth) return { ok:false, err:/LIMIT/i.test(auth.errMsg || '') || auth.returnReasonCode === '22' ? 'limit' : 'key' };
+    if(auth) return { ok:false, err:/LIMIT/i.test(auth.errMsg || '') || auth.returnReasonCode === '22' ? 'limit' : auth.returnReasonCode === '04' ? 'bad' : 'key' };
     const r = j.response || j; code = String(((r.header || {}).resultCode) || '');
     const it = r.body && r.body.items; items = Array.isArray(it) ? it : it && it.item ? [].concat(it.item) : [];
+    total = r.body ? num(r.body.totalCount) : null;
   } else if(t.startsWith('<')){
     if(/SERVICE_KEY|SERVICE KEY/i.test(t)) return { ok:false, err:/LIMIT/i.test(t) ? 'limit' : 'key' };
     code = ((t.match(/<resultCode>([^<]*)</) || [])[1] || '').trim(); items = xmlItems(t);
+    total = num((t.match(/<totalCount>([^<]*)</) || [])[1]);
   } else return { ok:false, err:'bad' };
   if(code && !/^0+$/.test(code)) return { ok:false, err:code === '22' ? 'limit' : code === '30' || code === '31' ? 'key' : 'bad' };
+  return { ok:true, items, total };
+}
+
+// 답 글 → { ok, rows:[{ name, used, total, free }], at, err } ('none' 이 공항 자료 없음)
+export function parseParking(ap, text){
+  const a = readApi(text); if(!a.ok) return a; const items = a.items;
   let rows, at = '';
   if(ap.src === 'icn'){
     const mine = items.filter(x => { const f = String(x.floor || ''); return ap.t === '2' ? /T2|제2/.test(f) : /T1|제1/.test(f) || !/T2|제2/.test(f); });
