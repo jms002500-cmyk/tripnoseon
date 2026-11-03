@@ -3,6 +3,7 @@
 //   s.locOn: 이 기기에서 내 위치를 보여 주는 중인지 (기기마다, 함께 짜기로 공유 안 함, 백업에서 뺌)
 //   서버: trips/{여행}/locs/{uid} = { uid, name, lat, lng, acc, at, until, expireAt }  (firestore.rules: 참여자만 읽고, 자기 것만 씀)
 import { dist } from './logic.js';
+import { tripClock } from './today.js';
 
 export const SEND_MOVE_M = 50;       // 이만큼 움직이면 바로 올림
 export const SEND_EVERY = 120000;    // 안 움직여도 2분마다 한 번
@@ -24,6 +25,10 @@ export function shouldSend(last, cur, now){
   if(gap < SEND_MIN) return false;
   return dist(last, cur) * 1000 >= SEND_MOVE_M || gap >= SEND_EVERY;
 }
+
+// 위치 공유가 쓰는 '오늘': 여행지 날짜 (폰 시계가 한국 시간 그대로여도). 예: 홍콩 마지막 날 23:30은 한국 시계로 다음 날 00:30이라
+//   폰 날짜로 보면 마지막 날 밤 1시간 동안 위치 보여 주기가 꺼지고 가족 위치도 지워졌음. 화면(views.js sh.today)과 같은 날짜
+export const locToday = (now, tz) => tripClock(now, tz).date;
 
 // 내 위치를 보여 줄 수 있는 여행인지: 함께 짜기 여행이고, 날짜가 있고, 마지막 날이 안 지났음
 export function canShareLoc(s, today){
