@@ -33,6 +33,7 @@ import { clockView, diffText } from './clock.js';
 import { prepTasks, prepNow } from './prep.js';
 import { KR_AIRPORTS, krAirport, moveKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES } from './parking.js';
 import { BUS_AREAS, BUS_PAGES, BUS_ERR, isWeekend, nextTimes, gapOf, hhmm } from './airbus.js';
+import { MTR_STATIONS, MTR_LINES, MTR_ERR, MTR_SOURCE, nearStations, distText, stationKo, waitText, dirText } from './hktransit.js';
 import { homeTime } from './ics.js';
 import { addDay } from './bookings.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
@@ -1749,6 +1750,38 @@ function locBox(s, today){
   </div>`;
 }
 
+// 🚇 홍콩 MTR 다음 열차 (hktransit.js): 출발점(숙소·앞 장소)에서 가까운 역. 누를 때만 부르고 결과는 화면 전용(s.sh.mtr)
+//   홍콩 쪽 출발점일 때만 (선전은 범위 밖). key는 그날·출발점이라 다음 장소로 넘어가면 고른 역·결과가 풀림
+const ptCity = p => p.key && AREAS[p.key] ? cityOfArea(p.key) : placeCity(p);
+function mtrBox(s, date, from){
+  if(REGION.key !== 'hksz' || !from || ptCity(from) !== 'hk') return '';
+  const near = nearStations(from, 5, 5); if(!near.length) return '';
+  const key = `${date}:${from.id || from.hid || from.key || from.name || ''}`;
+  const m = (s.sh || {}).mtr; const mine = m && m.key === key ? m : null;
+  const sta = mine && MTR_STATIONS[mine.sta] ? mine.sta : near[0].code;
+  const nearSet = new Set(near.map(x => x.code));
+  const all = Object.values(MTR_STATIONS).filter(x => !nearSet.has(x.code)).sort((a, b) => a.ko.localeCompare(b.ko, 'ko'));
+  const opt = (code, label) => `<option value="${code}"${code === sta ? ' selected' : ''}>${esc(label)}</option>`;
+  const sel = `<select class="mtrsel" data-mtrsta="${esc(key)}" aria-label="MTR역 고르기">
+      <optgroup label="가까운 역">${near.map(x => opt(x.code, `${stationKo(x.code)} · ${distText(x.km)}`)).join('')}</optgroup>
+      <optgroup label="다른 역 (가나다순)">${all.map(x => opt(x.code, stationKo(x.code))).join('')}</optgroup></select>`;
+  let res = '';
+  if(mine && mine.sta === sta){
+    if(mine.busy) res = '<p class="fine" role="status">열차 정보를 불러오고 있어요…</p>';
+    else if(mine.res) res = `<div class="mtrres" role="status">${mine.res.map(r => {
+      const L = MTR_LINES[r.line]; const name = `<b>${esc(L ? L.ko : r.line)}</b>`;
+      if(!r.ok) return `<div class="mtrline"><p>${name} <span class="fine">${esc(MTR_ERR[r.err] || MTR_ERR.bad)}</span></p>${r.err === 'alert' ? `<p class="fine" lang="en">${esc(r.msg || '')}${r.url ? ` <a class="link" href="${esc(r.url)}" target="_blank" rel="noopener">MTR 안내 ↗</a>` : ''}</p>` : ''}</div>`;
+      return `<div class="mtrline"><p>${name} <span class="fine">${esc(r.at)} 기준</span>${r.delay ? ' <span class="closed">지연 중</span>' : ''}</p>
+        <ul class="mtrdirs">${r.dirs.map(d => `<li><span>${esc(dirText(d))}${d.plat ? ` · ${esc(d.plat)}번 승강장` : ''}</span><span class="mtrmins">${d.trains.map(t => `<b>${esc(waitText(t))}</b>${t.min > 0 ? ` <small>${esc(t.time)}</small>` : ''}${d.dests.length > 1 && MTR_STATIONS[t.dest] ? ` <small>${esc(MTR_STATIONS[t.dest].ko)}행</small>` : ''}${t.rac ? ' <small>경마장 경유</small>' : ''}${!d.plat && t.plat ? ` <small>${esc(t.plat)}번</small>` : ''}`).join(' · ')}</span></li>`).join('')}</ul></div>`;
+    }).join('')}</div>`;
+  }
+  return `<div class="mtrbox">
+      <div class="mtrrow">${sel}<button type="button" class="ghost small" data-act="mtrnext" data-v="${esc(sta)}|${esc(key)}">🚇 ${mine && mine.res && mine.sta === sta ? '다시 보기' : '가까운 MTR역 다음 열차'}</button></div>
+      ${res}
+      <p class="fine">누를 때만 고른 역 코드를 홍콩 정부 공개 자료(DATA.GOV.HK)로 보내요. 몇 초 늦을 수 있어요. 자료 MTR · <a class="link" href="${esc(MTR_SOURCE)}" target="_blank" rel="noopener">DATA.GOV.HK ↗</a></p>
+    </div>`;
+}
+
 export function vToday(s){
   const sh = s.sh || {}; const today = sh.today || '';
   const ph = phaseOf(s, today);
@@ -1772,6 +1805,7 @@ export function vToday(s){
       ${(d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 문 여는 시간보다 일찍 가면 좋아요.</p>' : ''}
       <span class="meta">🚶 숙소에서 ${esc(legText(hotel, d.full))} (어림)</span>
       <a class="primary tgo" href="${esc(gdir(hotel, d.full))}" target="_blank" rel="noopener">숙소에서 길찾기 ↗</a>
+      ${mtrBox(s, date, hotel)}
       <button type="button" class="ghost small" data-act="tspend" data-v="${esc(d.full.id)}">💴 여기서 쓴 돈 적기</button>
     </div>`;
   else if(stops.length && nx >= 0){ const p = stops[nx];
@@ -1781,11 +1815,13 @@ export function vToday(s){
       ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
       <span class="meta">🚶 ${nx ? '앞 장소에서' : '숙소에서'} ${esc(legText(fromFor(stops, nx, hotel), p))} (어림)</span>
       <a class="primary tgo" href="${esc(gdir(fromFor(stops, nx, hotel), p))}" target="_blank" rel="noopener">${nx ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a>
+      ${mtrBox(s, date, fromFor(stops, nx, hotel))}
       <button type="button" class="ghost small" data-act="tdone" data-v="${esc(p.id)}">다녀왔어요</button>
     </div>`; }
   else if(stops.length) next = `<div class="tnext" style="--day:${col}">
       <span class="fine">이날 일정 끝</span><b>숙소로 돌아가요</b><span class="meta">${esc(home.name)}</span>
       <a class="primary tgo" href="${esc(gdir(stops[stops.length - 1], home))}" target="_blank" rel="noopener">숙소로 길찾기 ↗</a>
+      ${mtrBox(s, date, stops[stops.length - 1])}
     </div>`;
   else next = `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '이날은 정한 곳이 없어요. 쉬어 가거나 일정 단계에서 장소를 옮겨 보세요.'}</p>`;
 

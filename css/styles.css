@@ -464,6 +464,18 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .tnext > b{font:400 24px/1.25 var(--f-display); overflow-wrap:anywhere}
 .tgo{display:block; text-align:center; text-decoration:none; padding:13px 16px; font-size:15.5px; margin-top:4px}
 .tnext .ghost{align-self:flex-start}
+/* 🚇 홍콩 MTR 다음 열차 (views.js mtrBox) */
+.mtrbox{display:grid; gap:6px; border-top:1px solid var(--rule); padding-top:8px; min-width:0}
+.mtrrow{display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-width:0}
+.mtrsel{flex:1 1 12em; min-width:0; max-width:100%}
+.tnext .mtrrow .ghost{align-self:auto}
+.mtrres{display:grid; gap:6px}
+.mtrline p{margin:0; overflow-wrap:anywhere}
+.mtrdirs{list-style:none; margin:2px 0 0; padding:0}
+.mtrdirs li{display:grid; gap:1px; padding:4px 0; border-top:1px solid var(--rule); font-size:.92em}
+.mtrdirs li > span:first-child{color:var(--muted)}
+.mtrmins{font-variant-numeric:tabular-nums; overflow-wrap:anywhere}
+.mtrmins small{color:var(--muted)}
 .tstops li.done .sbody{opacity:.55}
 .tstops li.done .sbody b{text-decoration:line-through}
 .tstops li.nx .num{box-shadow:0 0 0 3px var(--accent-soft)}
