@@ -479,6 +479,14 @@ function importBox(s){
   return `<div class="box">
       <h2>구글 지도에서 가져오기</h2>
       <p class="fine">구글 지도에 저장해 둔 장소를 한 번에 가져와요. 가져온 장소는 이 기기에만 저장돼요. 이름으로 위치를 찾을 때는 장소 이름만 OpenStreetMap 검색 서버로 보내요.</p>
+      <details class="more"><summary>📲 파일 없이 하나씩: 구글 지도 앱에서 '공유'</summary>
+        <ol class="howto">
+          <li>트립노선을 폰 홈 화면에 설치해요(크롬 메뉴 → '홈 화면에 추가').</li>
+          <li>구글 지도 앱에서 장소를 열고 <b>공유</b>를 눌러요.</li>
+          <li>목록에서 <b>트립노선</b>을 고르면 앱이 열리면서 그 장소 카드가 떠요. '일정에 담기'만 누르면 돼요.</li>
+        </ol>
+        <p class="fine">구글 계정으로 저장 목록을 통째로 불러오는 방법은 구글이 열어 주지 않아서(유럽 사용자만 되는 내보내기 API) 장소마다 공유하는 방식으로 했어요.</p>
+      </details>
       ${s.impMsg ? `<p class="warnline">${esc(s.impMsg)}</p>` : ''}
       <div><label class="ghost small filebtn">파일 고르기 (CSV·JSON)<input type="file" accept=".csv,.json,text/csv,application/json" data-import hidden></label></div>
       <details class="more"><summary>파일은 어떻게 받나요?</summary>

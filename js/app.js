@@ -20,9 +20,9 @@ import { catchUp, applyCatchUp } from './catchup.js';
 import { phaseOf, shouldAutoOpen, doneKey, tripClock, entryDate } from './today.js';
 import { suggestPacking, bulkSuggestions, seedItems, customItems, PACK_GO, KEY_ID, tickFrom } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
-import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl } from './gimport.js';
+import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl, sharedPlace, parseLines } from './gimport.js';
 import { geocode } from './geocode.js';
-import { openMap, nearbyFood, refreshPlaces } from './gmap.js';
+import { openMap, closeMap, nearbyFood, refreshPlaces } from './gmap.js';
 import { mealSlots, foodKey } from './food.js';
 import { matchKnown, toCustom, staleGoogle, applyRefresh } from './gplace.js';
 import { vacantSearch, partyNote } from './rakuten.js';
@@ -794,8 +794,8 @@ function addHotel(){
 // 구글 지도 시트: 담은 곳 핀, 장소 카드에서 '몇 일차에 담기'로 바로 일정에
 //   g: 구글 장소(gplace.toCustom이 받는 모양) | null(이미 담은 곳 날짜만 옮길 때, knownId)
 //   이미 있는 도쿄 장소(65곳)와 같은 곳이면 그 장소를, 전에 담은 구글 장소면 그것을 다시 씀
-function openLiveMap(){
-  openMap({
+function openLiveMap(query){
+  return openMap({
     getState: () => state,
     getDays: () => buildDays(state).map(d => ({ i:d.i, label:`${d.i + 1}일차 · ${d.label}` })),
     onToggle: id => { const s = state; if(s.picked[id]) unpick(s, id); else s.picked[id] = true; save(); render(); },
@@ -808,7 +808,7 @@ function openLiveMap(){
       save(); render(); return p.name;
     },
     onClose: () => render()
-  });
+  }, query);
 }
 
 function importRowOf(k){ return state.imports.find(r => r.k === k); }
@@ -1515,7 +1515,18 @@ window.addEventListener('online', () => setTimeout(refreshGoogle, 3000));
 // 고른 여행 지역의 데이터를 먼저 불러옴 (홍콩·선전은 따로 받는 파일). 못 불러오면 도쿄로 보여 주고 지역 단계에서 알림
 if(!(await loadRegion(state.city))){ await loadRegion('tokyo'); state.sh.cityMsg = `${(REGIONS[state.city] || {}).name || '이 지역'} 데이터를 불러오지 못했어요. 인터넷을 확인하고 다시 열어 주세요.`; }
 { const td = tripClock(new Date(), REGION.tz).date; if(shouldAutoOpen(state, td)){ state.mode = 'today'; state.tday = null; state.todayOpened = td; saveLocal(); } }
+// 구글 지도 앱에서 장소를 '공유 → 트립노선'으로 보냈으면(설치한 앱, manifest share_target): 장소 담기에서 구글 지도로 그 장소를 띄움
+const sharedIn = sharedPlace(new URLSearchParams(location.search));
+if(sharedIn){
+  history.replaceState(null, '', location.pathname + location.hash);   // 새로 고쳐도 또 열리지 않게
+  state.mode = null; state.step = STEPS.indexOf('장소 담기'); saveLocal();
+}
 render();
+if(sharedIn) openLiveMap(sharedIn.q).then(ok => {
+  if(ok) return;   // 지도를 못 열면(키·인터넷) 가져온 곳 목록에 올려 두고 이름으로 위치 찾기
+  closeMap(); const list = parseLines(`${sharedIn.name} ${sharedIn.url}`.trim());
+  if(list.length){ addImports(list); toast(`'${sharedIn.name || '공유한 장소'}'을(를) 가져온 곳 목록에 올렸어요.`); }
+});
 if(state.step === VAULT_STEP) refreshUsage();
 setTimeout(refreshGoogle, 4000);   // 첫 화면을 먼저 그린 뒤
 

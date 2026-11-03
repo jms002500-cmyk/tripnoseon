@@ -6,6 +6,7 @@
   --warn:#B93226; --warn-soft:#FCEBE8; --good:#1D7F47;
   --btn:#142030; --btn-ink:#FFFFFF;
   --map-bg:#E9EFF2; --map-loop:#8DBF3A;
+  --pin-look:#1A73E8;   /* 구글 지도 시트 '지금 보는 곳' 핀(gmap.js) — 지도 위라 라이트·다크 같은 색 */
   --f-display:"Do Hyeon","IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
@@ -531,6 +532,16 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .eat details.more .fine{margin:4px 0 0}
 .fslot{display:flex; flex-direction:column; gap:6px; padding:8px 0; border-top:1px dashed var(--rule)}
 .fslot:first-of-type{border-top:0}
+/* 구글 지도 시트 범례 (핀 색은 gmap.js PIN과 같음) */
+.mslegend{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:0 0 8px; font-size:var(--fs-sm); color:var(--muted)}
+.mslegend span{display:inline-flex; align-items:center; gap:5px}
+.mslegend i{display:inline-block; width:12px; height:12px; border-radius:50%}
+.mslegend .lg-must{background:var(--warn); width:14px; height:14px}
+.mslegend .lg-on{background:var(--accent)}
+.mslegend .lg-rec{background:var(--surface); border:2px solid var(--muted); width:10px; height:10px}
+.mslegend .lg-hotel{background:var(--good)}
+.mslegend .lg-look{background:var(--pin-look)}
+.mslegend label{display:inline-flex; align-items:center; gap:5px; margin-left:auto; color:var(--ink)}
 .gmsug{list-style:none; margin:0 0 8px; padding:0; background:var(--surface); border:1px solid var(--rule); border-radius:10px; max-height:40vh; overflow:auto}
 .gmsug button{width:100%; text-align:left; background:none; border:0; border-top:1px solid var(--rule); padding:9px 12px; display:flex; flex-direction:column; gap:1px}
 .gmsug li:first-child button{border-top:0}
