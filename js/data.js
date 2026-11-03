@@ -186,7 +186,7 @@ export const CURRENCY = { JPY:{ label:'엔', sign:'¥' }, KRW:{ label:'원', sig
 export const REGIONS = {
   tokyo:{ key:'tokyo', country:'jp', name:'도쿄', cur:'JPY', curs:['JPY'], center:{ lat:35.6812, lng:139.7671 }, radiusKm:80, tz:'Asia/Tokyo',
     gl:'jp', codes:['jp'], viewbox:'139.40,35.90,140.05,35.45', bounds:{ minLng:139.555, maxLng:139.915, minLat:35.600, maxLat:35.748 },
-    data:{ AREAS:TOKYO_AREAS, PLACES:TOKYO_PLACES, LINES:[], BORDER:[] } },
+    data:{ AREAS:TOKYO_AREAS, PLACES:TOKYO_PLACES, LINES:[], BORDER:[], EATS:[] } },
   hksz:{ key:'hksz', country:'hk', name:'홍콩·선전', cur:'HKD', curs:['HKD', 'CNY'], center:{ lat:22.40, lng:114.10 }, radiusKm:60, tz:'Asia/Hong_Kong',
     gl:'hk', codes:['hk', 'cn'], viewbox:'113.80,22.75,114.45,22.15', bounds:{ minLng:113.88, maxLng:114.30, minLat:22.19, maxLat:22.62 },
     data:null, load:() => import('./regions/hksz-data.js') }
@@ -196,18 +196,19 @@ export let AREAS = TOKYO_AREAS;
 export let PLACES = TOKYO_PLACES;
 export let LINES = [];      // 약도에 그릴 노선 [{ name, color, pts:[[lat,lng]…] }] (도쿄는 map.js가 야마노테선·게이요선을 그림)
 export let BORDER = [];     // 국경 넘는 곳 [{ key, name, local, lat, lng, how, minutes }] (홍콩↔선전)
+export let EATS = [];       // 앱이 고른 가족 식당 (js/eats.js, 홍콩·선전은 js/regions/hksz-eats.js). 장소(PLACES)와 따로라 일정에 안 들어감
 export const regionOf = s => REGIONS[s && s.city] || REGIONS.tokyo;
 // 불러온 지역으로 바꿈 (아직 안 불러왔으면 false)
 export function useRegion(key){
   const r = REGIONS[key]; if(!r || !r.data) return false;
-  REGION = r; AREAS = r.data.AREAS; PLACES = r.data.PLACES; LINES = r.data.LINES || []; BORDER = r.data.BORDER || [];
+  REGION = r; AREAS = r.data.AREAS; PLACES = r.data.PLACES; LINES = r.data.LINES || []; BORDER = r.data.BORDER || []; EATS = r.data.EATS || [];
   return true;
 }
 // 지역 데이터를 불러와서 바꿈. 데이터 파일이 아직 없으면 false (화면은 '준비 중')
 export async function loadRegion(key){
   const r = REGIONS[key]; if(!r) return false;
   if(!r.data && r.load){
-    try{ const m = await r.load(); if(!m.AREAS || !m.PLACES) return false; r.data = { AREAS:m.AREAS, PLACES:m.PLACES, LINES:m.LINES || [], BORDER:m.BORDER || [] }; }
+    try{ const m = await r.load(); if(!m.AREAS || !m.PLACES) return false; r.data = { AREAS:m.AREAS, PLACES:m.PLACES, LINES:m.LINES || [], BORDER:m.BORDER || [], EATS:m.EATS || [] }; }
     catch(e){ return false; }
   }
   return useRegion(key);
