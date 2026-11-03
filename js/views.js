@@ -1,12 +1,13 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
-import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, disneyArea, CITY_KO, CITY_FLAG } from './data.js';
+import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, EATS, disneyArea, cityOfArea, CITY_KO, CITY_FLAG } from './data.js';
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, bulkSuggestions, packView, PACK_GO } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as tonightCard, otherHotelCards, kidCardJa } from './safety.js';
 const sosHotel = s => tonightCard(s, (s.sh || {}).today, (s.sh || {}).nowMin);   // 그날 밤 숙소 카드 (새벽 4시 전엔 어젯밤 숙소)
 import * as HK from './regions/hksz-guide.js';
 import { mealSlots, rankFood, moreFoodUrl, foodKey, walkMin } from './food.js';
+import { eatIcon, eatsNear, eatsByArea, priceText, eatMapUrl, eatAmapUrl, srcName } from './eats.js';
 import { canShareLoc, locList, kmText, locMapUrl } from './loc.js';
 import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHECKED as FARE_CHECKED, dayTrips, legMinutes, legSegments, legMode, minText } from './transit.js';
 // 한 구간 이동 시간 한 줄: '약 15분 · 지하철' (직선거리 어림)
@@ -513,6 +514,7 @@ export function vPick(s){
     ${kindChips('kfilter', s.kindFilter, byArea)}
     ${list.length ? '' : '<p class="empty">이 조건에 맞는 곳이 없어요. 다른 동네나 종류를 골라 보세요.</p>'}
     <div class="list">${list.map((x, i) => placeCard(x.p, s, focus ? i + 1 : 0)).join('')}</div>
+    ${eatsBox(s, cities)}
     <form class="box" id="customform">
       <h2>목록에 없는 곳 추가</h2>
       <label for="cname">장소 이름<input id="cname" type="text" required maxlength="40" placeholder="예: 구글 지도에서 찾은 라멘집"></label>
@@ -1515,6 +1517,34 @@ export function vLedger(s){
   </section>`;
 }
 
+/* 앱이 고른 가족 식당 (js/eats.js, 자료는 지역 파일의 EATS). 장소와 따로라 일정 시간을 잡아먹지 않음.
+   오늘 하루 화면의 끼니 자리 근처(foodSlot)와 장소 담기 단계(eatsBox)에서 보여 줌 */
+function eatRow(e){
+  const pr = priceText(e.price); const sz = cityOfArea(e.area) === 'sz';
+  const away = e.km == null ? '' : e.walk <= 15 ? ` · 걸어서 ${e.walk}분` : ` · 약 ${e.km.toFixed(1)}km`;
+  const link = (u, t) => `<a class="link" href="${esc(u)}" target="_blank" rel="noopener">${t}</a>`;
+  return `<li class="imp eat"><div class="sbody"><b>${eatIcon(e)} ${esc(e.name)}</b>
+      <span>${esc(e.local)} · ${esc(e.kind)} · ${pr ? `1인 약 ${esc(pr)}` : '가격 정보 없음'}${away}${e.off ? ' · <span class="closed">이날 쉬어요</span>' : ''}</span>
+      <span>${esc(e.menu)}</span>
+      <span>👨‍👩‍👧 ${esc(e.kid)}${e.spicy ? ' 매운 메뉴도 있어요.' : ''}</span>
+      <span class="lacts">${link(eatMapUrl(e), '구글 지도 ↗')}${sz ? link(eatAmapUrl(e), '가오더 지도 ↗') : ''}</span>
+      <details class="more"><summary>줄·영업시간·출처</summary>
+        <p class="fine">⏳ ${esc(e.queue)}<br>🕘 ${esc(e.hours)}${e.closed && e.closed.length ? ` · ${esc(closedText(e))}` : ''}${e.note ? `<br>${esc(e.note)}` : ''}</p>
+        <p class="fine">출처 ${e.src.map(u => link(u, esc(srcName(u)) + ' ↗')).join(' · ')} (${esc(e.checked)} 확인)</p>
+      </details></div></li>`;
+}
+function eatsBox(s, cities){
+  if(!EATS.length) return '';
+  const one = s.areaFilter !== 'all' && AREAS[s.areaFilter];
+  const groups = eatsByArea(EATS, AREAS, { cities, area:s.areaFilter });
+  const n = groups.reduce((x, g) => x + g.items.length, 0);
+  if(!n) return one ? `<p class="fine">🍜 ${esc(one.name)}에는 앱이 고른 식당이 아직 없어요. 여행 중엔 '오늘 하루' 화면의 식당 찾기를 써 주세요.</p>` : '';
+  return `<details class="box more eatbox"><summary>🍜 ${one ? esc(one.name) : '동네별'} 가족 식당 ${n}곳</summary>
+    <p class="fine">아이와 함께 가기 좋은 곳을 미슐랭 가이드·현지 매체 등 출처 두 곳 이상으로 확인해 골랐어요(2026년 11월). 일정 시간에는 안 들어가고, 여행 중 '오늘 하루' 화면에서 점심·저녁 자리 근처 식당으로 다시 보여 드려요. 가격·영업시간은 대략값이라 가기 전에 한 번 더 확인하세요.</p>
+    ${groups.map(g => `<h3 class="vday">${cities.length > 1 ? CITY_FLAG[g.area.city] + ' ' : ''}${esc(g.area.name)}</h3><ul class="implist flist">${g.items.map(eatRow).join('')}</ul>`).join('')}
+  </details>`;
+}
+
 /* 동선 위 식당 찾기 (오늘 하루 화면): 점심·저녁 때 있을 곳 근처 식당을 구글에서 (평점·그 시간 영업·걸어서 몇 분) */
 const foodOpenText = o => o === true ? '<span class="fopen">이 시간 영업</span>' : o === false ? '<span class="closed">이 시간엔 안 열어요</span>' : '<span>영업시간 정보 없음</span>';
 function foodRow(d, k, r){
@@ -1526,7 +1556,9 @@ function foodRow(d, k, r){
 function foodSlot(sh, d, m, k){
   const st = (sh.food || {})[foodKey(m.at)]; const ml = m.meal === 'lunch' ? '점심' : '저녁';
   const list = st && st.items ? rankFood(st.items, d.wd, m.time, 8) : null;
+  const near = eatsNear(EATS, m.at, { wd:d.wd, meal:true });
   return `<div class="fslot"><p><b>${ml} ${m.time}</b> · ${esc(m.why)}</p>
+    ${near.length ? `<p class="fine">앱이 고른 가족 식당 (가격·시간은 대략값)</p><ul class="implist flist">${near.map(e => eatRow(e)).join('')}</ul>` : ''}
     ${list ? (list.length ? `<ul class="implist flist">${list.map(r => foodRow(d, k, r)).join('')}</ul>` : '<p class="fine">이 근처 500m 안에서 식당을 못 찾았어요.</p>')
       : `<div class="pfoot"><button type="button" class="primary small" data-act="ffind" data-v="${d.i}|${k}"${st && st.busy ? ' disabled' : ''}>${st && st.busy ? '찾는 중…' : `근처 ${ml} 식당 찾기`}</button></div>`}
     ${st && st.err ? `<p class="warnline">${esc(st.err)}</p>` : ''}
@@ -1537,7 +1569,7 @@ function foodBox(s, d, hotel){
   const slots = mealSlots(d, hotel, d.to); if(!slots.length) return '';
   return `<div class="box" id="foodbox"><h2>이날 식당<small>${slots.map(m => m.meal === 'lunch' ? '점심' : '저녁').join('·')}</small></h2>
     ${slots.map((m, k) => foodSlot(s.sh || {}, d, m, k)).join('')}
-    <p class="fine">버튼을 누르면 그 장소 좌표를 구글로 보내 근처 식당을 찾아요. ${REGION.key === 'tokyo' ? '일본은 정기휴무·예약제·현금만 받는 곳이 많으니' : '선전(중국 본토)은 알리페이·위챗페이로 내는 곳이 많고 구글 지도 정보가 늦을 수 있으니'} 가기 전에 한 번 더 확인하세요.</p>
+    <p class="fine">버튼을 누르면 그 장소 좌표를 구글로 보내 근처 식당을 찾아요.${EATS.length ? ' 앱이 고른 식당의 지도 링크는 누르면 식당 이름이 구글(선전은 가오더)로 가요.' : ''} ${REGION.key === 'tokyo' ? '일본은 정기휴무·예약제·현금만 받는 곳이 많으니' : '선전(중국 본토)은 알리페이·위챗페이로 내는 곳이 많고 구글 지도 정보가 늦을 수 있으니'} 가기 전에 한 번 더 확인하세요.</p>
   </div>`;
 }
 
