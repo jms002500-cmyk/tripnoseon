@@ -4,7 +4,7 @@
 import { legMinutes } from './transit.js';
 import { dayEnd } from './flight.js';
 import { PACE, cityOfArea } from './data.js';
-import { placeCity } from './logic.js';
+import { placeCity, closedOn } from './logic.js';
 import { doneKey } from './today.js';
 
 export const dayEndMin = (s, d) => d.depart && d.depart.leave >= 0 ? d.depart.leave - 30 : dayEnd(PACE[s.pace].hours);
@@ -15,7 +15,7 @@ export function moveTarget(s, P, di, p, extra){
   for(let j = di + 1; j < P.days.length; j++){
     const x = P.days[j]; if(x.full || x.locked) continue;
     if(x.used + (add[j] || 0) + p.hours > x.cap + 0.01) continue;
-    if(p.closed && p.closed.includes(x.wd)) continue;
+    if(closedOn(p, x)) continue;
     const c = placeCity(p); const cs = new Set([x.from, x.to].map(h => h && h.key ? cityOfArea(h.key) : '').filter(Boolean));
     if(c && cs.size && !cs.has(c)) continue;
     return j;
