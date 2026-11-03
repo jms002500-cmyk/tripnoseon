@@ -1,6 +1,6 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
-import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, EATS, disneyArea, cityOfArea, CITY_KO, CITY_FLAG } from './data.js';
+import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, EATS, BORDER, disneyArea, cityOfArea, CITY_KO, CITY_FLAG } from './data.js';
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, bulkSuggestions, packView, PACK_GO } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as tonightCard, otherHotelCards, kidCardJa } from './safety.js';
@@ -34,6 +34,7 @@ import { prepTasks, prepNow } from './prep.js';
 import { KR_AIRPORTS, krAirport, moveKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES } from './parking.js';
 import { BUS_AREAS, BUS_PAGES, BUS_ERR, isWeekend, nextTimes, gapOf, hhmm } from './airbus.js';
 import { MTR_STATIONS, MTR_LINES, MTR_ERR, MTR_SOURCE, nearStations, distText, stationKo, waitText, dirText } from './hktransit.js';
+import { CPS, cpOfBorder, queueOf, borderRows, dataTime, crossDir, moveCross, DIR_KO, BORDER_ERR, BORDER_SOURCE, BORDER_ALT } from './border.js';
 import { homeTime } from './ics.js';
 import { addDay } from './bookings.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
@@ -1101,6 +1102,7 @@ export function vPlan(s){
         ${dayEvents(s, d, EV).map(e => `<p class="fine">🎄 이날 행사: ${esc(e.name)}${e.time ? ' · ' + esc(e.time) : ''}</p>`).join('')}
         ${dayMoves(s, d, mctx, 'end')}
         ${itcLine(s, d)}
+        ${borderBox(s, d.key, crossInfo(s, d, T))}
         ${rainBox(s, P, d)}
         <div class="tacts"><button type="button" class="link" data-act="tfood" data-v="${d.i}">🍜 이날 점심·저녁 식당 찾기</button>${d.full || d.items.length ? (d.locked
           ? `<button type="button" class="link" data-act="dunlock" data-v="${d.i}">확정 풀기</button>` : `<button type="button" class="link" data-act="dlock" data-v="${d.i}">🔒 이날 확정</button>`) : ''}</div>
@@ -1782,6 +1784,53 @@ function mtrBox(s, date, from){
     </div>`;
 }
 
+// 🛂 홍콩 ↔ 선전 국경 대기 시간 (border.js): 국경을 넘는 날만. 누를 때만 부르고 결과는 화면 전용(s.sh.border, 그날 key)
+//   넘는 날: 그날 동선에 국경 구간이 있거나(dayTrips), 숙소를 옮기며 도시가 바뀌거나(d.cross), 여행 중 이동에 선전·국경을 적은 날
+function crossInfo(s, d, T){
+  if(REGION.key !== 'hksz' || !BORDER.length || !d) return null;
+  const pairs = []; let at = '';
+  (T || dayTrips(d, d.from)).legs.forEach(l => { const b = l.segs.find(x => x.kind === 'border'); if(!b) return;
+    pairs.push([ptCity(l.from), ptCity(l.to)]); if(!at) at = (BORDER.find(x => x.name === b.at) || {}).key || ''; });
+  if(d.cross && d.from && d.to) pairs.push([ptCity(d.from), ptCity(d.to)]);
+  const mv = movesOn(s, d.key).filter(m => m.k === 'etc').map(m => moveCross(m.from, m.to, m.note)).filter(Boolean);
+  if(!pairs.length && !d.cross && !mv.length) return null;
+  const dirs = [crossDir(pairs)].concat(mv.map(x => x.dir)).filter(Boolean);
+  const dir = dirs.includes('both') || (dirs.includes('out') && dirs.includes('in')) ? 'both' : dirs[0] || '';
+  return { dir, at };
+}
+function borderBox(s, key, info){
+  if(!info) return '';
+  const b = (s.sh || {}).border; const mine = b && b.key === key ? b : null;
+  const prefer = cpOfBorder(info.at);
+  const dirs = info.dir === 'in' ? ['arr', 'dep'] : ['dep', 'arr'];
+  const strong = info.dir === 'in' ? 'arr' : info.dir === 'out' ? 'dep' : '';
+  const row = x => { const c = CPS[x.code] || { ko:x.code, zh:'' };
+    return `<li${x.code === prefer ? ' class="on"' : ''}><p><b>${esc(c.ko)}</b> <small lang="zh-Hant">${esc(c.zh)}</small>${x.code === prefer ? ' <span class="bdtag">일정에서 지나는 곳</span>' : ''}</p>
+      ${dirs.map(k => { const q = queueOf(x[k]); return `<p class="bdq${k === strong ? ' main' : ''}"><span>${DIR_KO[k]}</span><span class="bdv q-${q.k}">${esc(q.ko)}</span></p>`; }).join('')}
+      ${c.hours ? `<p class="fine">통관 시간 ${esc(c.hours)}</p>` : ''}</li>`; };
+  let res = '';
+  if(mine && mine.busy) res = '<p class="fine" role="status">대기 시간을 불러오고 있어요…</p>';
+  else if(mine && mine.res && !mine.res.ok) res = `<p class="warnline" role="status">${esc(BORDER_ERR[mine.res.err] || BORDER_ERR.bad)}</p>`;
+  else if(mine && mine.res){
+    const R = borderRows(mine.res, prefer); const t = dataTime(mine.res.lm, mine.res.at);
+    res = `<div role="status">
+      <p class="fine">${t.lm ? `자료 시각 홍콩 ${esc(t.time)}` : `홍콩 ${esc(t.time)}에 받음`} · 15분마다 바뀌어요 · 방문객(외국인) 줄 기준</p>
+      ${t.old ? '<p class="warnline">자료가 1시간 넘게 안 바뀌었어요. 아래 홍콩 보안국 페이지에서도 확인해 보세요.</p>' : ''}
+      ${R.main.length ? `<ul class="bdlist">${R.main.map(row).join('')}</ul>` : ''}
+      ${R.more.length ? `<details class="more"><summary>그 밖 검문소 ${R.more.length}곳</summary><ul class="bdlist">${R.more.map(row).join('')}</ul></details>` : ''}
+      ${info.at === 'xrl' ? '<p class="fine">서구룡역 고속철은 이 자료에 없어요(역 안에서 두 나라 심사를 한 번에 받아요).</p>' : ''}
+    </div>`;
+  }
+  const head = info.dir === 'out' ? '홍콩 → 선전 가는 날' : info.dir === 'in' ? '선전 → 홍콩 오는 날' : '국경 넘는 날';
+  return `<div class="bdbox">
+      <p class="fine"><b>🛂 ${head}</b> · 검문소마다 홍콩 쪽 심사 줄이 얼마나 붐비는지 볼 수 있어요.</p>
+      <div><button type="button" class="ghost small" data-act="bdwait" data-v="${esc(key)}">🛂 ${mine && mine.res && mine.res.ok ? '다시 보기' : '지금 국경 대기 시간'}</button></div>
+      ${res}
+      <p class="fine">선전(중국) 쪽 심사 대기 시간은 공개 자료가 없어서 보여 드리지 못해요. 대략값이니 붐비는 정도만 참고하세요.</p>
+      <p class="fine">누를 때만 홍콩 출입국관리처 공개 자료를 받아 와요(보내는 정보 없음). 자료 홍콩 출입국관리처 · <a class="link" href="${esc(BORDER_SOURCE)}" target="_blank" rel="noopener">DATA.GOV.HK ↗</a> · <a class="link" href="${esc(BORDER_ALT)}" target="_blank" rel="noopener">홍콩 보안국 口岸通 ↗</a></p>
+    </div>`;
+}
+
 export function vToday(s){
   const sh = s.sh || {}; const today = sh.today || '';
   const ph = phaseOf(s, today);
@@ -1837,6 +1886,7 @@ export function vToday(s){
     ${d.depart && d.depart.leave >= 0 ? `<p class="warnline">✈️ ${koTime(d.depart.at)}${nightTag(d.depart.at)} 비행기 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로 출발</b>해야 해요. 짐 찾을 시간도 챙기세요.</p>` : ''}
     ${agendaBox(s, d, P, ph.phase === 'during' && date === today)}
     ${next}
+    ${borderBox(s, date, crossInfo(s, d))}
     ${ph.phase === 'during' && date === today ? catchBox(s, P, i, date) : ''}
     ${locBox(s, today)}
     ${rainBox(s, P, d)}
