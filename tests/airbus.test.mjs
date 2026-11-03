@@ -85,3 +85,20 @@ test('주말 · 다음 차 · 보통 간격', () => {
   assert.equal(gapOf([355, 380, 405, 440]), 25); assert.equal(gapOf([355, 380]), null);
   assert.equal(hhmm(355), '05:55'); assert.equal(hhmm(1490), '00:50');
 });
+
+test('자정 넘은 막차: 00시대로 적어도 저녁 차 뒤로, 자정 넘어 내리면 전날 막차도', () => {
+  assert.deepEqual(timesOf('0549, 0614, 2330, 0010, 0040'), [349, 374, 1410, 1450, 1480]);
+  assert.deepEqual(timesOf('0130, 0230'), [90, 150]);                // 저녁 차가 없는 시간표는 그대로
+  assert.deepEqual(timesOf('0549, 2450'), [349, 1490]);
+  const T = timesOf('0549, 0614, 2330, 0010');
+  assert.equal(hhmm(T[0]), '05:49');                                   // 첫차가 00:10이 되지 않음
+  assert.deepEqual(nextTimes(T, 23 * 60).map(hhmm), ['23:30', '00:10']);   // 23시에 내려도 00:10 차가 보임
+  assert.deepEqual(nextTimes([349, 1410, 1490], 30).map(hhmm), ['00:50', '05:49', '23:30', '00:50']);   // 00:30에 내리면 00:50 차 먼저
+  assert.deepEqual(nextTimes([349, 1410, 1490], 30, 2), [50, 349]);
+  assert.deepEqual(nextTimes([349, 1410], 30), [349, 1410]);
+});
+
+test('공항버스: 게이트웨이 오류 쪽은 빈 목록이 아니라 못 읽은 답 (30분 기억하지 않게)', () => {
+  assert.deepEqual(parseBuses(ICN1, '<html><body>503 Service Unavailable</body></html>'), { ok:false, err:'bad' });
+  assert.deepEqual(parseBuses(GMP, '{"error":"timeout"}'), { ok:false, err:'bad' });
+});

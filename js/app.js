@@ -5,8 +5,8 @@ import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, recordHead, moveCtx, 
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
-import { askPrompt, planPrompt, parseAiPlaces, matchPlace } from './askai.js';
-import { PK_KEY, krAirport, guessKap, parkUrl, parseParking } from './parking.js';
+import { askPrompt, planPrompt, parseAiPlaces, matchPlace, aiToPick } from './askai.js';
+import { PK_KEY, krAirport, moveKap, parkUrl, parseParking } from './parking.js';
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
@@ -873,8 +873,8 @@ function act(a, v){
       ap.msg = list.length ? '' : (t && t.value.trim() ? '답에서 장소 이름을 못 찾았어요. 답 끝의 [담기 목록]까지 통째로 복사했는지 봐 주세요.' : 'AI 답을 먼저 붙여 넣어 주세요.');
       render(); return;
     }
-    case 'aiplanpick': { const ap = s.sh.aiPlan || {}; const n = (ap.found || []).filter(x => x.id && !s.picked[x.id]);
-      n.forEach(x => { s.picked[x.id] = true; }); if(n.length) toast(`${n.length}곳을 담았어요.`); break; }
+    case 'aiplanpick': { const n = aiToPick((s.sh.aiPlan || {}).found, allPlaces(s), s.picked);
+      n.forEach(id => { s.picked[id] = true; }); if(n.length) toast(`${n.length}곳을 담았어요.`); break; }
     case 'aiplanimport': {   // 목록에 없는 곳 → 구글 지도 가져오기의 대기 목록(이름으로 위치 찾기 → 확인 → 담기)
       const ap = s.sh.aiPlan || {}; const places = allPlaces(s);
       const rest = (ap.found || []).filter(x => !(x.id && places.some(p => p.id === x.id)) && !x.sent);
@@ -1153,7 +1153,7 @@ async function clipText(t){ try{ await navigator.clipboard.writeText(t); return 
 // 🅿️ 공항 주차장 남은 자리: 누를 때만 공공데이터포털에 물어봄(보내는 것은 인증키뿐). 결과는 화면 전용
 async function checkParking(id){
   const s = state; const m = (s.moves || []).find(x => x.id === id); if(!m) return;
-  const ap = krAirport(m.kap || guessKap(m.to)); let key = ''; try{ key = localStorage.getItem(PK_KEY) || ''; }catch(e){}
+  const ap = krAirport(moveKap(m)); let key = ''; try{ key = localStorage.getItem(PK_KEY) || ''; }catch(e){}
   if(!ap || !key || (s.sh.park && s.sh.park.busy)) return;
   s.sh.park = { id, kap:ap.k, busy:true }; render();
   let res;
@@ -1178,7 +1178,7 @@ async function busList(ap, area, key){
 }
 async function findAirBus(id, q){
   const s = state; const m = (s.moves || []).find(x => x.id === id); if(!m) return;
-  const ap = krAirport(m.kap || guessKap(m.to)); let key = ''; try{ key = localStorage.getItem(PK_KEY) || ''; }catch(e){}
+  const ap = krAirport(moveKap(m)); let key = ''; try{ key = localStorage.getItem(PK_KEY) || ''; }catch(e){}
   if(!ap || !key || (s.sh.bus && s.sh.bus.busy)) return;
   q = String(q || '').trim().slice(0, 30);
   if(!q && !m.bus){ s.sh.bus = { id, kap:ap.k, q, err:'empty' }; render(); return; }
