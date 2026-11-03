@@ -1,7 +1,7 @@
 // 실행: npm test  (네트워크는 쓰지 않음. 관측값은 지어낸 예시)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tripMonthDays, climateUrl, summarizeClimate, clothesTip, canForecast, wmoText, parseForecast, CITY_PT } from '../js/weather.js';
+import { tripMonthDays, climateUrl, summarizeClimate, clothesTip, canForecast, wmoText, parseForecast, CITY_PT, wxStale, keepWeather, WX_RETRY_MS } from '../js/weather.js';
 
 test('여행 날짜 → 월·일 목록 (연말연초도)', () => {
   assert.deepEqual(tripMonthDays('2027-03-07', '2027-03-09'), ['03-07', '03-08', '03-09']);
@@ -39,4 +39,28 @@ test('예보는 출발 16일 안일 때만', () => {
   assert.ok(!canForecast('2027-02-01', today));
   const f = parseForecast({ daily:{ time:['2027-03-07'], weather_code:[3], temperature_2m_max:[12.3], temperature_2m_min:[5.1], precipitation_probability_max:[20] } });
   assert.deepEqual(f, [{ date:'2027-03-07', text:'흐림', hi:12.3, lo:5.1, rain:20 }]);
+});
+
+test('끊긴 곳에서 날씨를 끝없이 다시 묻지 않음, 받아 둔 예보는 남김', () => {
+  const now = 1e12, key = 'hksz|12-06,12-07', today = '2027-12-05';
+  const good = { key, climate:{ hi:22 }, forecast:[{ date:'2027-12-06', text:'맑음' }], forecastAt:'2027-12-04' };
+  assert.equal(wxStale(null, key, today, true, false, now), true);
+  assert.equal(wxStale(good, 'tokyo|1', today, true, false, now), true, '날짜·지역이 바뀌면');
+  assert.equal(wxStale(good, key, today, true, false, now), true, '예보가 하루 지났으면');
+  assert.equal(wxStale(Object.assign({}, good, { forecastAt:today }), key, today, true, false, now), false);
+  assert.equal(wxStale(good, key, today, false, false, now), false, '예보 기간이 아니면 평균만');
+  // 끊겨서 못 받음 → 받아 둔 것 유지 + 실패 표시
+  const failed = keepWeather(good, { key, climate:{ hi:22 }, error:'날씨를 못 불러왔어요.' }, now);
+  assert.deepEqual(failed.forecast, good.forecast); assert.equal(failed.forecastAt, '2027-12-04'); assert.equal(failed.failedAt, now);
+  assert.equal(wxStale(failed, key, today, true, false, now + 1000), false, '실패 직후 다시 그려도 또 묻지 않음');
+  assert.equal(wxStale(failed, key, today, true, true, now + 1000), true, '다시 불러오기를 누르면');
+  assert.equal(wxStale(failed, key, today, true, false, now + WX_RETRY_MS), true, '10분 지나면 다시');
+  // 처음부터 못 받음(평균도 없음) → 실패만
+  const none = keepWeather(null, { key, error:'x' }, now);
+  assert.equal(none.climate, undefined); assert.equal(none.error, 'x');
+  assert.equal(wxStale(none, key, today, true, false, now + 5), false);
+  // 다른 여행 날짜의 옛 예보는 섞지 않음
+  assert.equal(keepWeather(good, { key:'hksz|01-01', error:'x' }, now).forecast, undefined);
+  // 성공은 그대로
+  const ok = { key, climate:{ hi:20 } }; assert.equal(keepWeather(good, ok, now), ok);
 });

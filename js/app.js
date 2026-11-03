@@ -24,7 +24,7 @@ import { openMap, nearbyFood, refreshPlaces } from './gmap.js';
 import { mealSlots, foodKey } from './food.js';
 import { matchKnown, toCustom, staleGoogle, applyRefresh } from './gplace.js';
 import { vacantSearch, partyNote } from './rakuten.js';
-import { loadWeather, tripMonthDays, canForecast, ymd } from './weather.js';
+import { loadWeather, tripMonthDays, canForecast, ymd, wxStale, keepWeather } from './weather.js';
 import { loadFx, convert } from './prices.js';
 import { planTripleImport, applyTripleImport } from './ledgerimport.js';
 import { atPlace, parseLine, lineFromAi, previewText, ledgerHint, defaultPayer, defaultDay, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, ratesOf, mainCur, personUsed, catOf } from './ledger.js';
@@ -35,7 +35,7 @@ import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } 
 import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blobToB64, b64ToBlob, safeFileType } from './backup.js';
 import { sizeText } from './vault.js';
 import * as SH from './share.js';
-import { netBanner } from './net.js';
+import { netBanner, fetchTimed, withTimeout } from './net.js';
 import { roundLoc, shouldSend, canShareLoc, locExpired, expiredLocs, locToday } from './loc.js';
 import { sharedOf, syncedOf, diffShared, mergeRemote, afterPush, inviteLink, parseJoin, describeChange, voteSummary } from './sharecore.js';
 
@@ -109,10 +109,9 @@ function ensureWeather(force){
   const s = state; if((s.step !== 1 && s.step !== PACK_STEP && s.step !== PLAN_STEP && s.mode !== 'today') || !s.start || !s.end || s.wxBusy) return;
   const key = `${s.city}|${tripMonthDays(s.start, s.end).join(',')}`;
   const today = ymd(new Date());
-  const stale = !s.wx || s.wx.key !== key || (canForecast(s.start, new Date()) && s.wx.forecastAt !== today) || (s.wx.error && force);
-  if(!stale) return;
+  if(!wxStale(s.wx, key, today, canForecast(s.start, new Date()), force, Date.now())) return;
   s.wxBusy = true;
-  loadWeather(s.city, s.start, s.end).then(w => { if(state !== s) return; s.wxBusy = false; s.wx = w; save(); render(); });
+  loadWeather(s.city, s.start, s.end).then(w => { if(state !== s) return; s.wxBusy = false; s.wx = keepWeather(s.wx, w, Date.now()); save(); render(); });
 }
 
 // 숙소 동네·가계부 단계에서 환율을 하루 한 번 받아 둠 (원·엔 가격 비교, 지출 합계)
@@ -923,7 +922,7 @@ function act(a, v){
     case 'ffind': {   // 끼니 자리 근처 식당 (구글)
       const [di, k] = v.split('|').map(Number); const P = plan(s); const d = P.days[di]; const m = d && mealSlots(d, d.from, d.to)[k]; if(!m) return;
       const key = foodKey(m.at); s.sh.food = Object.assign({}, s.sh.food, { [key]:{ busy:true } }); render();
-      nearbyFood(m.at).then(items => { state.sh.food[key] = { items }; render(); })
+      withTimeout(nearbyFood(m.at), 20000).then(items => { state.sh.food[key] = { items }; render(); })
         .catch(e => { console.warn('식당 찾기 실패', e); state.sh.food[key] = { err:e && e.message === 'nokey' ? '구글 지도 키를 넣으면 근처 식당을 찾을 수 있어요. 지금은 아래 \'구글 지도에서 더 보기\'를 써 주세요.' : '식당을 못 불러왔어요. 인터넷 연결을 확인하고 다시 눌러 주세요.' }; render(); });
       return;
     }
@@ -1165,7 +1164,7 @@ async function checkParking(id){
   if(!ap || !key || (s.sh.park && s.sh.park.busy)) return;
   s.sh.park = { id, kap:ap.k, busy:true }; render();
   let res;
-  try{ const r = await fetch(parkUrl(ap, key), { headers:{ Accept:'application/json' } }); res = parseParking(ap, await r.text()); }
+  try{ const r = await fetchTimed(parkUrl(ap, key), { headers:{ Accept:'application/json' } }); res = parseParking(ap, await r.text()); }
   catch(e){ res = { ok:false, err:'net' }; }
   if(state !== s) return;
   const d = new Date(); s.sh.park = { id, kap:ap.k, res, when:`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}` }; render();
@@ -1181,7 +1180,7 @@ async function mtrNext(sta, key){
   else {
     res = await Promise.all(st.lines.map(async line => {
       try{
-        const r = await fetch(mtrUrl(line, sta), { cache:'no-store' });
+        const r = await fetchTimed(mtrUrl(line, sta), { cache:'no-store' }, 10000);
         if(r.status === 429) return { ok:false, line, sta, err:'busy' };
         if(!r.ok) return { ok:false, line, sta, err:'server' };
         return parseNextTrain(await r.text(), line, sta);
@@ -1197,10 +1196,10 @@ const busCache = new Map();
 async function busList(ap, area, key){
   const ck = `${ap.k}|${ap.src === 'icn' ? area || '' : ''}`; const c = busCache.get(ck);
   if(c && Date.now() - c.at < 30 * 60 * 1000) return c.res;
-  let res = parseBuses(ap, await (await fetch(busUrl(ap, key, area, 1), { headers:{ Accept:'application/json' } })).text());
+  let res = parseBuses(ap, await (await fetchTimed(busUrl(ap, key, area, 1), { headers:{ Accept:'application/json' } })).text());
   // 한국공항공사는 한 번에 100개까지: 남은 쪽도 (최대 3쪽)
   for(let p = 2; res.ok && ap.src !== 'icn' && res.buses.length < res.total && p <= 3; p++){
-    const r = parseBuses(ap, await (await fetch(busUrl(ap, key, area, p), { headers:{ Accept:'application/json' } })).text());
+    const r = parseBuses(ap, await (await fetchTimed(busUrl(ap, key, area, p), { headers:{ Accept:'application/json' } })).text());
     if(!r.ok) break; res = Object.assign({}, res, { buses:res.buses.concat(r.buses) });
   }
   if(res.ok) busCache.set(ck, { at:Date.now(), res });

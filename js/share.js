@@ -2,7 +2,8 @@
 // Firebase는 '함께 짜기'를 열거나 공유 여행이 있을 때만 불러옴 (혼자 쓰는 사람은 아무것도 안 받음).
 // 접근 규칙은 firestore.rules (참여자만 읽고 고침).
 import { firebaseConfig } from './firebase-config.js';
-import { DELETE } from './sharecore.js';
+import { DELETE, tripSnap } from './sharecore.js';
+import { withTimeout } from './net.js';
 
 const V = '12.19.0';
 const CDN = `https://www.gstatic.com/firebasejs/${V}`;
@@ -12,7 +13,8 @@ let loading = null;
 export function load(){
   if(F) return Promise.resolve(F);
   if(loading) return loading;
-  loading = Promise.all([import(`${CDN}/firebase-app.js`), import(`${CDN}/firebase-auth.js`), import(`${CDN}/firebase-firestore.js`)])
+  // 느린 연결에서 '불러오는 중'에 멈추지 않게 30초 제한 → 못 불러왔다고 알리고, 다시 열거나 다시 연결되면 다시 부름
+  loading = withTimeout(Promise.all([import(`${CDN}/firebase-app.js`), import(`${CDN}/firebase-auth.js`), import(`${CDN}/firebase-firestore.js`)]), 30000)
     .then(([fapp, fa, fs]) => {
       const app = fapp.initializeApp(firebaseConfig);
       F = { app, auth:fa.getAuth(app), db:fs.getFirestore(app), fa, fs };
@@ -73,7 +75,11 @@ export async function joinTrip(id, user){
 // 여행 문서 실시간 감시. onData(data | null), onError(code)
 export function watchTrip(id, onData, onError){
   // 두 번째 값: 아직 서버가 받지 않은 이 기기의 변경이 섞여 있는지
-  return F.fs.onSnapshot(tripRef(id), snap => onData(snap.exists() ? snap.data() : null, snap.metadata.hasPendingWrites), e => onError(e && e.code || 'error'));
+  //   끊겨서 이 기기 사본만 보고 '없음'이라 하는 소식은 넘김(tripSnap) — 서버가 답하면 다시 옴
+  return F.fs.onSnapshot(tripRef(id), snap => {
+    const k = tripSnap(snap.exists(), snap.metadata.fromCache);
+    if(k !== 'wait') onData(k === 'data' ? snap.data() : null, snap.metadata.hasPendingWrites);
+  }, e => onError(e && e.code || 'error'));
 }
 
 export async function pushChanges(id, user, changes){
