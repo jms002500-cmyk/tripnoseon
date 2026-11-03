@@ -44,10 +44,10 @@ export function partyText(s){
   if(!s.who) return '동행 미정';
   if(s.who === 'solo') return '혼자';
   if(s.who === 'family'){
-    const n = s.adults + s.kids.length;
-    return `가족 ${n}명` + (s.kids.length ? ` (아이 ${s.kids.map(a => a + '살').join(', ')})` : '');
+    const n = (+s.adults || 0) + s.kids.length;   // 숫자로만 (공유 여행·백업에서 온 값이 글자여도 HTML이 되지 않게)
+    return `가족 ${n}명` + (s.kids.length ? ` (아이 ${s.kids.map(a => (+a || 0) + '살').join(', ')})` : '');
   }
-  const w = WHO.find(x => x.key === s.who); return `${w.label} ${s.adults}명`;
+  const w = WHO.find(x => x.key === s.who); return `${w ? w.label : '동행'} ${+s.adults || 0}명`;
 }
 
 /* 함께 짜기: 장소마다 투표·의견 (공유 여행일 때만) */
@@ -107,6 +107,7 @@ export function SHEET(s){
       <div class="box"><h2>참여자 ${members.length}명</h2>
         <ul class="implist">${members.map(m => `<li class="imp"><div class="sbody"><b>${esc(m.name)}${m.uid === me.uid ? ' (나)' : ''}</b><span>${m.uid === t.ownerUid ? '여행 주인' : '참여자'}</span></div>
           ${owner && m.uid !== me.uid ? `<button type="button" class="link" data-act="kick" data-v="${esc(m.uid)}">빼기</button>` : ''}</li>`).join('')}</ul>
+        ${owner && t.open && members.length > 1 ? '<p class="fine">뺀 사람도 초대 링크가 열려 있으면 그 링크로 다시 들어올 수 있어요. 빼기 전에 위에서 초대 링크를 닫아 주세요.</p>' : ''}
       </div>
       <div class="box"><h2>여행 전체 의견<small>장소별 의견은 장소 카드의 '의견'에서</small></h2>${commentList(s, allCms, null)}</div>
       <div class="box"><h2>최근 바뀐 것</h2>
@@ -204,11 +205,11 @@ function sizeChips(s){
 
 /* Step 1 · 동행 */
 export function vWho(s){
-  const counter = (label) => `<div class="row"><span>${label}</span><div class="counter"><button type="button" data-act="adults" data-v="-1" aria-label="한 명 빼기">−</button><b>${s.adults}</b><button type="button" data-act="adults" data-v="1" aria-label="한 명 더하기">+</button></div></div>`;
+  const counter = (label) => `<div class="row"><span>${label}</span><div class="counter"><button type="button" data-act="adults" data-v="-1" aria-label="한 명 빼기">−</button><b>${esc(s.adults)}</b><button type="button" data-act="adults" data-v="1" aria-label="한 명 더하기">+</button></div></div>`;
   const party = s.who === 'family' ? `
     <div class="box">
       ${counter('어른')}
-      ${s.kids.map((a, i) => `<div class="row"><label for="kid${i}">아이 ${i+1} 나이</label><div class="kidin"><input id="kid${i}" type="number" min="0" max="17" inputmode="numeric" value="${a}" data-kid="${i}"><span>살</span><button type="button" class="link" data-act="kiddel" data-v="${i}">빼기</button></div></div>`).join('')}
+      ${s.kids.map((a, i) => `<div class="row"><label for="kid${i}">아이 ${i+1} 나이</label><div class="kidin"><input id="kid${i}" type="number" min="0" max="17" inputmode="numeric" value="${esc(a)}" data-kid="${i}"><span>살</span><button type="button" class="link" data-act="kiddel" data-v="${i}">빼기</button></div></div>`).join('')}
       ${s.kids.length < 5 ? `<div><button type="button" class="ghost small" data-act="kidadd">+ 아이 추가</button></div>` : ''}
       <p class="fine">아이 나이에 맞춰 놀이기구 키 제한, 입장료 구분, 걷는 양을 따질 거예요.</p>
     </div>` : s.who && s.who !== 'solo' ? `<div class="box">${counter('인원')}</div>` : '';
@@ -245,8 +246,8 @@ export function vWhere(s){
     <p class="fine">${onlyCity(s) ? `${CITY_KO[onlyCity(s)]}만 가는 여행으로 짜요. 꼭 갈 곳·장소·숙소 동네에 ${CITY_KO[onlyCity(s)]}만 보여 드려요.` : '홍콩과 선전을 한 여행으로 짜요. 국경을 넘는 날은 이동 시간에 출입국 시간을 더하고, 숙소 동네 단계에서 밤마다 홍콩·선전 숙소를 나눠 정할 수 있어요.'}</p>` : ''}
     <h2>날짜</h2>
     <div class="dates">
-      <label for="dstart">가는 날<input id="dstart" type="date" value="${s.start}" data-date="start"></label>
-      <label for="dend">오는 날<input id="dend" type="date" value="${s.end}"${s.start ? ` min="${s.start}"` : ''} data-date="end"></label>
+      <label for="dstart">가는 날<input id="dstart" type="date" value="${esc(s.start)}" data-date="start"></label>
+      <label for="dend">오는 날<input id="dend" type="date" value="${esc(s.end)}"${s.start ? ` min="${esc(s.start)}"` : ''} data-date="end"></label>
     </div>
     ${days.length ? flightBox(s, days) : ''}
     ${days.length ? `<div class="box">
@@ -326,8 +327,8 @@ function daySelect(p, days, fa, s){
   const others = {};
   pickedPlaces(s).filter(q => q.full && q.id !== p.id).forEach(q => { if(fa[q.id] != null) others[fa[q.id]] = q.name; });
   const cur = fa[p.id];
-  return `<label class="daysel" for="full-${p.id}">어느 날 갈까요?
-    <select id="full-${p.id}" data-full="${p.id}">${opts.map(d => `<option value="${d.i}"${cur === d.i ? ' selected' : ''}>${d.i+1}일차 · ${d.label}${(d.wd === 0 || d.wd === 6) ? ' · 주말이라 붐벼요' : ''}${others[d.i] ? ` · ${esc(others[d.i])} 예정` : ''}</option>`).join('')}</select>
+  return `<label class="daysel" for="full-${esc(p.id)}">어느 날 갈까요?
+    <select id="full-${esc(p.id)}" data-full="${esc(p.id)}">${opts.map(d => `<option value="${d.i}"${cur === d.i ? ' selected' : ''}>${d.i+1}일차 · ${d.label}${(d.wd === 0 || d.wd === 6) ? ' · 주말이라 붐벼요' : ''}${others[d.i] ? ` · ${esc(others[d.i])} 예정` : ''}</option>`).join('')}</select>
   </label>`;
 }
 
@@ -346,8 +347,8 @@ export function vMust(s){
   const card = p => { const on = !!s.must[p.id]; const n = anchors.indexOf(p) + 1;
       return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
         <div class="ptop"><div><h3><span class="pnum">${n}</span>${esc(p.name)}</h3><p class="ja">${esc(p.ja)}</p></div>
-          <button type="button" class="mustbtn" data-act="anchor" data-v="${p.id}" aria-pressed="${on}">${on ? '꼭 갈 곳 ✓' : '꼭 갈 곳으로'}</button></div>
-        <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
+          <button type="button" class="mustbtn" data-act="anchor" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '꼭 갈 곳 ✓' : '꼭 갈 곳으로'}</button></div>
+        <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
         ${anchors.length > 1 ? `<p class="near">${nearText(nearest(p))}</p>` : ''}
         ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
         ${on && p.full && fa[p.id] != null ? daySelect(p, days, fa, s) : ''}
@@ -371,7 +372,7 @@ function placeCard(p, s, n){
   return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
     <div class="ptop"><div><h3>${n ? `<span class="pnum">${n}</span>` : ''}${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
-    <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + p.hours + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
+    <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
     ${(f.why.length || f.neg.length) ? `<div class="why">${f.why.map(w => `<span>${esc(w)}</span>`).join('')}${f.neg.map(w => `<span class="neg">${esc(w)}</span>`).join('')}</div>` : ''}
     ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
     ${on ? voteBar(s, p) : ''}
@@ -492,7 +493,7 @@ export function vPick(s){
     ${mapSVG('pick', s, null, focus)}
     ${focus ? '' : '<p class="fine">아래에서 동네나 종류를 고르면 그곳만 번호를 달아 지도에 보여 드려요.</p>'}
     <div class="box">
-      <div class="statline"><span>담은 곳 <b>${pickedPlaces(s).length}</b>곳</span><span>필요한 시간 <b>${cap.used}</b> / 쓸 수 있는 시간 <b>${cap.total}</b>시간</span></div>
+      <div class="statline"><span>담은 곳 <b>${pickedPlaces(s).length}</b>곳</span><span>필요한 시간 <b>${esc(cap.used)}</b> / 쓸 수 있는 시간 <b>${esc(cap.total)}</b>시간</span></div>
       <div class="meter${over && cap.total ? ' over' : ''}"><span style="width:${pct}%"></span></div>
       <p class="fine">${!cap.total ? '여행 날짜를 정하면 쓸 수 있는 시간을 계산해 드려요.' : over ? '쓸 수 있는 시간보다 많이 담았어요. 일정에서 넘치는 곳은 따로 모아둘게요.' : (cap.total - cap.used < 0.5 ? '쓸 수 있는 시간을 거의 다 채웠어요. 더 담으면 일정에서 넘치는 곳은 따로 모아둘게요.' : `하루 종일 쓰는 곳을 뺀 나머지 날에 ${+(cap.total - cap.used).toFixed(1)}시간 정도 여유가 있어요.`)}</p>
       <div><button type="button" class="ghost small" data-act="autopick">추천 순서대로 빈 시간 채우기</button></div>
@@ -500,6 +501,7 @@ export function vPick(s){
     <div class="box">
       <h2>구글 지도에서 찾아 담기</h2>
       <p class="fine">한국어 구글 지도에서 이름으로 찾거나 장소 아이콘을 눌러, 평점·영업시간을 보고 몇 일차에 갈지 골라 바로 담아요. 쉬는 요일은 일정 짜기가 알아서 피해요.</p>
+      <p class="fine">지도를 열면 보는 위치·검색어·고른 장소가 구글로 가요. 여기서 담은 곳은 앱을 열 때 25일에 한 번 장소 번호만 구글로 보내 위치·영업시간을 새로 받아요.</p>
       <div><button type="button" class="primary small" data-act="mapopen">구글 지도 열기</button></div>
     </div>
     ${aiPlanBox(s)}
@@ -623,7 +625,7 @@ function rakutenBox(s, areaKey){
         </li>`; }).join('')}</ul>` : '';
   return `<div class="box">
       <div class="row"><h2>라쿠텐 트래블 빈방·가격</h2><button type="button" class="link" data-act="rkforget">키 지우기</button></div>
-      ${days ? `<div><button type="button" class="ghost small" data-act="rksearch" data-v="${areaKey}"${s.rkBusy ? ' disabled' : ''}>${s.rkBusy ? '라쿠텐에서 찾는 중…' : `${esc(a.name)} 주변 빈방 찾기`}</button></div>
+      ${days ? `<div><button type="button" class="ghost small" data-act="rksearch" data-v="${esc(areaKey)}"${s.rkBusy ? ' disabled' : ''}>${s.rkBusy ? '라쿠텐에서 찾는 중…' : `${esc(a.name)} 주변 빈방 찾기`}</button></div>
         <p class="fine">${esc(partyNote(s))} 기준, 객실 1개, 첫날 1박 요금이에요. 누르면 여행 날짜·인원·동네 위치가 라쿠텐으로 가요.</p>`
         : '<p class="fine">여행 날짜를 정하면 그 날짜에 실제로 예약할 수 있는 숙소를 찾아 드려요.</p>'}
       ${r && r.msg ? `<p class="warnline">${esc(r.msg)}</p>` : ''}
@@ -747,7 +749,7 @@ function rainBox(s, P, d){
   } else if(!outs.length) body = '<p class="pnote">이날 장소는 모두 실내라 비가 와도 그대로 다닐 수 있어요.</p>';
   else body = outs.map(p => { const alts = indoorAlternatives(s, P, d.i, p, 3);
     return `<div class="ralt"><p><b>${esc(p.name)}</b> <span class="fine">${p.indoor === 'part' ? '반쯤 실외' : '실외'}</span></p>
-      ${alts.length ? `<ul class="implist">${alts.map(a => `<li class="imp"><div class="sbody"><b>${esc(a.p.name)}</b><span>${a.km < 0.95 ? '걸어서 가까워요' : `약 ${a.km.toFixed(1)}km`} · 약 ${a.p.hours}시간${a.why.length ? ' · ' + esc(a.why.join(' · ')) : ''}</span></div>
+      ${alts.length ? `<ul class="implist">${alts.map(a => `<li class="imp"><div class="sbody"><b>${esc(a.p.name)}</b><span>${a.km < 0.95 ? '걸어서 가까워요' : `약 ${a.km.toFixed(1)}km`} · 약 ${esc(a.p.hours)}시간${a.why.length ? ' · ' + esc(a.why.join(' · ')) : ''}</span></div>
         <button type="button" class="ghost small" data-act="rswap" data-v="${esc(p.id)}|${esc(a.p.id)}|${d.i}">바꾸기</button></li>`).join('')}</ul>` : '<p class="fine">근처에 대신 갈 실내 장소를 못 찾았어요.</p>'}
     </div>`; }).join('');
   return `${undo}<div class="rainbox"><h3>${head}</h3>${body}
@@ -1068,7 +1070,7 @@ export function vPlan(s){
         : d.items.length
           ? `<ol class="stops">${d.items.map((p, j) => { const cl = p.closed && p.closed.includes(d.wd);
               const prev = j ? d.items[j-1] : d.from;
-              return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
+              return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${esc(p.hours)}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day${d.locked ? ' locked' : ''}" style="--day:${col}">
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${T.travelMin ? ` · 이동 약 ${minText(T.travelMin)}` : ''}${(r => r ? ` · 예보 ${esc(r.text || '')}${r.prob != null ? ` ${r.prob}%` : ''}` : '')(dayRain(s.wx, ymdStr(d.date)))}</p></div></header>
@@ -1374,7 +1376,7 @@ function ledgerDetail(s, editing, today){
     </div>
     <div class="row2">
       <label for="lamt">금액<input id="lamt" type="number" inputmode="decimal" min="1" step="any" required value="${esc(String(e.amt))}"></label>
-      <label for="lcur">통화<select id="lcur">${[...new Set(REGION.curs.concat(['KRW'], [e.cur]))].map(k => `<option value="${k}"${e.cur === k ? ' selected' : ''}>${(CURRENCY[k] || { label:k }).label} (${k})</option>`).join('')}</select></label>
+      <label for="lcur">통화<select id="lcur">${[...new Set(REGION.curs.concat(['KRW'], [e.cur]))].map(k => `<option value="${esc(k)}"${e.cur === k ? ' selected' : ''}>${esc((CURRENCY[k] || { label:k }).label)} (${esc(k)})</option>`).join('')}</select></label>
     </div>
     <label for="lwhat">내용<input id="lwhat" type="text" maxlength="40" value="${esc(e.what || '')}" placeholder="예: 라멘"></label>
     <div class="row2">
@@ -1724,7 +1726,7 @@ export function vToday(s){
   else if(stops.length && nx >= 0){ const p = stops[nx];
     next = `<div class="tnext" style="--day:${col}">
       <span class="fine">다음 장소 · ${nx + 1}/${stops.length}</span><b>${esc(p.name)}</b>
-      <span class="meta">${esc(AREAS[p.area].name)} · 약 ${p.hours}시간${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
+      <span class="meta">${esc(AREAS[p.area].name)} · 약 ${esc(p.hours)}시간${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
       ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
       <span class="meta">🚶 ${nx ? '앞 장소에서' : '숙소에서'} ${esc(legText(fromFor(stops, nx, hotel), p))} (어림)</span>
       <a class="primary tgo" href="${esc(gdir(fromFor(stops, nx, hotel), p))}" target="_blank" rel="noopener">${nx ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a>
@@ -1755,7 +1757,7 @@ export function vToday(s){
       <ol class="stops tstops" style="--day:${col}">
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${esc(hotel.name)}</b><span>숙소에서 출발${hotel.name !== home.name ? ' · 🧳 짐 챙기기' : ''}</span></div></li>
         ${stops.map((p, j) => `<li class="${isDone(p) ? 'done' : ''}${j === nx ? ' nx' : ''}"><span class="num">${j + 1}</span>
-          <div class="sbody"><b>${esc(p.name)}</b><span>약 ${p.hours}시간${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
+          <div class="sbody"><b>${esc(p.name)}</b><span>약 ${esc(p.hours)}시간${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
             <span class="tacts"><a class="link" href="${esc(gdir(fromFor(stops, j, hotel), p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${esc(legText(fromFor(stops, j, hotel), p))} · 길찾기 ↗</a><button type="button" class="link" data-act="tspend" data-v="${esc(p.id)}">💴 여기서 쓴 돈</button></span></div>
           <button type="button" class="tchk" data-act="tdone" data-v="${esc(p.id)}" aria-pressed="${isDone(p)}" aria-label="${esc(p.name)} 다녀옴">✓</button></li>`).join('')}
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${hotel.name !== home.name ? `새 숙소로 · ${esc(home.name)}` : '숙소로 돌아가기'}</b><span class="fine">${esc(legText(stops[stops.length - 1], home))}</span><a class="link" href="${esc(gdir(stops[stops.length - 1], home))}" target="_blank" rel="noopener">마지막 장소에서 길찾기 ↗</a></div></li>

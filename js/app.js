@@ -31,7 +31,7 @@ import { parseWon, setBudget } from './budget.js';
 import { ledgerCsv, ledgerCsvName } from './ledgerexport.js';
 import { missingBookings, bookings, receiptOf, newReceipt, idCopies, isIdCopy, newIdCopy } from './vault.js';
 import { putFile, getFile, delFile, shrinkImage, keepStorage, usage, MAX_FILE } from './vaultdb.js';
-import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blobToB64, b64ToBlob } from './backup.js';
+import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blobToB64, b64ToBlob, safeFileType } from './backup.js';
 import { sizeText } from './vault.js';
 import * as SH from './share.js';
 import { netBanner } from './net.js';
@@ -443,7 +443,12 @@ async function openViewer(itemId, fid){
   const it = state.vault.find(x => x.id === itemId); const f = it && (it.files || []).find(x => x.fid === fid); if(!f) return;
   const u = await fileUrl(fid);
   if(!u){ toast('이 첨부를 찾지 못했어요. 이 기기에서 지워졌을 수 있어요.'); return; }
-  if(!/^image\//.test(f.type)){ window.open(u, '_blank', 'noopener'); return; }
+  if(!/^image\//.test(f.type)){
+    // PDF만 새 창으로. 다른 종류(HTML·SVG 등)는 이 앱 주소에서 열리면 스크립트가 돌 수 있어서 열지 않음
+    const rec = await getFile(fid);
+    if(!rec || !rec.blob || rec.blob.type !== 'application/pdf'){ toast('이 첨부는 여기서 열 수 없어요. 사진이나 PDF만 열려요.'); return; }
+    window.open(u, '_blank', 'noopener'); return;
+  }
   const v = document.createElement('div'); v.className = 'viewer'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-label', f.name);
   v.innerHTML = `<img src="${u}" alt="">
     <div class="vbar"><button type="button" class="ghost small" data-v="close">닫기</button>
@@ -543,7 +548,7 @@ async function doRestore(){
   try{ localStorage.setItem(RS_KEY, JSON.stringify(s, (k, v) => k === 'sh' ? undefined : v)); }catch(e){}
   let failed = 0;
   for(const f of rs.data.files || []){
-    try{ await putFile(f.fid, { blob:b64ToBlob(f.data, f.type), name:f.name, type:f.type, size:f.size }); }catch(e){ failed++; }
+    try{ await putFile(f.fid, { blob:b64ToBlob(f.data, f.type), name:f.name, type:safeFileType(f.type), size:f.size }); }catch(e){ failed++; }
   }
   if(rs.data.rakuten && rs.data.rakuten.key){ try{ localStorage.setItem(RK_KEY, JSON.stringify(rs.data.rakuten)); }catch(e){} }
   unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();   // 공유 여행이면 서버 일정을 그대로 받음
