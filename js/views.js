@@ -17,6 +17,7 @@ import { nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, ful
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
+import { mergeHko, hkDates, freshWarns, freshNow, hkTime, HKO_LINK } from './hko.js';
 import { SITES, siteUrl, priceOptions, sitesFor } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
 import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText, bookings, receiptOf, idCopies, idWipeDue } from './vault.js';
@@ -291,14 +292,15 @@ function flightBox(s, days){
 
 // 여행 날짜 날씨: 지난 10년 같은 날짜 평균 + (16일 안이면) 예보
 function weatherBox(s){
-  const w = s.wx;
+  const w = wxOf(s);
   if(s.wxBusy && !w) return '<div class="box"><p class="fine">이맘때 날씨를 불러오고 있어요…</p></div>';
   if(!w) return '';
-  if(w.error && !w.climate) return `<div class="box"><p class="warnline">${esc(w.error)}</p><div><button type="button" class="ghost small" data-act="wxretry">다시 불러오기</button></div></div>`;
+  if(w.error && !w.climate && !(w.forecast || []).length) return `<div class="box"><p class="warnline">${esc(w.error)}</p><div><button type="button" class="ghost small" data-act="wxretry">다시 불러오기</button></div></div>`;
   const c = w.climate;
   const fc = w.forecast && w.forecast.length ? `<h2>일기 예보<small>${esc(w.forecastAt)} 기준</small></h2>
     <ol class="daystrip">${w.forecast.map(f => { const d = parseDate(f.date);
-      return `<li><span class="wxd">${d.getMonth()+1}/${d.getDate()}</span><div><b>${esc(f.text || '—')} · ${f.lo}° / ${f.hi}°</b><span>비 올 확률 ${f.rain != null ? f.rain + '%' : '—'}</span></div></li>`; }).join('')}</ol>` : '';
+      return `<li><span class="wxd">${d.getMonth()+1}/${d.getDate()}</span><div><b>${esc(f.text || '—')} · ${f.lo}° / ${f.hi}°</b><span>${f.psr ? `큰비 가능성 ${esc(f.psr)} · 홍콩 천문대` : `비 올 확률 ${f.rain != null ? f.rain + '%' : '—'}`}</span></div></li>`; }).join('')}</ol>` : '';
+  const hko = (w.forecast || []).some(f => f.src === 'hko');
   return `<div class="box wx">
     <div class="row"><h2>이맘때 ${esc(onlyCity(s) ? CITY_KO[onlyCity(s)] : CITY_NAME[s.city] || '')} 날씨</h2><span class="fine">지난 ${c ? c.years : 10}년 같은 날짜 평균</span></div>
     ${c ? `<ul class="facts">
@@ -309,11 +311,27 @@ function weatherBox(s){
     </ul>
     <p class="pnote">${esc(clothesTip(c.mean))}${c.wind >= 25 ? ' 바람이 센 편이라 체감 온도가 더 낮아요.' : ''}</p>` : '<p class="fine">이 날짜의 지난 기록을 찾지 못했어요.</p>'}
     ${fc}
-    <p class="fine">Open-Meteo의 관측·예보 자료예요. 보내는 정보는 도시 위치와 날짜뿐이에요.${fc ? '' : ' 출발 16일 전부터는 실제 예보도 보여 드려요.'}</p>
+    <p class="fine">Open-Meteo의 관측·예보 자료예요. 보내는 정보는 도시 위치와 날짜뿐이에요.${fc ? '' : ' 출발 16일 전부터는 실제 예보도 보여 드려요.'}${hkoNote(s, hko)}</p>
   </div>`;
 }
 
 const CITY_NAME = { tokyo:'도쿄', hksz:'홍콩·선전' };
+
+// 홍콩 천문대(HKO) 9일 예보를 홍콩 날짜에 끼운 날씨 (js/hko.js mergeHko, 선전 날짜는 Open-Meteo 그대로). 화면에서만 쓰고 저장 안 함
+let wxMemo = null;
+function wxOf(s, P){
+  if(REGION.key !== 'hksz' || !s.hko || !(s.hko.days || []).length) return s.wx;
+  if(wxMemo && wxMemo.wx === s.wx && wxMemo.hko === s.hko && (P ? wxMemo.P === P : wxMemo.s === s)) return wxMemo.out;
+  const out = mergeHko(s.wx, s.hko, hkDates(P || plan(s), AREAS));
+  wxMemo = { wx:s.wx, hko:s.hko, P, s, out }; return out;
+}
+// 비 올 정도 글자: HKO는 '큰비 가능성 높음'처럼 말로, Open-Meteo는 %로
+const probText = r => !r ? '' : r.psr ? `큰비 가능성 ${r.psr}` : r.prob != null ? `${r.prob}%` : '';
+function hkoNote(s, used){
+  if(REGION.key !== 'hksz' || s.cityOnly === 'sz') return '';
+  return used ? ` 홍콩 날짜는 홍콩 천문대 9일 예보로 바꿔 보여 드려요(${esc(hkTime(s.hko && s.hko.fndAt) || '')}${s.hko && s.hko.fndAt ? ' 발표, ' : ''}선전 날짜는 Open-Meteo). 천문대에는 아무 정보도 보내지 않고 자료만 받아요. <a class="link" href="${HKO_LINK.fnd}" target="_blank" rel="noopener noreferrer">천문대 원문 ↗</a>`
+    : ' 출발 9일 전부터는 홍콩 날짜를 홍콩 천문대 예보로 보여 드려요(천문대에는 아무 정보도 보내지 않아요).';
+}
 
 // 종류 이름 (값은 그대로 두고 보여 주는 이름만 지역에 맞춤)
 const kindName = k => REGION.key !== 'tokyo' && k === '신사·절' ? '사원·절' : k;
@@ -737,16 +755,16 @@ export function vStay(s){
 /* 비 오는 날 실내 대안 (일정 단계의 날짜마다, 오늘 하루 화면) */
 const ymdStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 function rainBox(s, P, d){
-  const sh = s.sh || {}; const date = ymdStr(d.date); const r = dayRain(s.wx, date);
-  if(d.locked) return r && r.rainy ? `<p class="fine">☔ 비 예보 ${r.prob != null ? r.prob + '%' : ''} · 확정한 날이라 바꾸지 않았어요. 바꾸려면 확정을 풀어 주세요.</p>` : '';
+  const sh = s.sh || {}; const date = ymdStr(d.date); const r = dayRain(wxOf(s, P), date);
+  if(d.locked) return r && r.rainy ? `<p class="fine">☔ 비 예보 ${esc(probText(r))} · 확정한 날이라 바꾸지 않았어요. 바꾸려면 확정을 풀어 주세요.</p>` : '';
   const open = (r && r.rainy) || sh.ropen === d.i;
   const undo = sh.rundo && sh.rundo.day === d.i ? `<p class="lmsg" role="status">'${esc(sh.rundo.outName)}' 대신 '${esc(sh.rundo.inName)}'(으)로 바꿨어요. <button type="button" class="link" data-act="rundo">되돌리기</button></p>` : '';
   if(!open) return `${undo}<div><button type="button" class="link" data-act="ropen" data-v="${d.i}">☔ 비 오면?</button></div>`;
   const outs = outdoorStops(d);
-  const head = r && r.rainy ? `☔ 비 예보 ${r.prob != null ? r.prob + '%' : ''}${r.text ? ' · ' + esc(r.text) : ''}` : '☔ 비 오면 이렇게 바꿔요';
+  const head = r && r.rainy ? `☔ 비 예보 ${esc(probText(r))}${r.text ? ' · ' + esc(r.text) : ''}` : '☔ 비 오면 이렇게 바꿔요';
   let body;
   if(d.full){
-    const b = r && r.rainy ? betterFullDay(P, s.wx, d.i) : null;
+    const b = r && r.rainy ? betterFullDay(P, wxOf(s, P), d.i) : null;
     body = `<p class="pnote">${esc(d.full.name)}은(는) 비가 와도 대부분 운영해요. 우비·방수 신발을 챙기고 실내 어트랙션 위주로 다니세요.</p>
       ${b ? `<p class="pnote">예보로는 <b>${esc(b.label)}</b>이 비 올 확률 ${b.prob != null ? b.prob + '%' : '낮음'}이에요. <button type="button" class="ghost small" data-act="rfull" data-v="${esc(d.full.id)}|${b.i}">그날로 옮기기</button></p>` : ''}`;
   } else if(!outs.length) body = '<p class="pnote">이날 장소는 모두 실내라 비가 와도 그대로 다닐 수 있어요.</p>';
@@ -1093,7 +1111,7 @@ export function vPlan(s){
               return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${esc(p.hours)}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day${d.locked ? ' locked' : ''}" style="--day:${col}">
-        <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${T.travelMin ? ` · 이동 약 ${minText(T.travelMin)}` : ''}${(r => r ? ` · 예보 ${esc(r.text || '')}${r.prob != null ? ` ${r.prob}%` : ''}` : '')(dayRain(s.wx, ymdStr(d.date)))}</p></div></header>
+        <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${T.travelMin ? ` · 이동 약 ${minText(T.travelMin)}` : ''}${(r => r ? ` · 예보 ${esc(r.text || '')}${probText(r) ? `${r.psr ? ' · ' : ' '}${esc(probText(r))}` : ''}` : '')(dayRain(wxOf(s, P), ymdStr(d.date)))}</p></div></header>
         ${tight ? `<p class="warnline">이동까지 넣으면 약 ${minText(Math.round(d.used * 60 + T.travelMin + mvMin))}이라 하루가 빠듯해요. 한 곳을 다른 날로 옮겨 보세요.</p>` : ''}
         ${dayMoves(s, d, mctx, 'start')}
         ${split ? `<p class="fine">🏨 ${d.from.name !== d.to.name ? `🧳 숙소 옮기는 날: ${esc(d.from.name)} → ${esc(d.to.name)}${d.cross ? ' · 짐 옮기고 국경 넘는 2시간을 빼고 짰어요' : ''}` : `${esc(d.to.name)}`}</p>` : ''}
@@ -1706,12 +1724,23 @@ function todayVaultCard(it){
   </article>`;
 }
 
-function todayWeatherLine(w){
-  if(!w) return '';
+function todayWeatherLine(w, now){
+  const n = now ? [now.temp != null ? `${Math.round(now.temp)}°` : '', now.hum != null ? `습도 ${Math.round(now.hum)}%` : '', now.text].filter(Boolean).join(' · ') : '';
+  const nowLine = n ? `<span class="fine">지금 ${esc(n)} (홍콩 천문대${hkTime(now.at) ? ' ' + esc(hkTime(now.at)) : ''} 관측)</span>` : '';
+  if(!w) return nowLine ? `<p class="twx">${nowLine}</p>` : '';
   const t = w.kind === 'forecast'
-    ? [w.text, w.hi != null ? `낮 ${Math.round(w.hi)}° / 아침 ${Math.round(w.lo)}°` : '', w.rain != null ? `비 올 확률 ${w.rain}%` : ''].filter(Boolean).join(' · ')
+    ? [w.text, w.hi != null ? `낮 ${Math.round(w.hi)}° / 아침 ${Math.round(w.lo)}°` : '', w.psr ? `큰비 가능성 ${w.psr}` : w.rain != null ? `비 올 확률 ${w.rain}%` : ''].filter(Boolean).join(' · ')
     : [`이맘때 평균 낮 ${Math.round(w.hi)}° / 아침 ${Math.round(w.lo)}°`, w.rainPct != null ? `비 온 날 ${w.rainPct}%` : ''].filter(Boolean).join(' · ');
-  return `<p class="twx">${w.kind === 'forecast' ? '예보' : '평년'} · ${esc(t)}${w.kind === 'climate' && w.mean != null ? `<span class="fine">${esc(clothesTip(w.mean))}</span>` : ''}</p>`;
+  return `<p class="twx">${w.kind === 'forecast' ? (w.src === 'hko' ? '천문대 예보' : '예보') : '평년'} · ${esc(t)}${nowLine}${w.kind === 'climate' && w.mean != null ? `<span class="fine">${esc(clothesTip(w.mean))}</span>` : ''}</p>`;
+}
+
+// 홍콩 천문대 경보 띠: 여행 중이고 오늘이 홍콩 날짜일 때, 받은 지 3시간 안의 경보만. 누르면 천문대 원문
+function hkoWarnBand(s, ph, today, P){
+  if(REGION.key !== 'hksz' || ph.phase !== 'during' || !hkDates(P, AREAS).has(today)) return '';
+  const ws = freshWarns(s.hko, Date.now()); if(!ws || !ws.length) return '';
+  return `<div class="hkow" role="status">${ws.map(w => `<a class="hkoline${w.level === 'high' ? ' high' : ''}" href="${HKO_LINK.warn}" target="_blank" rel="noopener noreferrer">
+      <span>${esc(w.icon)} <b>${esc(w.name)}</b> — ${esc(w.tip)}</span>
+      <span class="fine">홍콩 천문대${hkTime(w.at) ? ' ' + esc(hkTime(w.at)) : ''} 발표 · 원문 보기 ↗</span></a>`).join('')}</div>`;
 }
 
 // 가족 위치 (켜는 사람만, js/loc.js). 함께 짜기 여행에서만
@@ -1828,8 +1857,9 @@ export function vToday(s){
   return `<section class="step today">
     <p class="eyebrow">오늘 하루</p>
     <header class="thead">${badge(i)}<div><h1>${i + 1}일차 · ${esc(d.label)}</h1><p class="lead">${esc(phaseText(ph, i))}</p></div></header>
+    ${hkoWarnBand(s, ph, today, P)}
     <div class="scroller" role="group" aria-label="날짜 고르기">${P.days.map(x => `<button type="button" class="chip" data-act="tday" data-v="${x.i}" aria-pressed="${x.i === i}">${x.i + 1}일차${x.i === ph.index ? ' · 오늘' : ''}</button>`).join('')}</div>
-    ${todayWeatherLine(dayWeather(s.wx, date))}
+    ${todayWeatherLine(dayWeather(wxOf(s, P), date), REGION.key === 'hksz' && ph.phase === 'during' && date === today && hkDates(P, AREAS).has(today) ? freshNow(s.hko, Date.now()) : null)}
     ${clockBox(s, ph)}
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}

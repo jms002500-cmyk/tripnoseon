@@ -8,10 +8,10 @@ const RAIN_WORDS = ['비', '이슬비', '소나기', '뇌우', '눈', '눈 소�
 // 예보 하나가 비 오는 날인지: 비 올 확률 50% 이상이거나 날씨 글자가 비·눈
 export function isRainy(f){ return !!f && ((f.rain != null && f.rain >= 50) || RAIN_WORDS.includes(f.text)); }
 
-// 그날 예보 → { rainy, prob, text } | null(예보 없음)
+// 그날 예보 → { rainy, prob, text, psr } | null(예보 없음). psr: 홍콩 천문대 예보일 때만 '큰비 가능성' 말(js/hko.js)
 export function dayRain(wx, date){
   const f = wx && (wx.forecast || []).find(x => x.date === date);
-  return f ? { rainy:isRainy(f), prob:f.rain, text:f.text } : null;
+  return f ? { rainy:isRainy(f), prob:f.rain, text:f.text, ...(f.psr ? { psr:f.psr } : {}) } : null;
 }
 
 // 그날 비를 맞는 곳: 실외 + 반쯤 실외 (직접 담은 곳은 실내인지 몰라서 뺌)
