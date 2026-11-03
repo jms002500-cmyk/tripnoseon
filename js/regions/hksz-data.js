@@ -35,9 +35,28 @@
 //   홍콩: LCSD 우주박물관(화)·과학관(목)·예술관(목)·역사박물관(화), M+(월), 고궁문화박물관(화). M+ 말고는 공휴일엔 열어요.
 //   선전: 선전 박물관(월, 선전시 정부 누리집·shenzhenmuseum.com), 현대미술·도시계획관(월, 선전시 문화광전여유체육국 박물관 목록 2026-01).
 //         화창베이 박물관(월, 박물관 참관 안내).
-//   푸톈 CBD 조명 쇼는 금·토요일·공휴일(그 전날 포함)에만 해서 일~목을 closed로 둠(선전시 도시관리국 안내).
+//   푸톈 CBD 조명 쇼는 금·토요일·공휴일(그 전날 포함)에만 해서 일~목을 closed로 둠(선전시 도시관리국 안내, 2026-10-01 다시 시작 뒤에도 같음).
 // - 이 작업 환경은 공식 누리집에 직접 접속이 막혀 있어(2026-11-01), 검색 도구로 공식 도메인 페이지 내용만 골라 확인했어요.
 // - 이동 시간·가격대·국경 소요 시간은 대략값이에요. 화면에 "대략값"을 같이 보여 주세요.
+// - 여행 주간(2026-12-06 일 ~ 12-10 목)에 맞춰 다시 확인 (2026-11-03). 그 주 홍콩·본토 공휴일 없음.
+//   이 환경은 공식 누리집을 직접 못 열어서(WebFetch 차단) 검색 도구로 공식 도메인 내용을 골라 확인했어요.
+//   고친 곳:
+//     hk_avenue  심포니 오브 라이트(幻彩詠香江)는 2026-02 예산안에서 '하반기에 끝내고 새 빛 쇼로 바꿈' 발표, 마지막 날짜 미정.
+//                9/9~9/20 멈췄다 9/21 다시 함(info.gov.hk P2026090900545·P2026092100182) → 12월에 하는지 확인하라고 안내
+//     hk_peak    피크 타워 빛 영상 쇼 '匯映山頂' 2026-06-13부터 1년, 매일 19:30·20:30·21:30 약 10분(hk01·orangenews 2026-06)
+//     hk_wheel   클락켄플랩 음악 축제 12/4~6 센트럴 하버프런트 행사장(The Standard·Time Out 2026-10-07 1차 라인업 기사)
+//     hk_disney  'A Disney Christmas' 2026-11-20 ~ 2027-01-03(디즈니 공식 페이지·2026-09-17 발표 요약 bestcalendar.jp, 공식 페이지 검색 요약엔 11/17로 나와 시작일만 다름)
+//                트리 점등식(드론·눈), 겨울왕국 구역 겨울 마켓(처음). 공식 'Disney Christmas Live in Concert!' 좌석 패스 12/6까지·HK$299부터
+//     disney 동네 디즈니랜드 호텔 2026-10-12부터 전체 휴업(hongkongdisneyland.com 호텔 페이지), 할리우드 호텔·익스플로러스 롯지는 영업
+//     hk_oceanpark 'North Pole Encounter' 고쳐 짓느라 닫음, 2027년 1분기 다시 엶(oceanpark.com.hk 파크 달력). 파크는 365일 엶(날씨 예외)
+//     hk_bigbuddha 지혜의 길(心經簡林) 2025-06-05부터 보수 공사, 2026년 4분기 마칠 예정(info.gov.hk 2025-05-27, 관광사무처 도의회 문서)
+//     sz_civic   2026-10-01 국경절에 다시 시작(푸톈구 정부 웨이보를 옮긴 sina·qq 2026-09-28~10-01), 지금도 금·토·공휴일만,
+//                11~3월 19:00·20:00·21:00 약 15분(선전 본지바오 2026 안내). 여행 주(일~목)엔 안 함
+//   그대로 둔 곳(그 주에 바뀐 소식 못 찾음): LCSD 박물관 휴관 요일, M+·고궁(12/7 월 M+ 휴관, 12/8 화 우주·역사·고궁 휴관, 12/10 목 과학·예술 휴관),
+//     피크 트램(2026년 점검은 3/9~12·9/8, 12월 공지 없음), 옹핑 360(2026년 점검은 1·3·5·6·9월과 11/10, 12월 공지 없음), 선전 박물관들(월 휴관),
+//     평안금융센터 전망대·선전 환러구(12월 휴업 공지 없음)
+//   확인 못 함: 디즈니 12월 날짜별 운영 시간·쉬는 날, 오션파크 2026 크리스마스 행사, 하버시티 등 쇼핑몰 장식,
+//     세계의 창·환러구 겨울 행사(지난해 세계의 창 눈 내리기는 12/7부터), 윈터페스트 정확한 날짜·시간·요금(EVENTS의 tbc)
 
 export const AREAS = {
   // 홍콩
@@ -55,7 +74,7 @@ export const AREAS = {
     note:'쇼핑몰·식당이 많고 2층 트램이 앞을 지나요. 디즈니·공항과는 먼 편이에요.'},
   disney:{name:'디즈니 리조트', city:'hk', station:'MTR 디즈니랜드 리조트역', q:'迪士尼站', lat:22.3155, lng:114.0451, hotel:true, disneyMin:0,
     disneyText:'걸어서·셔틀버스로 바로', price:'높음', lx:0, ly:-20, anchor:'middle',
-    note:'디즈니 호텔에서 자면 아침 일찍부터 밤 불꽃놀이까지 편해요. 시내까지는 30~40분이에요. 호텔 공사 일정은 예약 전에 확인하세요.'},
+    note:'디즈니 호텔에서 자면 아침 일찍부터 밤 불꽃놀이까지 편해요. 시내까지는 30~40분이에요. 디즈니랜드 호텔은 2026년 10월 12일부터 공사로 문을 닫았어요(할리우드 호텔·익스플로러스 롯지는 열어요).'},
   tungchung:{name:'퉁청·공항', city:'hk', station:'MTR 퉁청역', q:'東涌站', lat:22.2893, lng:113.9416, hotel:true, disneyMin:15,
     disneyText:'써니베이 환승, 약 15분', price:'보통~높음', lx:0, ly:40, anchor:'middle',
     note:'공항과 가깝고 옹핑 360 케이블카가 바로 앞이에요. 시내 관광지까지는 30분 넘게 걸려요.'},
@@ -83,7 +102,7 @@ export const AREAS = {
 
 export const PLACES = [
   // 홍콩 · 침사추이
-  {id:'hk_avenue', kind:'야경·일루미네이션', indoor:false, name:'스타의 거리 (침사추이 해변 산책로)', ja:'星光大道', area:'tst', lat:22.2935, lng:114.1740, hours:1, anchor:true, tags:['관광명소','자연·산책'], kid:'all', note:'항구 건너 홍콩섬 빌딩 야경이 정면으로 보여요. 저녁엔 빌딩 조명 쇼를 해요.'},
+  {id:'hk_avenue', kind:'야경·일루미네이션', indoor:false, name:'스타의 거리 (침사추이 해변 산책로)', ja:'星光大道', area:'tst', lat:22.2935, lng:114.1740, hours:1, anchor:true, tags:['관광명소','자연·산책'], kid:'all', note:'항구 건너 홍콩섬 빌딩 야경이 정면으로 보여요. 저녁 8시 빌딩 조명 쇼(심포니 오브 라이트)는 2026년 안에 끝내고 새 빛 쇼로 바꾸기로 해서, 12월에도 하는지 가기 전에 확인하세요. 빌딩 불빛 야경은 그대로예요.'},
   {id:'hk_starferry', kind:'체험·캐릭터', indoor:'part', name:'스타페리', ja:'天星小輪 尖沙咀碼頭', area:'tst', lat:22.2935, lng:114.1680, hours:0.5, tags:['관광명소','체험'], kid:'all', note:'침사추이와 센트럴을 10분쯤 건너는 100년 넘은 배예요. 옥토퍼스 카드로 타요.'},
   {id:'hk_space', kind:'박물관·미술관', indoor:true, name:'홍콩 우주박물관', ja:'香港太空館', area:'tst', lat:22.2944, lng:114.1719, hours:2, anchor:true, tags:['체험'], kid:'kids', closed:[2], note:'돔 천장 영상관과 우주 체험 전시가 있어요. 화요일 휴관(공휴일은 열어요). 평일(월·수~금)엔 오후 1시에 열어요.'},
   {id:'hk_science', kind:'박물관·미술관', indoor:true, name:'홍콩 과학관', ja:'香港科學館', area:'tst', lat:22.3010, lng:114.1775, hours:2.5, anchor:true, tags:['체험'], kid:'kids', closed:[4], note:'직접 만지고 해 보는 전시가 많아요. 목요일 휴관(공휴일은 열어요).'},
@@ -105,7 +124,7 @@ export const PLACES = [
   {id:'hk_walledcity', kind:'공원·정원', indoor:false, name:'구룡성채 공원', ja:'九龍寨城公園', area:'mongkok', lat:22.3319, lng:114.1900, hours:1, tags:['문화·역사','자연·산책'], kid:'all', note:'빌딩이 빽빽했던 옛 구룡성채 자리를 정원으로 바꾼 곳이에요. 남아 있는 옛 관청 건물에서 성채 시절 모습을 보여 줘요. 공원은 매일 아침 6시 반~밤 11시, 전시실은 수요일에 쉬어요. 무료예요.'},
   {id:'hk_chilin', kind:'공원·정원', indoor:false, name:'치린 수도원·난롄 정원', ja:'志蓮淨苑', area:'mongkok', lat:22.3407, lng:114.2052, hours:1.5, tags:['문화·역사','자연·산책'], kid:'all', note:'못을 쓰지 않고 나무로 지은 당나라 양식 절과 길 건너 정원이에요. 무료예요. 절은 오전 9시~오후 4시 반, 정원은 아침 7시~밤 9시에 열어요.'},
   // 홍콩 · 센트럴·성완
-  {id:'hk_peak', kind:'전망대', indoor:false, name:'빅토리아 피크 (피크 트램)', ja:'凌霄閣', area:'central', lat:22.2712, lng:114.1500, hours:2.5, anchor:true, tags:['관광명소','자연·산책'], kid:'all', note:'피크 트램을 타고 올라가 홍콩 전체를 내려다봐요. 트램은 매일 아침 7시 반~밤 11시에 다니고, 해 질 녘엔 줄이 길어요.'},
+  {id:'hk_peak', kind:'전망대', indoor:false, name:'빅토리아 피크 (피크 트램)', ja:'凌霄閣', area:'central', lat:22.2712, lng:114.1500, hours:2.5, anchor:true, tags:['관광명소','자연·산책'], kid:'all', note:'피크 트램을 타고 올라가 홍콩 전체를 내려다봐요. 트램은 매일 아침 7시 반~밤 11시에 다니고, 해 질 녘엔 줄이 길어요. 피크 타워에서 매일 저녁 7시 반·8시 반·9시 반에 10분쯤 빛 영상 쇼를 해요(2026년 6월부터 1년, 날씨에 따라 바뀔 수 있어요).'},
   {id:'hk_escalator', kind:'거리·시장', indoor:'part', name:'미드레벨 에스컬레이터', ja:'中環至半山自動扶梯', area:'central', lat:22.2836, lng:114.1547, hours:0.5, tags:['관광명소'], kid:'all', note:'언덕을 오르는 800m 길이 야외 에스컬레이터예요. 아침에는 내려가는 방향으로만 움직여요.'},
   {id:'hk_pmq', kind:'쇼핑', indoor:'part', name:'PMQ', ja:'元創方', area:'central', lat:22.2834, lng:114.1519, hours:1, tags:['쇼핑','문화·역사'], kid:'all', note:'옛 경찰 기숙사를 고친 디자인 소품 가게 모음이에요.'},
   {id:'hk_taikwun', kind:'박물관·미술관', indoor:'part', name:'대관 (타이쿤)', ja:'大館', area:'central', lat:22.2817, lng:114.1543, hours:1, tags:['문화·역사'], kid:'all', note:'옛 경찰서·감옥을 고친 문화 공간이에요. 무료 전시가 많아요. 마당은 매일 열고, 현대미술 전시관은 월요일에 쉬어요.'},
@@ -113,7 +132,7 @@ export const PLACES = [
   {id:'hk_lkf', kind:'먹거리', indoor:'part', name:'란콰이퐁', ja:'蘭桂坊', area:'central', lat:22.2810, lng:114.1555, hours:1.5, tags:['맛집'], kid:'adult', note:'바·식당이 모인 골목이에요. 밤늦게까지 붐벼요.'},
   {id:'hk_centralmarket', kind:'먹거리', indoor:true, name:'센트럴 마켓', ja:'中環街市', area:'central', lat:22.2848, lng:114.1557, hours:1, tags:['맛집','쇼핑'], kid:'all', note:'1930년대 시장 건물을 고친 푸드홀·상점가예요.'},
   {id:'hk_zoo', kind:'수족관·동물원', indoor:false, name:'홍콩 동식물공원', ja:'香港動植物公園', area:'central', lat:22.2780, lng:114.1562, hours:1, tags:['자연·산책'], kid:'kids', note:'무료로 들어가는 도심 속 작은 동물원·식물원이에요.'},
-  {id:'hk_wheel', kind:'전망대', indoor:'part', name:'홍콩 관람차', ja:'香港摩天輪', area:'central', lat:22.2852, lng:114.1618, hours:0.5, tags:['관광명소'], kid:'all', note:'센트럴 바닷가 대관람차예요. 밤에 타면 항구 야경이 좋아요.'},
+  {id:'hk_wheel', kind:'전망대', indoor:'part', name:'홍콩 관람차', ja:'香港摩天輪', area:'central', lat:22.2852, lng:114.1618, hours:0.5, tags:['관광명소'], kid:'all', note:'센트럴 바닷가 대관람차예요. 밤에 타면 항구 야경이 좋아요. 2026년 12월 4~6일(금~일)엔 바로 옆 센트럴 하버프런트에서 음악 축제(클락켄플랩)가 열려 둘레가 붐벼요.'},
   {id:'hk_maritime', kind:'박물관·미술관', indoor:true, name:'홍콩 해사박물관', ja:'香港海事博物館', area:'central', lat:22.2866, lng:114.1620, hours:1.5, tags:['체험','문화·역사'], kid:'all', note:'배 모형과 함께 홍콩 항구와 바닷길 이야기를 보여 주는 박물관이에요. 센트럴 8번 부두 2층이라 스타페리를 내려 바로 가요. 평일 9시 반~5시 반, 주말·공휴일 10시~7시에 열고 음력설 첫 이틀만 쉬어요.'},
   // 홍콩 · 코즈웨이베이·완차이
   {id:'hk_timessquare', kind:'쇼핑', indoor:true, name:'타임스스퀘어', ja:'時代廣場', area:'cwb', lat:22.2783, lng:114.1821, hours:1.5, tags:['쇼핑'], kid:'all', note:'코즈웨이베이 대표 쇼핑몰이에요. 주변에 백화점과 식당이 많아요.'},
@@ -121,15 +140,15 @@ export const PLACES = [
   {id:'hk_racecourse', kind:'체험·캐릭터', indoor:false, name:'해피밸리 경마장', ja:'跑馬地馬場', area:'cwb', lat:22.2722, lng:114.1810, hours:2, tags:['체험'], kid:'adult', note:'경마 시즌(대략 9월~7월) 수요일 밤 경주가 유명해요. 2026년 12월 9일(수) 밤엔 국제 기수 대회 경주가 있어요. 다른 날짜는 홍콩자키클럽 누리집에서 확인하세요.'},
   {id:'hk_leetung', kind:'쇼핑', indoor:false, name:'리퉁 애비뉴', ja:'利東街', area:'cwb', lat:22.2755, lng:114.1716, hours:0.5, tags:['쇼핑','관광명소'], kid:'all', note:'유럽풍 보행자 거리예요. 완차이역 D출구와 이어져요.'},
   // 홍콩 · 디즈니
-  {id:'hk_disney', kind:'테마파크', indoor:false, name:'홍콩 디즈니랜드', ja:'香港迪士尼樂園', area:'disney', lat:22.3130, lng:114.0413, hours:0, full:true, anchor:true, tags:['테마파크'], kid:'kids', book:true, note:'날짜마다 값이 다른 날짜 지정 입장권이에요. 겨울왕국 구역이 인기예요.'},
+  {id:'hk_disney', kind:'테마파크', indoor:false, name:'홍콩 디즈니랜드', ja:'香港迪士尼樂園', area:'disney', lat:22.3130, lng:114.0413, hours:0, full:true, anchor:true, tags:['테마파크'], kid:'kids', book:true, note:'날짜마다 값이 다른 날짜 지정 입장권이에요. 겨울왕국 구역이 인기예요. 11월 20일~1월 3일은 크리스마스 행사 기간이라 저녁마다 메인 스트리트 트리 점등(드론·눈 효과)이 있고, 겨울왕국 구역에 겨울 마켓이 처음 열려요. 여는 시간은 날마다 달라 공식 달력에서 확인하세요.'},
   {id:'hk_inspiration', kind:'공원·정원', indoor:false, name:'인스피레이션 레이크', ja:'迪欣湖活動中心', area:'disney', lat:22.3220, lng:114.0375, hours:1, tags:['자연·산책'], kid:'kids', note:'디즈니 옆 호수 공원이에요. 매일 아침 9시~저녁 7시에 무료로 산책할 수 있어요. 오리배 빌려 타기는 2026년 3월부터 쉬고 있어요.'},
   // 홍콩 · 퉁청·공항
   {id:'hk_ngong360', kind:'체험·캐릭터', indoor:'part', name:'옹핑 360 케이블카', ja:'昂坪360', area:'tungchung', lat:22.2902, lng:113.9387, hours:1.5, anchor:true, tags:['관광명소','체험'], kid:'all', note:'퉁청에서 옹핑까지 약 25분 케이블카예요. 바닥이 유리인 칸도 있어요. 바람이 세면 멈춰요.'},
-  {id:'hk_bigbuddha', kind:'신사·절', indoor:false, name:'톈탄 대불·포린 사원', ja:'天壇大佛', area:'tungchung', lat:22.2540, lng:113.9050, hours:2, anchor:true, tags:['문화·역사','관광명소'], kid:'all', note:'계단 위에 앉은 34m 청동 대불이에요. 옹핑 360 케이블카와 묶어서 가요.'},
+  {id:'hk_bigbuddha', kind:'신사·절', indoor:false, name:'톈탄 대불·포린 사원', ja:'天壇大佛', area:'tungchung', lat:22.2540, lng:113.9050, hours:2, anchor:true, tags:['문화·역사','관광명소'], kid:'all', note:'계단 위에 앉은 34m 청동 대불이에요. 옹핑 360 케이블카와 묶어서 가요. 근처 지혜의 길(나무 기둥 길)은 보수 공사로 닫혀 있고 2026년 말 마칠 예정이라, 열었는지 가서 확인하세요.'},
   {id:'hk_taio', kind:'거리·시장', indoor:false, name:'타이오 어촌', ja:'大澳', area:'tungchung', lat:22.2544, lng:113.8642, hours:2, tags:['문화·역사','맛집'], kid:'all', note:'나무 기둥 위 수상 가옥 마을이에요. 옹핑에서 버스로 가요.'},
   {id:'hk_citygate', kind:'쇼핑', indoor:true, name:'시티게이트 아웃렛', ja:'東薈城名店倉', area:'tungchung', lat:22.2898, lng:113.9410, hours:1.5, tags:['쇼핑'], kid:'all', note:'퉁청역 바로 위 아웃렛이에요. 공항 가는 날 들르기 좋아요.'},
   // 홍콩 · 남쪽
-  {id:'hk_oceanpark', kind:'테마파크', indoor:false, name:'오션파크', ja:'香港海洋公園', area:'south', lat:22.2467, lng:114.1757, hours:0, full:true, anchor:true, tags:['테마파크','체험'], kid:'all', note:'판다·수족관과 놀이기구가 함께 있어요. 산 위·아래 구역은 케이블카나 열차로 오가요.'},
+  {id:'hk_oceanpark', kind:'테마파크', indoor:false, name:'오션파크', ja:'香港海洋公園', area:'south', lat:22.2467, lng:114.1757, hours:0, full:true, anchor:true, tags:['테마파크','체험'], kid:'all', note:'판다·수족관과 놀이기구가 함께 있어요. 산 위·아래 구역은 케이블카나 열차로 오가요. 북극 동물 전시관(North Pole Encounter)은 고쳐 짓느라 닫았고 2027년 1~3월에 다시 열 예정이에요.'},
   {id:'hk_repulse', kind:'공원·정원', indoor:false, name:'리펄스베이', ja:'淺水灣', area:'south', lat:22.2368, lng:114.1962, hours:1, tags:['자연·산책'], kid:'all', note:'초승달 모양 모래 해변이에요. 센트럴에서 버스로 30분쯤 걸려요.'},
   {id:'hk_stanley', kind:'거리·시장', indoor:'part', name:'스탠리 마켓', ja:'赤柱市集', area:'south', lat:22.2183, lng:114.2125, hours:1.5, tags:['쇼핑','자연·산책'], kid:'all', note:'바닷가 마을 시장이에요. 기념품 가게와 바닷가 산책로가 있어요.'},
   {id:'hk_aberdeen', kind:'체험·캐릭터', indoor:false, name:'애버딘 삼판선', ja:'香港仔海濱公園', area:'south', lat:22.2473, lng:114.1543, hours:1, tags:['체험','문화·역사'], kid:'all', note:'작은 배(삼판선)를 타고 수상 마을이 있던 항구를 한 바퀴 돌아요.'},
@@ -141,7 +160,7 @@ export const PLACES = [
   // 선전 · 푸톈 CBD
   {id:'sz_pingan', kind:'전망대', indoor:true, name:'평안금융센터 전망대 (Free Sky)', ja:'平安金融中心 云际观光层', area:'futian', lat:22.5364, lng:114.0504, hours:1.5, anchor:true, tags:['관광명소'], kid:'all', note:'599m 빌딩 116층 실내 전망대예요. 선전 빌딩숲이 한눈에 보여요. 표 살 때 여권을 챙기세요.'},
   {id:'sz_lianhuashan', kind:'공원·정원', indoor:false, name:'롄화산 공원', ja:'莲花山公园', area:'futian', lat:22.5562, lng:114.0539, hours:1.5, tags:['자연·산책','문화·역사'], kid:'all', note:'언덕 위 덩샤오핑 동상 앞에서 푸톈 CBD가 내려다보여요.'},
-  {id:'sz_civic', kind:'야경·일루미네이션', indoor:false, name:'푸톈 CBD 빌딩 조명 쇼', ja:'市民中心 灯光秀', area:'futian', lat:22.5467, lng:114.0544, hours:0.5, tags:['관광명소'], kid:'all', closed:[0,1,2,3,4], note:'시민센터 앞에서 빌딩 수십 채가 함께 빛나는 조명 쇼를 봐요. 금·토요일과 중국 공휴일(그 전날 포함) 밤에만 해요. 시민광장에서 보려면 위챗 미니프로그램 예약이 필요하고, 롄화산 꼭대기에선 예약 없이 봐요. 2026년 4월 30일부터 점검으로 멈췄고 10월 1일에 다시 할 예정이었는데, 다시 시작했다는 공지는 아직 못 찾았어요.'},
+  {id:'sz_civic', kind:'야경·일루미네이션', indoor:false, name:'푸톈 CBD 빌딩 조명 쇼', ja:'市民中心 灯光秀', area:'futian', lat:22.5467, lng:114.0544, hours:0.5, tags:['관광명소'], kid:'all', closed:[0,1,2,3,4], note:'시민센터 앞에서 빌딩 수십 채가 함께 빛나는 조명 쇼를 봐요. 금·토요일과 중국 공휴일(그 전날 포함) 밤에만 해요. 11~3월엔 저녁 7시·8시·9시에 15분쯤씩 해요. 시민광장에서 보려면 위챗 미니프로그램 예약이 필요하고, 롄화산 꼭대기에선 예약 없이 봐요. 점검으로 멈췄다가 2026년 10월 1일에 다시 시작했어요.'},
   {id:'sz_museum', kind:'박물관·미술관', indoor:true, name:'선전 박물관', ja:'深圳博物馆', area:'futian', lat:22.5440, lng:114.0575, hours:1.5, tags:['문화·역사'], kid:'all', closed:[1], note:'작은 어촌이던 선전이 40여 년 만에 큰 도시가 된 이야기를 보여 줘요. 시민센터 동쪽 건물(진톈루관)이에요. 월요일 휴관(공휴일은 열어요), 오전 10시~오후 6시예요.'},
   {id:'sz_mocape', kind:'박물관·미술관', indoor:true, name:'선전 현대미술·도시계획관', ja:'深圳市当代艺术与城市规划馆', area:'futian', lat:22.5486, lng:114.0567, hours:1.5, tags:['문화·역사'], kid:'all', closed:[1], note:'선전의 도시 계획과 현대 미술 전시를 한 건물에서 해요. 구름 같은 지붕 건물이 멋져요. 월요일 휴관(공휴일은 열어요).'},
   // 선전 · 화교성(OCT)
@@ -190,4 +209,31 @@ export const BORDER = [
     how:'홍콩 위안랑·틴수이와이 쪽에서 B2·B3 같은 국경 버스로 가요. 두 나라 심사를 한 건물에서 받아요. 난산·셔커우와 가까워요.', minutes:90 },
   { key:'xrl', name:'서구룡역 고속철 (→푸톈·선전북)', local:'香港西九龍站', lat:22.3040, lng:114.1645,
     how:'서구룡역 안에서 두 나라 출입국 심사를 한 번에 받고 고속철을 타요. 푸톈까지 약 15분, 선전북까지 약 20분. 여권 이름으로 기차표를 미리 사야 해요.', minutes:45 }
+];
+
+// 여행 기간 행사 (날짜가 정해진 것만). logic.js tripEvents가 여행 날짜와 겹치는 것을 골라 일정 단계에 보여 줘요.
+//   id      ev_로 시작   city 'hk' | 'sz'   from·to 'YYYY-MM-DD'(그날 포함)   wd  여는 요일만(없으면 매일)
+//   place   관련 장소 id(있으면 '담기' 버튼, 그 장소가 일정에 있는 날 카드에 한 줄)
+//   time·where·fee·note  화면 문구   tbc  날짜·시간이 아직 발표 전(from·to는 발표된 달 범위)
+// 확인 2026-11-03 (출처는 위 머리 주석의 '여행 주간' 줄). 행사는 바뀌기 쉬우니 화면에 '가기 전에 확인'을 같이 보여 줘요.
+export const EVENTS_CHECKED = '2026-11-03';
+export const EVENTS = [
+  { id:'ev_hkdlxmas', name:'디즈니 크리스마스 (A Disney Christmas)', city:'hk', from:'2026-11-20', to:'2027-01-03', place:'hk_disney',
+    time:'파크 여는 시간 동안 · 트리 점등은 저녁', fee:'입장권에 들어 있어요',
+    note:'메인 스트리트 크리스마스 트리 점등(드론·눈 효과)과 겨울왕국 구역의 첫 겨울 마켓이 있어요.' },
+  { id:'ev_hkdlconcert', name:'디즈니 크리스마스 라이브 콘서트', city:'hk', from:'2026-12-05', to:'2026-12-06', place:'hk_disney',
+    time:'성 앞 무대 · 공연 시간은 디즈니 앱에서', fee:'성 앞 좌석은 좌석 패스를 따로 사요(HK$299부터)',
+    note:'두 주말만 하는 성 앞 크리스마스 콘서트예요. 12월 6일(일)이 마지막 공연 날이에요.' },
+  { id:'ev_winterfest', name:'홍콩 윈터페스트 크리스마스 타운', city:'hk', from:'2026-11-01', to:'2027-01-10', tbc:true,
+    where:'센트럴 스테츄 스퀘어 가든 (皇后像廣場花園)', time:'지난해엔 평일 오후 4시~밤 11시 반, 주말 오전 11시부터',
+    note:'홍콩 관광청이 해마다 큰 크리스마스 트리와 마켓을 꾸미는 곳이에요. 올해는 2026년 11월~2027년 1월 초라고만 나와 있고 날짜·시간은 아직 발표 전이에요.' },
+  { id:'ev_peaklight', name:'피크 타워 빛 영상 쇼', city:'hk', from:'2026-06-13', to:'2027-06-12', place:'hk_peak',
+    time:'매일 저녁 7시 반·8시 반·9시 반, 10분쯤', where:'빅토리아 피크 피크 타워',
+    note:'2026년 6월부터 1년 동안 해요. 날씨나 계절에 따라 시간이 바뀔 수 있어요.' },
+  { id:'ev_clockenflap', name:'클락켄플랩 음악 축제', city:'hk', from:'2026-12-04', to:'2026-12-06',
+    where:'센트럴 하버프런트 행사장 (홍콩 관람차 옆)', fee:'표를 따로 사요',
+    note:'어른 위주 야외 공연 축제예요. 이 주말엔 센트럴 바닷가와 MTR 센트럴·홍콩역이 붐벼요.' },
+  { id:'ev_ijc', name:'국제 기수 대회 (해피밸리 수요일 밤 경마)', city:'hk', from:'2026-12-09', to:'2026-12-09', place:'hk_racecourse',
+    time:'저녁 경주', fee:'입장료가 있어요(홍콩자키클럽 누리집)',
+    note:'세계 기수들이 겨루는 밤 경주예요. 아이와 가려면 들어갈 수 있는 나이를 자키클럽 누리집에서 미리 확인하세요.' }
 ];
