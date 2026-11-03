@@ -4,7 +4,8 @@
 //   두 곳 모두 우리 배포 주소에서 브라우저로 바로 부를 수 있음(CORS 허용, 2026-11-03 확인).
 // 키는 사용자가 data.go.kr에서 받은 인증키를 이 기기에만 저장(PK_KEY, 일정 상태·백업과 따로). 보내는 것은 키뿐.
 // 응답 → 주차장 목록은 순수 함수(테스트 대상). 한공 필드 뜻은 문서 설명이 깨져 있어 이름으로 짐작:
-//   parkingFullSpace 전체 면수, parkingIstay 지금 서 있는 차 — 실제 값으로 다시 확인할 것.
+//   parkingFullSpace 전체 면수, parkingIstay 지금 서 있는 차 (2026-11-03 실제 키로 확인: 숫자로 옴, 포항경주는 자료 없음).
+//   화물 주차장(김포 '화물청사' 등)은 여행객과 상관없어서 뺌. 인천 이름은 '단기주차장지하1층'처럼 붙어 와서 띄움
 export const PK_KEY = 'tripnoseon-datagokr';
 export const PK_PAGES = [
   { label:'인천국제공항공사_주차 정보', url:'https://www.data.go.kr/data/15095047/openapi.do' },
@@ -15,7 +16,7 @@ export const KR_AIRPORTS = [
   { k:'GMP', label:'김포', src:'kac', q:'김포' }, { k:'PUS', label:'김해', src:'kac', q:'김해' }, { k:'CJU', label:'제주', src:'kac', q:'제주' },
   { k:'TAE', label:'대구', src:'kac', q:'대구' }, { k:'CJJ', label:'청주', src:'kac', q:'청주' }, { k:'MWX', label:'무안', src:'kac', q:'무안' },
   { k:'KWJ', label:'광주', src:'kac', q:'광주' }, { k:'USN', label:'울산', src:'kac', q:'울산' }, { k:'RSU', label:'여수', src:'kac', q:'여수' },
-  { k:'YNY', label:'양양', src:'kac', q:'양양' }, { k:'KPO', label:'포항경주', src:'kac', q:'포항' }, { k:'HIN', label:'사천', src:'kac', q:'사천' },
+  { k:'YNY', label:'양양', src:'kac', q:'양양' }, { k:'HIN', label:'사천', src:'kac', q:'사천' },
   { k:'WJU', label:'원주', src:'kac', q:'원주' }, { k:'KUV', label:'군산', src:'kac', q:'군산' }
 ];
 export const krAirport = k => KR_AIRPORTS.find(a => a.k === k) || null;
@@ -76,14 +77,14 @@ export function parseParking(ap, text){
   let rows, at = '';
   if(ap.src === 'icn'){
     const mine = items.filter(x => { const f = String(x.floor || ''); return ap.t === '2' ? /T2|제2/.test(f) : /T1|제1/.test(f) || !/T2|제2/.test(f); });
-    rows = mine.map(x => ({ name:String(x.floor || '').replace(/^(T[12]|제[12]터미널)\s*/, '').trim() || '주차장', used:num(x.parking), total:num(x.parkingarea) }));
+    rows = mine.map(x => ({ name:String(x.floor || '').replace(/^(T[12]|제[12]터미널)\s*/, '').replace(/주차장(?=지[하상])/, '주차장 ').trim() || '주차장', used:num(x.parking), total:num(x.parkingarea) }));
     at = mine.length ? stamp(mine[0].datetm) : '';
   } else {
     const mine = items.filter(x => String(x.aprKor || '').includes(ap.q));
     rows = mine.map(x => ({ name:String(x.parkingAirportCodeName || '주차장').trim(), used:num(x.parkingIstay), total:num(x.parkingFullSpace) }));
     at = mine.length ? stamp(mine[0].parkingGetdate, mine[0].parkingGettime) : '';
   }
-  rows = rows.filter(r => r.total > 0 && r.used != null).map(r => Object.assign(r, { free:Math.max(0, r.total - r.used) }));
+  rows = rows.filter(r => r.total > 0 && r.used != null && !(/화물/.test(r.name) && !/여객/.test(r.name))).map(r => Object.assign(r, { free:Math.max(0, r.total - r.used) }));
   if(!rows.length) return { ok:false, err:'none' };
   return { ok:true, rows, at };
 }

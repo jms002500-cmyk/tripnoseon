@@ -24,7 +24,7 @@ test('인증키: 인코딩 키는 풀고, 주소에 한 번만 인코딩', () =>
 });
 
 const ICN_JSON = JSON.stringify({ response:{ header:{ resultCode:'00', resultMsg:'NORMAL SERVICE.' }, body:{ items:[
-  { floor:'T1 단기주차장 지하1층', parking:'900', parkingarea:'1000', datetm:'20261206071530.000' },
+  { floor:'T1 단기주차장지하1층', parking:'900', parkingarea:'1000', datetm:'20261206071530.000' },
   { floor:'T1 장기 P1 주차장', parking:'1500', parkingarea:'3000', datetm:'20261206071530.000' },
   { floor:'T2 단기주차장 지상층', parking:'1210', parkingarea:'1200', datetm:'20261206071530.000' }
 ], numOfRows:100, pageNo:1, totalCount:3 } } });
@@ -43,14 +43,16 @@ test('인천: 터미널별로 거르고 남은 자리 = 면수 − 서 있는 �
   assert.equal(c.rows[0].free, 90);
 });
 
-test('한국공항공사: 공항 이름으로 거름, XML 답도 읽음', () => {
+test('한국공항공사: 공항 이름으로 거름, 화물 주차장 뺌(여객 겸용은 둠), XML 답도 읽음', () => {
   const j = JSON.stringify({ response:{ header:{ resultCode:'00' }, body:{ items:{ item:[
     { aprKor:'김포국제공항', aprEng:'GIMPO', parkingAirportCodeName:'국내선 제1주차장', parkingFullSpace:'2,500', parkingIstay:'2400', parkingGetdate:'2026-12-06', parkingGettime:'07:20:00' },
-    { aprKor:'김해국제공항', parkingAirportCodeName:'P1', parkingFullSpace:'800', parkingIstay:'100' }
+    { aprKor:'김포국제공항', parkingAirportCodeName:'화물청사', parkingFullSpace:737, parkingIstay:737 },
+    { aprKor:'김해국제공항', parkingAirportCodeName:'P3 여객(화물)', parkingFullSpace:878, parkingIstay:831 }
   ] } } } });
   const g = parseParking(GMP, j);
   assert.equal(g.ok, true); assert.equal(g.at, '12/6 07:20');
   assert.deepEqual(g.rows, [{ name:'국내선 제1주차장', used:2400, total:2500, free:100 }]);
+  assert.deepEqual(parseParking(krAirport('PUS'), j).rows, [{ name:'P3 여객(화물)', used:831, total:878, free:47 }]);
   const x = `<response><header><resultCode>00</resultCode></header><body><items>
     <item><aprKor>김포국제공항</aprKor><parkingAirportCodeName>국제선 주차장</parkingAirportCodeName><parkingFullSpace>1000</parkingFullSpace><parkingIstay>250</parkingIstay></item>
   </items></body></response>`;
