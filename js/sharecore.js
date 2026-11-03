@@ -1,6 +1,6 @@
 // 함께 짜기(공유 여행)의 순수 함수 모음. Firebase·DOM을 건드리지 않음 → tests/에서 바로 테스트.
 // 공유하는 것은 일정과 가계부(예산 포함)·준비물·긴급 정보(SHARED_KEYS)뿐. 화면 위치·필터·라쿠텐 키·날씨·환율·가져오기 대기 목록·보관함은 각자 기기에만 둠.
-import { DEFAULT } from './data.js';
+import { DEFAULT, WHO, PACE, REGIONS, CURRENCY } from './data.js';
 import { allPlaces } from './logic.js';
 import { money } from './ledger.js';
 import { budgetOf } from './budget.js';
@@ -115,10 +115,70 @@ function diffList(prev, next, k, out){
 }
 
 // 서버 일정(p)을 내 상태에 덮어씀. 없는 칸은 기본값. 새 모양(Items+Order)·옛 모양(배열) 모두 읽음
+//   남이 고친 값이라 모양을 바로잡아서 넣음(cleanShared)
 export function applyRemote(s, p){
   SHARED_KEYS.forEach(k => {
     if(LIST_KEYS.includes(k) && listForm(p, k)) s[k] = listOf(p, k);
     else s[k] = clone(p && p[k] !== undefined ? p[k] : DEFAULT[k]);
+  });
+  return cleanShared(s);
+}
+
+// 함께 짜는 사람(초대 링크를 받은 누구나)·남이 준 백업 파일이 넣은 일정 칸의 모양을 바로잡음.
+//   화면은 숫자·날짜 칸을 esc() 없이 그리는 곳이 있고 목록·맵 모양을 믿고 그려서, 숫자 자리에 HTML 글자가 오면 남의 코드가 실행되고
+//   목록 자리에 다른 것이 오면 화면이 통째로 멈춤. 모양이 틀린 값만 기본값으로 바꾸고, 앱이 만드는 모양은 그대로 둠(여러 번 해도 같음)
+const NUMLIKE = /^-?\d+(\.\d+)?$/;
+const toNum = v => typeof v === 'number' ? (Number.isFinite(v) ? v : null) : typeof v === 'string' && NUMLIKE.test(v.trim()) ? +v : null;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const own = (o, k) => typeof k === 'string' && has(o, k);
+const objOr = (v, d) => isMap(v) ? v : clone(d);
+const strOr = (v, d) => typeof v === 'string' ? v : d;
+// 객체 안 칸: 숫자여야 하는 칸은 숫자(아니면 d), 글자여야 하는 칸은 글자(아니면 '')
+function fixNums(o, keys, d){ keys.forEach(k => { if(has(o, k) && o[k] !== null && typeof o[k] !== 'number'){ const n = toNum(o[k]); o[k] = n == null ? d : n; } else if(typeof o[k] === 'number' && !Number.isFinite(o[k])) o[k] = d; }); }
+function fixStrs(o, keys){ keys.forEach(k => { if(has(o, k) && o[k] != null && typeof o[k] !== 'string') o[k] = typeof o[k] === 'number' || typeof o[k] === 'boolean' ? String(o[k]) : ''; }); }
+const listOfObjs = v => Array.isArray(v) ? v.filter(isMap) : [];
+const mapOfObjs = v => { const o = {}; if(isMap(v)) Object.keys(v).forEach(k => { if(k !== '__proto__' && isMap(v[k])) o[k] = v[k]; }); return o; };
+export function cleanShared(s){
+  const D = k => clone(DEFAULT[k]);
+  if(!WHO.some(w => w.key === s.who)) s.who = null;
+  { const n = toNum(s.adults); s.adults = n == null ? D('adults') : Math.min(10, Math.max(1, Math.round(n))); }
+  s.kids = Array.isArray(s.kids) ? s.kids.map(toNum).filter(n => n != null).map(n => Math.min(17, Math.max(0, Math.round(n)))) : [];
+  s.styles = Array.isArray(s.styles) ? s.styles.filter(x => typeof x === 'string') : [];
+  if(!own(PACE, s.pace)) s.pace = D('pace');
+  if(!own(REGIONS, s.city)) s.city = D('city');
+  if(!(typeof s.country === 'string' && /^[a-z]{2}$/.test(s.country))) s.country = REGIONS[s.city].country;
+  if(!['', 'hk', 'sz'].includes(s.cityOnly)) s.cityOnly = '';
+  ['start', 'end'].forEach(k => { if(!(typeof s[k] === 'string' && DATE.test(s[k]))) s[k] = ''; });
+  s.flight = objOr(s.flight, DEFAULT.flight); fixStrs(s.flight, ['ap', 'arr', 'dep']);
+  if(!(s.hotelArea === null || (typeof s.hotelArea === 'string' && safeId(s.hotelArea)))) s.hotelArea = null;
+  if(!(s.hotelPick === null || typeof s.hotelPick === 'string')) s.hotelPick = null;
+  if(!own(CURRENCY, s.hotelCur)) s.hotelCur = D('hotelCur');
+  { const n = toNum(s.lrate); s.lrate = n != null && n >= 0 ? n : 0; }
+  s.budget = objOr(s.budget, DEFAULT.budget);
+  s.safety = objOr(s.safety, DEFAULT.safety); fixStrs(s.safety, ['hname', 'addr', 'tel', 'meet']);
+  ['picked', 'must', 'fullDay', 'assign', 'dlock', 'nights', 'prep'].forEach(k => { s[k] = objOr(s[k], DEFAULT[k]); delete s[k].__proto__; });
+  s.spend = mapOfObjs(s.spend);
+  Object.values(s.spend).forEach(e => {
+    fixNums(e, ['amt', 'at'], 0); fixStrs(e, ['d', 'what', 'cat', 'pay', 'by', 'pl', 'vid', 'src']);
+    if(!has(e, 'amt')) e.amt = 0;
+    if(!(typeof e.cur === 'string' && /^[A-Z]{3}$/.test(e.cur))) e.cur = 'KRW';
+    if(e.split != null) e.split = Array.isArray(e.split) ? e.split.filter(x => typeof x === 'string') : null;
+  });
+  s.pack = mapOfObjs(s.pack);
+  Object.values(s.pack).forEach(x => { fixStrs(x, ['t', 'c', 'who', 'doneBy', 'src']); fixNums(x, ['at'], 0); if(typeof x.t !== 'string') x.t = ''; });
+  s.party = listOfObjs(s.party); s.party.forEach(x => { fixStrs(x, ['id', 'name']); if(typeof x.name !== 'string') x.name = ''; });
+  s.moves = listOfObjs(s.moves); s.moves.forEach(m => { fixStrs(m, ['id', 'k', 'date', 'time', 'how', 'from', 'to', 'note', 'kap', 'bus', 'barea']); fixNums(m, ['min'], null); });
+  s.hotels = listOfObjs(s.hotels); s.hotels.forEach(h => {
+    fixStrs(h, ['id', 'name', 'ko', 'pcur', 'mapUrl', 'bookUrl', 'memo', 'area', 'st', 'src', 'label', 'addr', 'tel', 'vid']);
+    fixNums(h, ['price'], 0); fixNums(h, ['lat', 'lng'], null);
+    if(typeof h.name !== 'string') h.name = '';
+  });
+  s.custom = listOfObjs(s.custom); s.custom.forEach(p => {
+    fixStrs(p, ['id', 'name', 'ja', 'gid', 'area', 'kind', 'kid', 'url', 'note', 'src', 'addr']);
+    fixNums(p, ['lat', 'lng'], null); fixNums(p, ['gAt'], 0); fixNums(p, ['hours'], 1);
+    if(typeof p.name !== 'string') p.name = '';
+    if(p.tags != null && !Array.isArray(p.tags)) p.tags = [];
+    if(p.closed != null && !Array.isArray(p.closed)) delete p.closed;
   });
   return s;
 }
