@@ -34,3 +34,39 @@ test('끊기면 저장된 내용이라고 짧게, 공유 여행이면 나중에 
   assert.equal(shared.text, '저장된 내용이에요');
   assert.match(shared.more, /고친 내용은 다시 연결되면 가족에게 올라가요/);
 });
+
+// 느린 연결에서 '불러오는 중'에 멈추지 않게 (fetchTimed, withTimeout)
+import { fetchTimed, withTimeout } from '../js/net.js';
+
+test('fetchTimed: 제때 오면 본문까지 받아 같은 모양으로', async () => {
+  const real = globalThis.fetch; let got;
+  globalThis.fetch = async (url, opts) => { got = { url, opts }; return new Response('{"a":1}', { status:200 }); };
+  try{
+    const r = await fetchTimed('https://example.test/x', { headers:{ Accept:'application/json' } }, 1000);
+    assert.equal(r.ok, true); assert.deepEqual(await r.json(), { a:1 });
+    assert.equal(got.opts.headers.Accept, 'application/json'); assert.ok(got.opts.signal, '끊을 수 있게 signal을 넘김');
+    globalThis.fetch = async () => new Response(null, { status:204 });
+    assert.equal((await fetchTimed('https://example.test/y', {}, 1000)).status, 204);
+    globalThis.fetch = async () => new Response('x', { status:429 });
+    const r2 = await fetchTimed('https://example.test/z', {}, 1000); assert.equal(r2.ok, false); assert.equal(r2.status, 429);
+  }finally{ globalThis.fetch = real; }
+});
+
+test('fetchTimed: 응답이 안 오거나 본문이 끝없이 늦으면 시간 제한으로 실패하고 요청을 끊음', async () => {
+  const real = globalThis.fetch; let aborted = false;
+  globalThis.fetch = (url, opts) => new Promise(() => { opts.signal.addEventListener('abort', () => { aborted = true; }); });
+  try{
+    await assert.rejects(fetchTimed('https://example.test/slow', {}, 30), /timeout/);
+    assert.equal(aborted, true);
+    globalThis.fetch = async () => ({ status:200, statusText:'', headers:new Headers(), text:() => new Promise(() => {}) });
+    await assert.rejects(fetchTimed('https://example.test/slowbody', {}, 30), /timeout/);
+    globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
+    await assert.rejects(fetchTimed('https://example.test/off', {}, 1000), TypeError);   // 끊김은 바로 실패
+  }finally{ globalThis.fetch = real; }
+});
+
+test('withTimeout: 늦으면 timeout, 제때면 그 값', async () => {
+  assert.equal(await withTimeout(Promise.resolve(7), 1000), 7);
+  await assert.rejects(withTimeout(new Promise(() => {}), 20), /timeout/);
+  await assert.rejects(withTimeout(Promise.reject(new Error('load')), 1000), /load/);
+});

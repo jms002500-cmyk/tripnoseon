@@ -3,6 +3,7 @@
 // 찾은 위치는 '후보'일 뿐이라 화면에서 사용자가 확인하게 함.
 import { nearTokyo, queryVariants } from './gimport.js';
 import { REGION } from './data.js';
+import { fetchTimed } from './net.js';
 
 const URL_BASE = 'https://nominatim.openstreetmap.org/search';
 const C_KEY = 'tripnoseon-geo';
@@ -16,7 +17,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 async function search(q){
   const now = Date.now(); if(now - last < GAP_MS) await wait(GAP_MS - (now - last)); last = Date.now();
   const p = new URLSearchParams({ q, format:'jsonv2', limit:'5', countrycodes:REGION.codes.join(','), 'accept-language':'ko', viewbox:REGION.viewbox });
-  const res = await fetch(`${URL_BASE}?${p}`, { headers:{ Accept:'application/json' } });
+  const res = await fetchTimed(`${URL_BASE}?${p}`, { headers:{ Accept:'application/json' } });
   if(!res.ok) throw new Error('geocode ' + res.status);
   const list = await res.json();
   // 도쿄 범위 밖(같은 이름의 오사카·후쿠오카 지점 등)은 버림

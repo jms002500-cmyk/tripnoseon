@@ -3,6 +3,7 @@
 // 라쿠텐 앱 등록에서 '허용된 웹사이트'로 지정한 주소(github.io)에서 부를 때만 통과함 (브라우저가 Referer를 붙임).
 // 위쪽은 순수 함수(테스트 대상), 맨 아래 vacantSearch만 네트워크를 씀.
 import { koHotelName } from './janame.js';
+import { fetchTimed } from './net.js';
 
 export const RK_URL = 'https://openapi.rakuten.co.jp/engine/api/Travel/VacantHotelSearch/20170426';
 export const RK_RADIUS = 3;   // 좌표 검색 반경 최대값(km)
@@ -83,7 +84,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 export async function vacantSearch(keys, s, opt){
   const now = Date.now(); if(now - last < GAP_MS) await wait(GAP_MS - (now - last)); last = Date.now();
   let res;
-  try{ res = await fetch(vacantUrl(keys, s, opt), { headers:{ Accept:'application/json' } }); }
+  try{ res = await fetchTimed(vacantUrl(keys, s, opt), { headers:{ Accept:'application/json' } }); }
   catch(e){ return { error:'인터넷 연결을 확인하고 다시 눌러 주세요.' }; }
   let body = null; try{ body = await res.json(); }catch(e){}
   if(!res.ok){ const t = errorText(res.status, body); return t.empty ? { items:[], empty:true, text:t.text } : { error:t.text }; }
