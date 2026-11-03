@@ -3,6 +3,7 @@
 //   예보: 출발이 16일 안이면 실제 예보 (forecast API)
 // 위쪽은 순수 함수(테스트 대상), 맨 아래 loadWeather만 네트워크를 씀.
 import { parseDate } from './logic.js';
+import { fetchTimed } from './net.js';
 
 export const CITY_PT = { tokyo:{ lat:35.6812, lng:139.7671, tz:'Asia/Tokyo' }, hksz:{ lat:22.39, lng:114.11, tz:'Asia/Hong_Kong' } };   // 홍콩·선전은 둘 사이(날씨가 거의 같음)
 export const YEARS = 10;
@@ -93,6 +94,21 @@ export function parseForecast(json){
     rain:d.precipitation_probability_max ? d.precipitation_probability_max[i] : null }));
 }
 
+// 날씨를 다시 받을 때인지. 못 받았으면(끊김) 10분 동안은 저절로 다시 묻지 않음 — 화면을 그릴 때마다 부르는 거라,
+//   안 그러면 끊긴 곳에서 '실패 → 다시 그림 → 또 물음'이 끝없이 돎(여행 16일 안, 예보를 받을 때)
+export const WX_RETRY_MS = 10 * 60 * 1000;
+export function wxStale(wx, key, today, canFc, force, now){
+  if(!wx || wx.key !== key) return true;
+  if(wx.error) return !!force || !(now - (wx.failedAt || 0) < WX_RETRY_MS);
+  return !!canFc && wx.forecastAt !== today;
+}
+// 새로 못 받았으면 전에 받아 둔 것(같은 여행 날짜의 평균·예보)을 그대로 두고 실패만 표시. 예보는 'O월 O일 기준'이 그대로 보임
+export function keepWeather(prev, next, now){
+  if(!next || !next.error) return next;
+  const old = prev && prev.key === next.key ? prev : {};
+  return Object.assign({}, old, next.climate ? { climate:next.climate } : {}, { key:next.key, error:next.error, failedAt:now });
+}
+
 // 날씨 받아오기. 이맘때 평균은 도시·월일별로 브라우저에 저장해 두고 다시 받지 않음 (과거 관측이라 바뀌지 않음)
 const C_KEY = 'tripnoseon-weather';
 export async function loadWeather(city, start, end){
@@ -103,13 +119,13 @@ export async function loadWeather(city, start, end){
   try{
     if(cache[key]) out.climate = cache[key];
     else {
-      const res = await fetch(climateUrl(pt, new Date())); if(!res.ok) throw new Error('climate ' + res.status);
+      const res = await fetchTimed(climateUrl(pt, new Date())); if(!res.ok) throw new Error('climate ' + res.status);
       out.climate = summarizeClimate(await res.json(), start, end);
       try{ cache[key] = out.climate; localStorage.setItem(C_KEY, JSON.stringify(cache)); }catch(e){}
     }
     if(canForecast(start, new Date())){
       const last = new Date(); last.setDate(last.getDate() + 15);   // 예보는 오늘부터 16일까지만
-      const res = await fetch(forecastUrl(pt, start, end < ymd(last) ? end : ymd(last)));
+      const res = await fetchTimed(forecastUrl(pt, start, end < ymd(last) ? end : ymd(last)));
       if(res.ok){ out.forecast = parseForecast(await res.json()); out.forecastAt = ymd(new Date()); }
     }
   }catch(e){ out.error = '날씨를 못 불러왔어요. 인터넷 연결을 확인해 주세요.'; }

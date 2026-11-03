@@ -10,10 +10,12 @@ import { REGION } from './data.js';
 import { allPlaces } from './logic.js';
 import { esc } from './ui.js';
 import { matchKnown, closedDays } from './gplace.js';
+import { withTimeout } from './net.js';
 
 const FIELDS = ['id', 'displayName', 'location', 'formattedAddress', 'types', 'rating', 'userRatingCount', 'regularOpeningHours', 'googleMapsURI', 'primaryTypeDisplayName'];
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
-let G = null, map = null, sheet = null, cb = null, pins = [], temp = null, token = null, typing = null, cur = null, loading = null;
+let G = null, map = null, sheet = null, cb = null, pins = [], temp = null, token = null, typing = null, cur = null, loading = null, script = null;
+const MAPS_WAIT = 20000;   // 구글 지도 스크립트·라이브러리를 기다리는 시간
 
 // 구글 지도 불러오기 (키가 없거나 틀리면 실패)
 export function loadMaps(){
@@ -21,11 +23,15 @@ export function loadMaps(){
   if(!mapsConfig.apiKey) return Promise.reject(new Error('nokey'));
   if(loading) return loading;
   loading = new Promise((ok, fail) => {
-    window.__tnMapsReady = () => ok(window.google.maps);
+    // 느린 연결·구글이 막힌 곳(중국 본토)에서 '불러오는 중'에 멈추지 않게 시간 제한. 다시 누르면 다시 기다림
+    const t = setTimeout(() => { loading = null; fail(new Error('load')); }, MAPS_WAIT);
+    window.__tnMapsReady = () => { clearTimeout(t); ok(window.google.maps); };
+    const onErr = () => { clearTimeout(t); loading = null; if(script){ script.remove(); script = null; } fail(new Error('load')); };
+    if(script){ script.onerror = onErr; return; }   // 앞서 넣은 스크립트가 아직 오는 중이면 또 넣지 않음(구글 지도는 두 번 넣으면 오류)
     const p = new URLSearchParams({ key:mapsConfig.apiKey, v:'weekly', language:'ko', region:'JP', loading:'async', callback:'__tnMapsReady' });
-    const s = document.createElement('script'); s.src = `https://maps.googleapis.com/maps/api/js?${p}`; s.async = true;
-    s.onerror = () => { loading = null; fail(new Error('load')); };
-    document.head.appendChild(s);
+    script = document.createElement('script'); script.src = `https://maps.googleapis.com/maps/api/js?${p}`; script.async = true;
+    script.onerror = onErr;
+    document.head.appendChild(script);
   });
   return loading;
 }
@@ -139,7 +145,7 @@ function onClick(e){
 
 async function libs(){
   await loadMaps();
-  if(!G){ const gm = window.google.maps; G = { maps:await gm.importLibrary('maps'), places:await gm.importLibrary('places'), marker:await gm.importLibrary('marker') }; }
+  if(!G){ const gm = window.google.maps; G = await withTimeout((async () => ({ maps:await gm.importLibrary('maps'), places:await gm.importLibrary('places'), marker:await gm.importLibrary('marker') }))(), MAPS_WAIT); }
   return G;
 }
 

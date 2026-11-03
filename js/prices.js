@@ -2,6 +2,7 @@
 // '날짜·인원을 채운 검색 화면 열기 + 숙소 이름 복사 + 본 가격 적기'로 비교함.
 // 사이트마다 주소에 넣을 수 있는 값이 달라서(2026-10-26 직접 확인) 아래 표에 정리.
 // 위쪽은 순수 함수(테스트 대상), 맨 아래 loadFx만 네트워크를 씀.
+import { fetchTimed } from './net.js';
 
 // 지역별 사이트 내부 번호. 홍콩·선전은 홍콩 번호로 열고(선전 숙소는 사이트에서 도시를 바꿔 검색), 라쿠텐 한국어 사이트는 일본만이라 뺌
 //   홍콩 번호(아고다 16808, 트립닷컴 58)는 2026-10-29 각 사이트 홍콩 도시 페이지 주소 기준
@@ -78,11 +79,11 @@ export async function loadFx(today){
   // 원화 1원당 각 통화 → 뒤집어서 1단위당 원
   const flip = r => { const o = {}; FX_CURS.forEach(k => { if(r && r[k] > 0) o[k] = 1 / r[k]; }); return Object.keys(o).length ? o : null; };
   try{
-    const r = await fetch(`https://api.frankfurter.dev/v1/latest?base=KRW&symbols=${FX_CURS.join(',')}`); const j = await r.json();
+    const r = await fetchTimed(`https://api.frankfurter.dev/v1/latest?base=KRW&symbols=${FX_CURS.join(',')}`); const j = await r.json();
     const rates = flip(j.rates); if(rates) fx = { rates, rate:rates.JPY || 0, date:j.date, src:'유럽중앙은행 기준' };
   }catch(e){}
   if(!fx) try{
-    const r = await fetch('https://open.er-api.com/v6/latest/KRW'); const j = await r.json();
+    const r = await fetchTimed('https://open.er-api.com/v6/latest/KRW'); const j = await r.json();
     const rates = flip(j.rates); if(rates) fx = { rates, rate:rates.JPY || 0, date:String(j.time_last_update_utc || '').slice(5, 16), src:'ExchangeRate-API' };
   }catch(e){}
   if(fx){ fx.checked = today; try{ localStorage.setItem(FX_KEY, JSON.stringify(fx)); }catch(e){} }
