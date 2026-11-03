@@ -8,6 +8,7 @@ import { esc } from './ui.js';
 import { askPrompt, planPrompt, parseAiPlaces, matchPlace, aiToPick } from './askai.js';
 import { PK_KEY, krAirport, moveKap, parkUrl, parseParking } from './parking.js';
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
+import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
 import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
@@ -854,6 +855,7 @@ function act(a, v){
     case 'aiplansend': sendPlanAsk(); return;
     case 'pkcheck': checkParking(v); return;
     case 'busfind': findAirBus(v, ''); return;
+    case 'mtrnext': { const i = v.indexOf('|'); mtrNext(v.slice(0, i), v.slice(i + 1)); return; }
     case 'buspick': setMove(s.sh.mvEdit, () => ({ bus:v })); break;
     case 'pkforget': try{ localStorage.removeItem(PK_KEY); }catch(e){} s.sh.pkOn = false; s.sh.park = null; render(); return;
     case 'aiplanread': {   // AI 답에서 장소 이름을 읽어 우리 목록과 맞춰 봄
@@ -1152,6 +1154,28 @@ async function checkParking(id){
   if(state !== s) return;
   const d = new Date(); s.sh.park = { id, kap:ap.k, res, when:`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}` }; render();
 }
+// 🚇 홍콩 MTR 다음 열차: 누를 때만 그 역의 노선마다 물어봄(보내는 것은 노선·역 코드뿐). 결과는 화면 전용 s.sh.mtr
+//   같은 역은 10초 동안 다시 안 물어봄(자료가 10초마다 바뀜, 너무 자주 물으면 429)
+const mtrCache = new Map();
+async function mtrNext(sta, key){
+  const s = state; const st = MTR_STATIONS[sta]; if(!st || (s.sh.mtr && s.sh.mtr.busy)) return;
+  s.sh.mtr = { key, sta, busy:true }; render();
+  const c = mtrCache.get(sta); let res;
+  if(c && Date.now() - c.at < 10 * 1000) res = c.res;
+  else {
+    res = await Promise.all(st.lines.map(async line => {
+      try{
+        const r = await fetch(mtrUrl(line, sta), { cache:'no-store' });
+        if(r.status === 429) return { ok:false, line, sta, err:'busy' };
+        if(!r.ok) return { ok:false, line, sta, err:'server' };
+        return parseNextTrain(await r.text(), line, sta);
+      }catch(e){ return { ok:false, line, sta, err:'net' }; }
+    }));
+    if(res.some(r => r.ok)) mtrCache.set(sta, { at:Date.now(), res });
+  }
+  if(state !== s) return;
+  s.sh.mtr = { key, sta, res }; render();
+}
 // 🚌 공항버스: 공항(·지역)별 목록을 받아 이 기기에서 동네 이름·번호로 찾음. 같은 목록은 30분 동안 다시 안 받음(하루 호출 한도)
 const busCache = new Map();
 async function busList(ap, area, key){
@@ -1234,6 +1258,7 @@ function onChange(e){
     if(!it){ const w = document.getElementById('idwho'); it = newIdCopy('v' + Date.now().toString(36), w && w.value); s.vault.push(it); }
     addIdFiles(it, f); return;
   }
+  else if(t.dataset.mtrsta != null){ s.sh.mtr = MTR_STATIONS[t.value] ? { key:t.dataset.mtrsta, sta:t.value } : null; render(); return; }   // 역만 바꾸고, 부르기는 버튼을 누를 때
   else if(t.id === 'vkind'){ const f = document.getElementById('vaultform'); if(f) f.dataset.kind = t.value; return; }   // 종류마다 다른 칸 (다시 그리면 적던 게 지워짐)
   else if(t.dataset.mv){
     const f = t.dataset.mv; const val = f === 'booked' ? t.checked : f === 'min' ? (+t.value > 0 ? Math.min(1440, Math.round(+t.value)) : null)
