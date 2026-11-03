@@ -1,5 +1,5 @@
 // 계산만 하는 순수 함수 모음 (DOM을 건드리지 않음 → tests/에서 바로 테스트 가능)
-import { AREAS, PLACES, PACE, WD, REGION, disneyArea, cityOfArea, CITY_KO } from './data.js';
+import { AREAS, PLACES, PACE, WD, REGION, disneyArea, cityOfArea, CITY_KO, EVENTS } from './data.js';
 import { ratesOf } from './ledger.js';
 import { arriveInfo, departInfo, capBetween } from './flight.js';
 import { legOverride } from './moves.js';
@@ -38,11 +38,35 @@ export function allPlaces(s){
   return c ? all.filter(p => placeCity(p) === c) : all;
 }
 export function pickedPlaces(s){ return allPlaces(s).filter(p => s.picked[p.id]); }
-// 쉬는 날이 많으면(조명 쇼처럼 금·토만 하는 곳) 여는 요일로
+// 그날 쉬는지: 휴무 요일(closed) 또는 그 날짜만 쉬는 날(closedDates 'YYYY-MM-DD' 배열, 임시 휴관·점검일). d는 buildDays의 날({ wd, key })
+export const closedOn = (p, d) => !!(p && d && ((p.closed && p.closed.includes(d.wd)) || (p.closedDates && d.key && p.closedDates.includes(d.key))));
+// 쉬는 날이 많으면(조명 쇼처럼 금·토만 하는 곳) 여는 요일로. 날짜 휴관은 '12/8 휴관'처럼 뒤에 붙임
 export function closedText(p){
-  if(!p.closed || !p.closed.length) return '';
-  const open = [0, 1, 2, 3, 4, 5, 6].filter(w => !p.closed.includes(w));
-  return open.length && open.length <= 3 ? open.map(w => WD[w]).join('·') + '요일만 해요' : p.closed.map(w => WD[w]).join('·') + '요일 휴무';
+  const out = [];
+  if(p.closed && p.closed.length){
+    const open = [0, 1, 2, 3, 4, 5, 6].filter(w => !p.closed.includes(w));
+    out.push(open.length && open.length <= 3 ? open.map(w => WD[w]).join('·') + '요일만 해요' : p.closed.map(w => WD[w]).join('·') + '요일 휴무');
+  }
+  if(p.closedDates && p.closedDates.length) out.push(p.closedDates.map(k => { const [, m, d] = k.split('-').map(Number); return `${m}/${d}`; }).join('·') + ' 휴관');
+  return out.join(' · ');
+}
+// 여행 기간에 열리는 행사 (지역 데이터의 EVENTS: { id, name, city, from, to, wd?, ... }).
+// 그날 열리는지: from~to 안 + (wd가 있으면) 그 요일
+export const eventOn = (e, d) => !!(e && d && d.key && d.key >= e.from && d.key <= e.to && (!e.wd || e.wd.includes(d.wd)));
+// 이번 여행 날짜와 겹치고 가는 도시의 행사 → [{ e, days:[날 번호…], whole:여행 내내 열리는지 }] (시작 날짜 순)
+export function tripEvents(s, days = buildDays(s)){
+  const cs = tripCities(s);
+  return (EVENTS || []).filter(e => !e.city || !cs.length || cs.includes(e.city))
+    .map(e => { const on = days.filter(d => eventOn(e, d)).map(d => d.i); return { e, days:on, whole:on.length === days.length }; })
+    .filter(x => x.days.length)
+    .sort((a, b) => a.days[0] - b.days[0] || a.e.from.localeCompare(b.e.from));
+}
+// 날짜 카드에 한 줄로 보여 줄 그날 행사: 여행 내내 하는 행사는 그 장소가 그날 일정에 있을 때만 (날마다 같은 줄이 붙지 않게)
+//   d는 plan(s).days의 날. 도시가 둘이면 그날 자는 도시의 행사만 (모르면 모두)
+export function dayEvents(s, d, list = tripEvents(s)){
+  const ids = new Set((d.items || []).map(p => p.id).concat(d.full ? [d.full.id] : []));
+  const cs = new Set([d.from, d.to].map(x => x && x.key ? cityOfArea(x.key) : '').filter(Boolean));
+  return list.filter(x => x.days.includes(d.i) && (!x.e.city || !cs.size || cs.has(x.e.city)) && (!x.whole || (x.e.place && ids.has(x.e.place)))).map(x => x.e);
 }
 export function kindLabel(k){ return { arrive:'도착하는 날', depart:'돌아오는 날', full:'온종일', single:'당일' }[k]; }
 
@@ -126,7 +150,7 @@ export function fullAssign(s, days){
   fulls.forEach(p => { const w = s.fullDay[p.id]; if(w != null && pool.includes(w) && !used.has(w)){ res[p.id] = w; used.add(w); } });
   fulls.forEach(p => {
     if(res[p.id] != null) return;
-    const free = pool.filter(i => !used.has(i) && !isLocked(s, days[i])); if(!free.length){ res[p.id] = null; return; }   // 확정한 날에는 자동으로 안 넣음
+    const free = pool.filter(i => !used.has(i) && !isLocked(s, days[i]) && !closedOn(p, days[i])); if(!free.length){ res[p.id] = null; return; }   // 확정한 날·쉬는 날에는 자동으로 안 넣음
     const inCity = free.filter(i => !offCity(dc[i], p)); const base = inCity.length ? inCity : free;   // 그 도시에서 자는 날 먼저
     const wk = base.filter(i => days[i].wd >= 1 && days[i].wd <= 5);
     const pick = (wk.length ? wk : base)[0]; res[p.id] = pick; used.add(pick);
@@ -302,7 +326,7 @@ export function plan(s){
     res.forEach(d => {
       if(d.full || d.locked) return;
       if(d.used + p.hours > d.cap + 0.01) return;
-      if(p.closed && p.closed.includes(d.wd)){ blockedByClosed = true; return; }
+      if(closedOn(p, d)){ blockedByClosed = true; return; }
       if(offCity(dc[d.i], p)){ blockedByCity = true; return; }   // 그날 자는 도시가 아니면 국경 왕복이라 자동으로는 안 넣음 (손으로는 옮길 수 있음)
       let c;
       if(d.items.some(q => q.area === p.area)) c = dist(p, centroid(d.items)) * 0.2;
