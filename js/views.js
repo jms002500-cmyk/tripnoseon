@@ -26,7 +26,7 @@ import { mapSVG } from './map.js';
 import { ASK_KINDS, askKindOf, askPrompt, AI_SITES, QUICK_TRANSLATE, planPrompt } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
-import { bookingRows, flightDir, PLACE_KINDS } from './bookings.js';
+import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
 import { dayAgenda, nextUp } from './agenda.js';
 import { clockView, diffText } from './clock.js';
 import { prepTasks, prepNow } from './prep.js';
@@ -1177,6 +1177,7 @@ function vaultDay(s, date){
 function vaultCard(s, it){
   const k = kindOf(it.kind); const pn = it.placeId ? placeName(s, it.placeId) : '';
   const armed = s.sh && s.sh.vdel === it.id; const link = safeHttpsUrl(it.link);
+  const linked = armed ? bookingSpendOf(s, it) : null;   // 이 예약 금액으로 만든 가계부 줄 → 같이 지울지 고르게
   return `<article class="vcard" id="v-${esc(it.id)}">
     <div class="vhead"><span class="vicon" aria-hidden="true">${k.icon}</span><div><h3>${esc(it.title)}</h3>
       <p class="meta">${esc(k.label)}${it.time ? ' · ' + esc(it.time) : ''}${pn && pn !== it.title ? ' · ' + esc(pn) : ''}${it.fno ? ' · ' + esc(normFno(it.fno) || it.fno) : ''}${it.amt > 0 ? ' · ' + lmoney(it.amt, it.cur || 'KRW') : ''}</p></div></div>
@@ -1189,8 +1190,11 @@ function vaultCard(s, it){
     <div class="pfoot">
       ${link ? `<a class="link" href="${esc(link)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
       <button type="button" class="link" data-act="vedit" data-v="${esc(it.id)}">고치기</button>
-      <button type="button" class="link${armed ? ' warnlink' : ''}" data-act="vdel" data-v="${esc(it.id)}">${armed ? '한 번 더 누르면 지워져요' : '지우기'}</button>
+      <button type="button" class="link${armed && !linked ? ' warnlink' : ''}" data-act="vdel" data-v="${esc(it.id)}">${linked ? '취소' : armed ? '한 번 더 누르면 지워져요' : '지우기'}</button>
     </div>
+    ${linked ? `<p class="warnline">가계부에도 이 예약 지출이 있어요 · ${lmoney(linked.e.amt, linked.e.cur || 'KRW')}${linked.edited ? ' (가계부에서 고친 적이 있어요)' : ''}. 같이 지울까요?</p>
+    <div class="pfoot"><button type="button" class="link warnlink" data-act="vdel2" data-v="${esc(it.id)}|all">지출도 같이 지우기</button>
+      <button type="button" class="link warnlink" data-act="vdel2" data-v="${esc(it.id)}|keep">예약만 지우기</button></div>` : ''}
   </article>`;
 }
 

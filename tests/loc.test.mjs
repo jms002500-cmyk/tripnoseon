@@ -1,7 +1,8 @@
 // 실행: npm test
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { roundLoc, shouldSend, canShareLoc, locExpired, ageText, locList, kmText, locMapUrl, expiredLocs } from '../js/loc.js';
+import { roundLoc, shouldSend, canShareLoc, locExpired, ageText, locList, kmText, locMapUrl, expiredLocs, locToday } from '../js/loc.js';
+import { ymd } from '../js/weather.js';
 
 test('올릴 위치는 약 10m로 줄임', () => {
   assert.deepEqual(roundLoc({ latitude:35.714765, longitude:139.796655, accuracy:23.6 }), { lat:35.7148, lng:139.7967, acc:24 });
@@ -71,4 +72,28 @@ test('끝난 여행의 위치: 주인은 모두, 다른 사람은 자기 것만 
   assert.deepEqual(expiredLocs(docs, { today:'2027-03-12', myUid:'b', isOwner:false }), ['b']);
   assert.deepEqual(expiredLocs(docs, { today:'2027-03-11', myUid:'a', isOwner:true }), []);
   assert.deepEqual(expiredLocs(null, { today:'2027-03-12', myUid:'a', isOwner:true }), []);
+});
+
+test('위치 공유 날짜는 여행지 날짜: 폰 시계가 한국 시간이어도 홍콩 마지막 날 밤에 안 꺼짐', () => {
+  const HK = 'Asia/Hong_Kong', KR = 'Asia/Seoul';
+  const s = { shareId:'t1', start:'2027-03-07', end:'2027-03-11', locOn:true };
+  const docs = [{ uid:'me', until:'2027-03-11' }, { uid:'mom', until:'2027-03-11' }];
+  // 마지막 날 홍콩 23:30 = 한국 다음 날 00:30
+  const late = new Date('2027-03-11T15:30:00Z');
+  assert.equal(locToday(late, HK), '2027-03-11');
+  assert.equal(locToday(late, KR), '2027-03-12');                 // 고치기 전(폰 날짜, 한국 시계)은 이 날짜라
+  assert.ok(locExpired(s, locToday(late, KR)));                     //   마지막 날 밤 1시간 동안 꺼지고
+  assert.deepEqual(expiredLocs(docs, { today:locToday(late, KR), myUid:'me', isOwner:true }), ['me', 'mom']);   //   주인 폰이 가족 위치까지 지웠음
+  assert.ok(!locExpired(s, locToday(late, HK)) && canShareLoc(s, locToday(late, HK)));
+  assert.deepEqual(expiredLocs(docs, { today:locToday(late, HK), myUid:'me', isOwner:true }), []);
+  // 홍콩 자정이 지나면 끝남
+  const after = new Date('2027-03-11T16:00:00Z');
+  assert.equal(locToday(after, HK), '2027-03-12');
+  assert.ok(locExpired(s, locToday(after, HK)) && !canShareLoc(s, locToday(after, HK)));
+  // 첫날 전날 밤 홍콩 23:30(한국은 첫날 00:30): 출발 전에도 켤 수 있어서 어느 날짜든 같음
+  const eve = new Date('2027-03-06T15:30:00Z');
+  assert.equal(locToday(eve, HK), '2027-03-06');
+  assert.ok(canShareLoc(s, locToday(eve, HK)) && !locExpired(s, locToday(eve, HK)));
+  // 시간대를 모르면 폰 날짜
+  const d = new Date(2027, 2, 9, 12, 0); assert.equal(locToday(d), ymd(d));
 });
