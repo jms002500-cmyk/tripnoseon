@@ -68,7 +68,7 @@ npm test       # node --test, 설치할 패키지 없음
 - **API 키를 코드·저장소에 넣지 않는다**. 예외는 `js/firebase-config.js`(Firebase 웹 설정값은 원래 공개용이고 보안은 로그인·접근 규칙이 맡음)와 `js/maps-config.js`(구글 지도 웹 키는 페이지에 보이는 게 정상이고, 구글 클라우드에서 웹사이트 제한·API 제한으로 보호. **Firebase와 다른 구글 클라우드 프로젝트**에 둠: Firebase 프로젝트에 결제를 붙이면 Firebase가 유료 요금제로 바뀜). 지금(개인 사용 단계)은 사용자가 자기 키를 앱에 직접 넣고 그 기기 localStorage(`tripnoseon-rakuten`, 공공데이터포털 키는 `tripnoseon-datagokr`, 일정 상태와 별도)에만 둔다. 라쿠텐은 앱 등록의 '허용된 웹사이트'(Referer 검사)로 다른 사이트에서의 사용을 막는다. 출시할 때는 키를 서버(예: Cloudflare Workers) 뒤로 옮긴다.
 - 대략값·예시 데이터에는 화면에 "대략값" 안내를 남긴다.
 - 다시 받을 수 있거나 화면에서만 쓰는 새 상태 칸을 만들면 `js/backup.js`의 DROP에도 넣는다(백업에서 빼고, 되돌릴 때 기본값).
-- 함께 짤 때도 같이 맞춰야 하는 새 상태 칸을 만들면 `SHARED_KEYS`에 넣는다(장소 id → 값 모양의 맵이면 `MAP_KEYS`에도). 화면 전용·기기 전용 칸은 넣지 않는다.
+- 함께 짤 때도 같이 맞춰야 하는 새 상태 칸을 만들면 `SHARED_KEYS`에 넣는다(장소 id → 값 모양의 맵이면 `MAP_KEYS`에도, id 있는 객체 배열이면 `LIST_KEYS`에도). 화면 전용·기기 전용 칸은 넣지 않는다.
 - 내장 브라우저로 시험할 때 데이터를 지우거나 덮어쓰는 스크립트는 tabId를 꼭 지정하고 `location.origin`이 시험 주소인지 먼저 확인한다(배포 주소 탭의 사용자 데이터를 지운 적 있음, 2026-10-26).
 - 실시간 갱신으로 다시 그릴 때는 `renderRemote()`를 쓴다(글자 입력 중이면 미뤘다가 입력칸을 벗어나면 그림).
 - **지역마다 다른 것은 `REGION`(data.js)에서 꺼낸다**: 통화(`cur`/`curs`), 지도 중심·범위(`center`/`radiusKm`/`bounds`), 구글·Nominatim 지역 코드(`gl`/`codes`/`viewbox`). 도쿄 전용 기능(라쿠텐 빈방, 교통패스, 일본어 숙소 이름)은 `REGION.key === 'tokyo'`일 때만. 동네 키를 코드에 적지 않는다(디즈니 동네는 `disneyArea()`, 홍콩·선전 구분은 `AREAS[키].city`).

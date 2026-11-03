@@ -36,7 +36,7 @@ import { sizeText } from './vault.js';
 import * as SH from './share.js';
 import { netBanner } from './net.js';
 import { roundLoc, shouldSend, canShareLoc, locExpired, expiredLocs } from './loc.js';
-import { sharedOf, diffShared, applyRemote, inviteLink, parseJoin, describeChange, voteSummary, DELETE } from './sharecore.js';
+import { sharedOf, syncedOf, diffShared, mergeRemote, afterPush, inviteLink, parseJoin, describeChange, voteSummary } from './sharecore.js';
 
 const S_KEY = 'tripnoseon-v1';
 const RK_KEY = 'tripnoseon-rakuten';   // 라쿠텐 키는 일정 상태와 따로 저장 (상태를 내보내거나 백업해도 키는 안 섞이게)
@@ -175,14 +175,6 @@ function saveBase(id, p){ try{ localStorage.setItem(BASE_KEY, JSON.stringify({ i
 // 다음에 받는 서버 일정을 그대로 따름 (참여·백업 되돌리기·공유 끊기)
 function forgetSync(){ lastSynced = null; try{ localStorage.removeItem(BASE_KEY); }catch(e){} }
 
-// 'p.key' / 'p.key.id' 경로의 값을 상태에 직접 넣기 (아직 못 올린 내 변경을 서버 일정 위에 다시 얹을 때)
-function setPath(s, path, v){
-  const [, key, sub] = path.split('.');
-  if(sub == null){ s[key] = v; return; }
-  s[key] = s[key] && typeof s[key] === 'object' ? s[key] : {};
-  if(v === DELETE) delete s[key][sub]; else s[key][sub] = v;
-}
-
 function watchTrip(){
   unwatch(); const id = state.shareId; if(!id) return;
   unsubs.push(SH.watchTrip(id, (data, mine) => {
@@ -193,17 +185,15 @@ function watchTrip(){
     s.sh.votes = data.votes || {};
     if(s.sh.locs) clearExpiredLocs(id, s.sh.locs);   // 주인인지 알게 된 뒤에도 한 번 (위치 목록이 먼저 왔을 때)
     if(data.p){
-      // 아직 서버에 못 올린 내 변경을 기억했다가, 서버 일정을 받은 뒤 그 위에 다시 얹음 (서로 덮어쓰지 않게)
+      // 아직 서버에 못 올린 내 변경을 기억했다가, 서버 일정을 받은 뒤 그 위에 다시 얹음 (서로 덮어쓰지 않게, sharecore mergeRemote)
       //   앱을 막 열었으면 이 기기에 남긴 기준으로 (끊긴 동안 고친 것)
       const base = lastSynced || loadBase(id);
-      const pending = base ? diffShared(base, sharedOf(s)) : [];
-      applyRemote(s, data.p);
+      const pending = mergeRemote(s, data.p, base);
       if(REGION.key !== s.city) loadRegion(s.city).then(() => renderRemote());   // 가족이 여행 지역을 바꿈
-      lastSynced = sharedOf(s);
+      lastSynced = syncedOf(data.p);        // 서버에 있는 모양 그대로 (옛 배열 모양 칸은 처음 고칠 때 통째로 새 모양으로)
       if(!mine) saveBase(id, lastSynced);   // 아직 서버가 안 받은 내 변경이 섞인 일정은 기준으로 남기지 않음
-      pending.forEach(([path, v]) => setPath(s, path, v));
       saveLocal();
-      if(pending.length) schedulePush();
+      if(pending) schedulePush();
     }
     renderRemote();
   }, code => {
@@ -232,10 +222,10 @@ async function pushNow(){
   pushTimer = null;
   const s = state, id = s.shareId, u = s.sh.user; if(!id || !u || !lastSynced) return;
   const next = sharedOf(s); const changes = diffShared(lastSynced, next); if(!changes.length) return;
-  const prev = lastSynced; const text = describeChange(prev, next); lastSynced = next;
+  const prev = lastSynced; const text = describeChange(prev, next); lastSynced = afterPush(prev, changes);
   try{
     await SH.pushChanges(id, u, changes);   // 끊긴 동안은 다시 연결돼 서버가 받을 때까지 기다림
-    if(state.shareId === id){ const b = loadBase(id); if(b){ changes.forEach(([path, v]) => setPath(b, path, v)); saveBase(id, b); } }
+    if(state.shareId === id){ const b = loadBase(id); if(b) saveBase(id, afterPush(b, changes)); }
     if(text) SH.addLog(id, u, text).catch(() => {});
   }
   catch(e){ if(state.shareId === id){ lastSynced = prev; s.sh.msg = '바뀐 내용을 공유 여행에 올리지 못했어요. 잠시 후 다시 고쳐 보세요.'; render(); } }
