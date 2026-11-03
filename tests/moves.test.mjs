@@ -6,7 +6,7 @@ import { clone, plan, buildDays } from '../js/logic.js';
 import { moveDate, movesOn, legOverride, isEmptyMove, moveEnds, moveText, etcMinutes, vaultDraft } from '../js/moves.js';
 import { arriveInfo, departInfo, AFTER_LANDING, HOTEL_DROP } from '../js/flight.js';
 import { buildIcs } from '../js/ics.js';
-import { SHARED_KEYS, MAP_KEYS } from '../js/sharecore.js';
+import { SHARED_KEYS, MAP_KEYS, LIST_KEYS } from '../js/sharecore.js';
 
 const mv = (k, o) => Object.assign({ id:k, k, date:'', time:'', how:'', min:null, from:'', to:'', booked:false, note:'' }, o);
 const trip = extra => Object.assign(clone(D.DEFAULT), { start:'2027-03-07', end:'2027-03-09', who:'family', adults:2, kids:[12],
@@ -93,8 +93,8 @@ test('폰 캘린더: 집→공항은 한국 시각, 현지 이동은 현지 시�
   } finally { D.useRegion('tokyo'); }
 });
 
-test('함께 짜기로 공유 (통째로)', () => {
-  assert.ok(SHARED_KEYS.includes('moves')); assert.ok(!MAP_KEYS.includes('moves'));
+test('함께 짜기로 공유 (이동 하나씩 따로, LIST_KEYS)', () => {
+  assert.ok(SHARED_KEYS.includes('moves')); assert.ok(!MAP_KEYS.includes('moves')); assert.ok(LIST_KEYS.includes('moves'));
 });
 
 test('시간표 바로가기: 수단·구간·지역에 맞는 공식 누리집', async () => {

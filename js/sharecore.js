@@ -10,34 +10,175 @@ export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country'
   'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights', 'prep'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
 export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights', 'prep'];
+// id가 있는 객체 배열(오가는 길·직접 담은 곳·숙소 후보·나누는 사람). 서버에는 배열 대신
+//   p.<칸>Items {id: 항목} + p.<칸>Order [id 순서]로 둬서 항목 하나씩 따로 보냄 → 두 사람이 다른 항목을 동시에 더하고·고치고·지워도 둘 다 남음.
+//   순서는 통째로 보내지만 순서에 없는 항목도 버리지 않고 뒤에 붙여서(id 순), 순서끼리 덮어써도 항목은 안 사라짐.
+//   옛 공유 여행(p.<칸> 배열)도 그대로 읽고, 그 칸을 처음 고칠 때 새 모양으로 올림.
+export const LIST_KEYS = ['moves', 'custom', 'hotels', 'party'];
 export const DELETE = { __delete:true };   // Firebase deleteField()로 바꿔 보낼 표시
 
 const clone = o => JSON.parse(JSON.stringify(o === undefined ? null : o));
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const safeId = k => /^[A-Za-z0-9_-]{1,80}$/.test(k);
+// 객체 칸 순서와 상관없이 같은지 (Firestore는 맵 칸을 이름순으로 돌려줌)
+const stable = o => Array.isArray(o) ? `[${o.map(stable).join(',')}]`
+  : o && typeof o === 'object' ? `{${Object.keys(o).sort().filter(k => o[k] !== undefined).map(k => `${JSON.stringify(k)}:${stable(o[k])}`).join(',')}}`
+  : JSON.stringify(o === undefined ? null : o);
+const same = (a, b) => (a === undefined) === (b === undefined) && stable(a) === stable(b);
+const safeId = k => /^[A-Za-z0-9_-]{1,80}$/.test(k) && k !== '__proto__';
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const IT = k => `${k}Items`, OD = k => `${k}Order`;
+const isMap = v => !!v && typeof v === 'object' && !Array.isArray(v);
 
-export function sharedOf(s){ const o = {}; SHARED_KEYS.forEach(k => { o[k] = clone(s[k] === undefined ? DEFAULT[k] : s[k]); }); return o; }
+// 배열 → { items:{id: 항목}, order:[id] }. 모든 항목에 겹치지 않는 안전한 id가 있을 때만(아니면 null → 배열 통째로)
+function byId(arr){
+  if(!Array.isArray(arr)) return null;
+  const items = {}, order = [];
+  for(const x of arr){
+    if(!isMap(x) || typeof x.id !== 'string' || !safeId(x.id) || has(items, x.id)) return null;
+    items[x.id] = clone(x); order.push(x.id);
+  }
+  return { items, order };
+}
+// 서버 모양(p) → 상태 배열. 새 모양이면 순서대로, 순서에 없는 항목은 뒤에 id 순으로
+function listOf(p, k){
+  const items = p[IT(k)];
+  const ids = Object.keys(items).filter(id => isMap(items[id]));
+  const ok = new Set(ids), seen = new Set(), out = [];
+  (Array.isArray(p[OD(k)]) ? p[OD(k)] : []).forEach(id => { if(ok.has(id) && !seen.has(id)){ seen.add(id); out.push(id); } });
+  ids.filter(id => !seen.has(id)).sort().forEach(id => out.push(id));
+  return out.map(id => { const x = clone(items[id]); if(x.id !== id) x.id = id; return x; });
+}
+const listForm = (p, k) => !!p && isMap(p[IT(k)]);
 
-// 지난번 맞춘 일정(prev) → 지금 일정(next) 차이를 Firestore 갱신 목록으로: [['p.picked.sensoji', true], ['p.start', '2027-03-07'], ...]
+// 내 상태 → 서버에 두는 모양 (id 있는 객체 배열은 Items + Order)
+export function sharedOf(s){
+  const o = {};
+  SHARED_KEYS.forEach(k => {
+    const v = clone(s[k] === undefined ? DEFAULT[k] : s[k]);
+    const m = LIST_KEYS.includes(k) ? byId(v) : null;
+    if(m){ o[IT(k)] = m.items; o[OD(k)] = m.order; } else o[k] = v;
+  });
+  return o;
+}
+
+// 받은 서버 일정(p) 그대로의 모양 = 다음에 보낼 차이의 기준. 옛 배열 모양 칸은 배열 그대로 둬서
+// 처음 고칠 때 그 칸을 통째로 새 모양으로 올리게 (항목 하나만 올리면 서버에 그 항목만 남으므로)
+export function syncedOf(p){
+  const o = {};
+  SHARED_KEYS.forEach(k => {
+    if(LIST_KEYS.includes(k) && listForm(p, k)){
+      const items = p[IT(k)], m = {};
+      Object.keys(items).forEach(id => { if(isMap(items[id])) m[id] = clone(items[id]); });
+      o[IT(k)] = m; o[OD(k)] = clone(Array.isArray(p[OD(k)]) ? p[OD(k)] : []);
+    } else o[k] = clone(p && p[k] !== undefined ? p[k] : DEFAULT[k]);
+  });
+  return o;
+}
+
+// 지난번 맞춘 일정(prev) → 지금 일정(next) 차이를 Firestore 갱신 목록으로: [['p.picked.sensoji', true], ['p.start', '2027-03-07'], ['p.movesItems.m1', {...}], ...]
+// prev·next는 sharedOf/syncedOf 모양
 export function diffShared(prev, next){
   const out = [];
   SHARED_KEYS.forEach(k => {
+    if(LIST_KEYS.includes(k)){ diffList(prev, next, k, out); return; }
     const a = prev ? prev[k] : undefined, b = next[k];
     if(same(a, b)) return;
-    if(MAP_KEYS.includes(k) && a && b && typeof a === 'object' && typeof b === 'object' && Object.keys(a).concat(Object.keys(b)).every(safeId)){
-      new Set(Object.keys(a).concat(Object.keys(b))).forEach(id => {
-        if(!(id in b)) out.push([`p.${k}.${id}`, DELETE]);
-        else if(!same(a[id], b[id])) out.push([`p.${k}.${id}`, clone(b[id])]);
-      });
-    } else out.push([`p.${k}`, clone(b)]);
+    if(MAP_KEYS.includes(k)) diffMap(`p.${k}`, a, b, out);
+    else out.push([`p.${k}`, clone(b)]);
   });
   return out;
 }
+// 맵을 칸 하나씩. id가 이상하면 통째로
+function diffMap(path, a, b, out){
+  if(!(isMap(a) && isMap(b) && Object.keys(a).concat(Object.keys(b)).every(safeId))){ out.push([path, clone(b)]); return; }
+  new Set(Object.keys(a).concat(Object.keys(b))).forEach(id => {
+    if(!has(b, id)) out.push([`${path}.${id}`, DELETE]);
+    else if(!has(a, id) || !same(a[id], b[id])) out.push([`${path}.${id}`, clone(b[id])]);
+  });
+}
+function diffList(prev, next, k, out){
+  const it = IT(k), od = OD(k);
+  const before = prev ? (listForm(prev, k) ? listOf(prev, k) : (prev[k] === undefined ? DEFAULT[k] : prev[k])) : undefined;
+  if(!listForm(next, k)){
+    // id 없는 항목이 섞임 → 옛 방식(배열 통째로). 서버에 새 모양이 있으면 지워야 배열을 읽음
+    if(listForm(prev, k)) out.push([`p.${it}`, DELETE], [`p.${od}`, DELETE], [`p.${k}`, clone(next[k])]);
+    else if(!prev || !same(before, next[k])) out.push([`p.${k}`, clone(next[k])]);
+    return;
+  }
+  if(listForm(prev, k)){
+    diffMap(`p.${it}`, prev[it], next[it], out);
+    if(!same(prev[od], next[od])) out.push([`p.${od}`, clone(next[od])]);
+    return;
+  }
+  // 처음 올리거나 서버가 아직 옛 배열 모양: 내용이 바뀌었을 때만 통째로 새 모양으로
+  if(prev && same(before, listOf(next, k))) return;
+  out.push([`p.${it}`, clone(next[it])], [`p.${od}`, clone(next[od])]);
+}
 
-// 서버의 일정(p)을 내 상태에 덮어씀. 없는 칸은 기본값
+// 서버 일정(p)을 내 상태에 덮어씀. 없는 칸은 기본값. 새 모양(Items+Order)·옛 모양(배열) 모두 읽음
 export function applyRemote(s, p){
-  SHARED_KEYS.forEach(k => { s[k] = clone(p && p[k] !== undefined ? p[k] : DEFAULT[k]); });
+  SHARED_KEYS.forEach(k => {
+    if(LIST_KEYS.includes(k) && listForm(p, k)) s[k] = listOf(p, k);
+    else s[k] = clone(p && p[k] !== undefined ? p[k] : DEFAULT[k]);
+  });
   return s;
+}
+
+// 'p.key' / 'p.key.id' 경로의 값을 서버 모양 객체(기준 일정 등)에 넣기. DELETE면 지움
+export function setPath(o, path, v){
+  const [, key, sub] = path.split('.');
+  if(!key || key === '__proto__' || sub === '__proto__') return o;
+  if(sub == null){ if(v === DELETE) delete o[key]; else o[key] = v; return o; }
+  o[key] = isMap(o[key]) ? o[key] : {};
+  if(v === DELETE) delete o[key][sub]; else o[key][sub] = v;
+  return o;
+}
+
+// 올린 뒤의 서버 모양 = 기준(prev)에 올린 차이를 얹은 것. 다음 기준으로 씀
+//   (sharedOf(지금)을 그대로 기준으로 삼으면, 안 고쳐서 아직 옛 배열 모양인 목록 칸을 새 모양으로 착각해 다음에 항목 하나만 올리게 됨)
+export function afterPush(prev, changes){ return changes.reduce((o, [path, v]) => setPath(o, path, v === DELETE ? DELETE : clone(v)), clone(prev || {})); }
+
+// 차이 목록을 내 상태(배열 모양)에 얹기. 목록 칸은 id로 찾아 바꾸고·더하고·지움
+export function applyChanges(s, changes){
+  changes.forEach(([path, v]) => {
+    const [, key, sub] = path.split('.');
+    const k = LIST_KEYS.find(x => key === IT(x) || key === OD(x));
+    if(!k){ setPath(s, path, v === DELETE ? DELETE : clone(v)); return; }
+    const arr = Array.isArray(s[k]) ? s[k].slice() : [];
+    if(key === OD(k)){ if(Array.isArray(v)) s[k] = reorder(arr, v); return; }
+    if(sub == null){ if(isMap(v)) s[k] = listOf({ [IT(k)]:v, [OD(k)]:arr.map(x => x && x.id) }, k); return; }
+    const i = arr.findIndex(x => x && x.id === sub);
+    if(v === DELETE){ if(i >= 0) arr.splice(i, 1); }
+    else { const x = clone(v); x.id = sub; if(i >= 0) arr[i] = x; else arr.push(x); }
+    s[k] = arr;
+  });
+  return s;
+}
+// order에 적힌 순서대로, 적히지 않은 항목은 원래 순서대로 뒤에
+function reorder(arr, order){
+  const pos = new Map(); order.forEach((id, i) => { if(!pos.has(id)) pos.set(id, i); });
+  const inOrder = arr.filter(x => x && pos.has(x.id)).sort((a, b) => pos.get(a.id) - pos.get(b.id));
+  return inOrder.concat(arr.filter(x => !(x && pos.has(x.id))));
+}
+
+// 서버 일정(p)을 받았을 때: 아직 서버에 못 올린 내 변경(기준 base → 지금 s)을 기억했다가 서버 일정 위에 다시 얹음.
+//   목록 칸도 항목(id)마다 얹으므로 다른 사람이 더하고·고치고·지운 항목은 그대로 남고, 내가 건드린 항목만 내 것으로.
+//   내가 안 건드린 항목은 기준과 같으니 차이에 안 들어가서, 남이 지운 항목이 내 옛 목록 때문에 되살아나지 않음.
+// 다시 얹은 게 있으면(=올릴 게 남았으면) true
+export function mergeRemote(s, p, base){
+  const pending = base ? diffShared(itemsForm(base), sharedOf(s)) : [];
+  applyRemote(s, p);
+  if(pending.length) applyChanges(s, pending);
+  return pending.length > 0;
+}
+// 기준이 옛 배열 모양이어도 내 변경은 항목마다 계산하도록 (서버에 보내지 않고 이 기기 안에서만 씀)
+function itemsForm(b){
+  const o = Object.assign({}, b);
+  LIST_KEYS.forEach(k => {
+    if(listForm(o, k)) return;
+    const m = byId(o[k] === undefined ? DEFAULT[k] : o[k]);
+    if(m){ o[IT(k)] = m.items; o[OD(k)] = m.order; delete o[k]; }
+  });
+  return o;
 }
 
 // 초대 링크와 읽기. 여행 번호(Firestore 자동 id, 20자)를 아는 것이 곧 초대
@@ -54,6 +195,7 @@ export function voteSummary(votes, placeId, uid){
 // 바뀐 내용을 사람이 읽는 한 줄로 (변경 기록용). 장소 이름은 담긴 곳·직접 담은 곳에서 찾음
 export function describeChange(prev, next){
   if(!prev) return '';
+  prev = applyRemote({}, prev); next = applyRemote({}, next);   // 서버 모양(Items+Order)도 배열로 펴서 비교
   const names = id => { const p = allPlaces(next).concat(allPlaces(prev)).find(x => x.id === id); return p ? p.name : '장소'; };
   const parts = [];
   const added = Object.keys(next.picked || {}).filter(id => !(prev.picked || {})[id]);
