@@ -10,7 +10,7 @@ import { PK_KEY, krAirport, guessKap, parkUrl, parseParking } from './parking.js
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
-import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend } from './bookings.js';
+import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
 import { planText } from './agenda.js';
 import { whereOf, tzOffset, HOME_TZ, HERE_FRESH } from './clock.js';
 import { catchUp, applyCatchUp } from './catchup.js';
@@ -35,7 +35,7 @@ import { makeBackup, backupName, parseBackup, summarizeBackup, restoreState, blo
 import { sizeText } from './vault.js';
 import * as SH from './share.js';
 import { netBanner } from './net.js';
-import { roundLoc, shouldSend, canShareLoc, locExpired, expiredLocs } from './loc.js';
+import { roundLoc, shouldSend, canShareLoc, locExpired, expiredLocs, locToday } from './loc.js';
 import { sharedOf, diffShared, applyRemote, inviteLink, parseJoin, describeChange, voteSummary, DELETE } from './sharecore.js';
 
 const S_KEY = 'tripnoseon-v1';
@@ -485,10 +485,25 @@ function vaultAct(a, v){
     case 'vcancel': s.vedit = null; s.vdraft = null; render(); return;
     case 'vcopy': { const it = s.vault.find(x => x.id === v); if(it && it.code) copyText(it.code, `예약번호 ${it.code}을(를) 복사했어요.`); return; }
     case 'vview': { const [id, fid] = v.split('|'); openViewer(id, fid); return; }
-    case 'vdel':
-      if(s.sh.vdel !== v){ s.sh.vdel = v; render(); setTimeout(() => { if(state.sh.vdel === v){ state.sh.vdel = null; render(); } }, 4000); return; }
-      s.sh.vdel = null; deleteVault(v); return;
+    case 'vdel': {
+      // 이 예약 금액으로 만든 가계부 줄이 있으면 두 번째 누름 대신 '같이 지우기 / 예약만 지우기'를 고르게 (vdel2). 그때 이 버튼은 '취소'
+      const linked = bookingSpendOf(s, s.vault.find(x => x.id === v));
+      if(s.sh.vdel !== v){ s.sh.vdel = v; render(); setTimeout(() => { if(state.sh.vdel === v){ state.sh.vdel = null; render(); } }, linked ? 12000 : 4000); return; }
+      s.sh.vdel = null; if(linked){ render(); return; }
+      deleteVault(v); return;
+    }
+    case 'vdel2': { const [id, how] = v.split('|'); if(s.sh.vdel !== id) return; s.sh.vdel = null; deleteBooking(id, how === 'all'); return; }
   }
+}
+// 예약 지우기 + (고르면) 그 예약 금액으로 만든 가계부 줄과 그 줄의 영수증 사진도
+async function deleteBooking(id, withSpend){
+  const s = state, sh = s.sh; const linked = bookingSpendOf(s, s.vault.find(x => x.id === id));
+  if(withSpend && linked){
+    delete s.spend[linked.id]; if(sh.ledit === linked.id) sh.ledit = null; if(sh.lundo === linked.id) sh.lundo = null;
+    const rc = receiptOf(s.vault, linked.id); if(rc) await deleteVault(rc.id);
+  }
+  await deleteVault(id);
+  if(linked) toast(withSpend ? `예약과 가계부 지출(${money(linked.e.amt, linked.e.cur)})을 같이 지웠어요.` : '예약만 지웠어요. 가계부 지출은 그대로 있어요.');
 }
 /* ---------- 백업 · 되돌리기 ---------- */
 function downloadBlob(blob, name){
@@ -890,7 +905,7 @@ function act(a, v){
       s.imports = s.imports.filter(r => !r.skip && !ready.includes(r));
       break;
     }
-    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': vaultAct(a, v); return;
+    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': case 'vdel2': vaultAct(a, v); return;
     case 'vapply': applyVaultAll(); return;
     case 'idwipe':
       if(!s.sh.idwipe){ s.sh.idwipe = true; render(); setTimeout(() => { if(state.sh.idwipe){ state.sh.idwipe = false; render(); } }, 4000); return; }
@@ -1361,13 +1376,13 @@ let geoWatch = null, locLast = null;
 const locCleared = new Set();
 function clearExpiredLocs(id, list){
   const sh = state.sh, u = sh.user; if(!u || state.shareId !== id) return;
-  expiredLocs(list, { today:ymd(new Date()), myUid:u.uid, isOwner:!!(sh.trip && sh.trip.ownerUid === u.uid) })
+  expiredLocs(list, { today:locToday(new Date(), REGION.tz), myUid:u.uid, isOwner:!!(sh.trip && sh.trip.ownerUid === u.uid) })
     .filter(uid => !locCleared.has(id + '/' + uid))
     .forEach(uid => { locCleared.add(id + '/' + uid); SH.clearLoc(id, uid).catch(() => {}); });
 }
 function stopGeo(){ if(geoWatch != null){ try{ navigator.geolocation.clearWatch(geoWatch); }catch(e){} geoWatch = null; } locLast = null; }
 function locSync(){
-  const s = state, today = ymd(new Date());
+  const s = state, today = locToday(new Date(), REGION.tz);   // 여행지 날짜 (화면의 sh.today와 같게)
   if(locExpired(s, today)){ locOff('여행이 끝나서 위치 보여 주기를 껐어요. 서버에 있던 위치도 지웠어요.'); return; }
   const want = s.locOn && canShareLoc(s, today) && !!s.sh.user && 'geolocation' in navigator;
   if(want && geoWatch == null) geoWatch = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy:true, maximumAge:30000, timeout:60000 });
