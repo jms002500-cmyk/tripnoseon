@@ -634,6 +634,8 @@ function updatePreview(){
   const r = withPlace(parseLine(i.value, s, ctx));
   p.textContent = r.ok ? `→ ${previewText(s, r.e)}` : r.error; p.classList.toggle('bad', !r.ok);
 }
+// 가족 식당 상자를 펼치고 접은 것을 기억 (다시 그려도 그대로, views.js eatsBox)
+document.addEventListener('toggle', e => { const t = e.target; if(t && t.classList && t.classList.contains('eatbox')) state.sh.eatsOpen = t.open; }, true);
 document.addEventListener('input', e => { if(e.target.id === 'lline') updatePreview();
   if(e.target.id === 'aiwant') (state.sh.aiPlan = state.sh.aiPlan || {}).want = e.target.value.slice(0, 100); });
 
@@ -1090,9 +1092,10 @@ function goTo(to){
   if(d){
     if(d.act){ act(d.act, ''); return; }
     if(d.mode){ s.mode = d.mode; if(d.mode === 'today') s.tday = null; } else { s.mode = null; s.step = Math.max(0, STEPS.indexOf(d.step)); }
+    if(d.open) s.sh[d.open] = true;   // 펼친 채로 (가족 일정이 실시간으로 와서 다시 그려도)
     save(); render();
     const el = d.el ? document.querySelector(d.el) : null;
-    if(el){ if(d.open && el.tagName === 'DETAILS') el.open = true; scrollBelowTop(el); flash(el); } else window.scrollTo(0, 0);
+    if(el){ scrollBelowTop(el); flash(el); } else window.scrollTo(0, 0);
     return;
   }
   s.mode = null; s.step = to === 'movebox' || to === 'icsbox' ? PLAN_STEP : to === 'pack' ? PACK_STEP : to === 'where' ? STEPS.indexOf('여행지') : VAULT_STEP; save(); render();

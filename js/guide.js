@@ -3,10 +3,10 @@
 //   to: 목적지 이름 → DEST. app.js goTo가 단계·화면을 바꾸고 그 칸으로 내려감(접힌 칸이면 펼침)
 //   only: 'hksz' | 'tokyo' — 그 지역 여행일 때만
 
-// 목적지: step(단계 이름, data.js STEPS) 또는 mode('today'|'sos'|'record'), el(내려갈 칸 선택자), open(접힌 칸 펼치기), act(누를 버튼 동작)
+// 목적지: step(단계 이름, data.js STEPS) 또는 mode('today'|'sos'|'record'), el(내려갈 칸 선택자), open(접힌 칸을 펼쳐 두는 s.sh 칸), act(누를 버튼 동작)
 export const DEST = {
   aiplan:{ step:'장소 담기', el:'#aiplan' },
-  eats:{ step:'장소 담기', el:'.eatbox', open:true },
+  eats:{ step:'장소 담기', el:'.eatbox', open:'eatsOpen' },   // open: 펼친 채로 두는 화면 칸 이름(s.sh) — 실시간 갱신으로 다시 그려도 안 접히게
   gmap:{ step:'장소 담기', el:'#customform' },
   hotels:{ step:'숙소 동네', el:'#hotelform' },
   where:{ step:'여행지' },
