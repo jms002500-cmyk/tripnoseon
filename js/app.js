@@ -9,6 +9,7 @@ import { askPrompt, planPrompt, parseAiPlaces, matchPlace, aiToPick } from './as
 import { PK_KEY, krAirport, moveKap, parkUrl, parseParking } from './parking.js';
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
+import { BORDER_URL, parseQueue } from './border.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
 import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
@@ -861,6 +862,7 @@ function act(a, v){
     case 'pkcheck': checkParking(v); return;
     case 'busfind': findAirBus(v, ''); return;
     case 'mtrnext': { const i = v.indexOf('|'); mtrNext(v.slice(0, i), v.slice(i + 1)); return; }
+    case 'bdwait': borderWait(v); return;
     case 'buspick': setMove(s.sh.mvEdit, () => ({ bus:v })); break;
     case 'pkforget': try{ localStorage.removeItem(PK_KEY); }catch(e){} s.sh.pkOn = false; s.sh.park = null; render(); return;
     case 'aiplanread': {   // AI 답에서 장소 이름을 읽어 우리 목록과 맞춰 봄
@@ -1180,6 +1182,24 @@ async function mtrNext(sta, key){
   }
   if(state !== s) return;
   s.sh.mtr = { key, sta, res }; render();
+}
+// 🛂 홍콩 ↔ 선전 국경 대기 시간: 누를 때만 홍콩 출입국관리처 공개 자료(방문객 줄)를 받음(보내는 정보 없음). 결과는 화면 전용 s.sh.border
+//   자료가 15분마다 바뀌어서 1분 안에 다시 누르면 받은 것을 그대로 씀. 자료 시각은 Last-Modified(CORS 기본 공개 헤더)
+let borderCache = null;
+async function borderWait(key){
+  const s = state; if(!key || (s.sh.border && s.sh.border.busy)) return;
+  s.sh.border = { key, busy:true }; render();
+  let res;
+  if(borderCache && Date.now() - borderCache.at < 60 * 1000) res = borderCache;
+  else {
+    try{
+      const r = await fetch(BORDER_URL, { cache:'no-store' });
+      res = r.ok ? parseQueue(await r.text()) : { ok:false, err:'server' };
+      if(res.ok){ res.lm = r.headers.get('Last-Modified') || ''; res.at = Date.now(); borderCache = res; }
+    }catch(e){ res = { ok:false, err:'net' }; }
+  }
+  if(state !== s) return;
+  s.sh.border = { key, res }; render();
 }
 // 🚌 공항버스: 공항(·지역)별 목록을 받아 이 기기에서 동네 이름·번호로 찾음. 같은 목록은 30분 동안 다시 안 받음(하루 호출 한도)
 const busCache = new Map();
