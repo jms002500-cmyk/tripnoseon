@@ -356,7 +356,7 @@ function render(){
   document.getElementById('view').innerHTML = (sosMode || recMode ? '' : installCard(s) + idWipeCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : VIEWS[s.step](s));
   document.getElementById('line').style.setProperty('--n', STEPS.length);
   document.getElementById('bar').innerHTML = (sosMode
-    ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="sbig" data-v="hotel">숙소 카드 보여 주기</button>`
+    ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="sbig" data-v="hotel">🏨 숙소 카드</button>`
     : todayMode
     ? `<button type="button" class="ghost" data-act="tclose">계획으로</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`
     : recMode

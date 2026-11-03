@@ -1073,12 +1073,12 @@ function eventsBox(s, P, list){
   const two = tripCities(s).length > 1;
   return `<div class="box" id="evbox">
     <h2>🎄 여행 기간에 열리는 행사</h2>
-    <ol class="stops">${list.map(x => { const e = x.e; const p = e.place ? allPlaces(s).find(q => q.id === e.place) : null; const on = p && !!s.picked[p.id];
-      return `<li><span class="num" style="--day:var(--muted)">·</span><div class="sbody"><b>${esc(e.name)}</b>
+    <ul class="stops evlist">${list.map(x => { const e = x.e; const p = e.place ? allPlaces(s).find(q => q.id === e.place) : null; const on = p && !!s.picked[p.id];
+      return `<li><div class="sbody"><b>${esc(e.name)}</b>
         <span>${two && e.city ? CITY_KO[e.city] + ' · ' : ''}${esc(when(x))}${e.tbc ? ' · 날짜·시간은 발표 전이에요' : ''}${e.time ? ' · ' + esc(e.time) : ''}</span>
         ${e.where || p ? `<span>${esc(e.where || p.name)}${e.fee ? ' · ' + esc(e.fee) : ''}</span>` : e.fee ? `<span>${esc(e.fee)}</span>` : ''}
         ${e.note ? `<span>${esc(e.note)}</span>` : ''}
-        ${p ? `<button type="button" class="link" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '✓ ' + esc(p.name) + ' 담았어요' : esc(p.name) + ' 담기'}</button>` : ''}</div></li>`; }).join('')}</ol>
+        ${p ? `<button type="button" class="link" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '✓ ' + esc(p.name) + ' 담았어요' : esc(p.name) + ' 담기'}</button>` : ''}</div></li>`; }).join('')}</ul>
     <p class="fine">발표된 내용을 모았어요. 행사는 바뀌기 쉬우니 가기 전에 공식 누리집에서 한 번 더 확인하세요.</p>
   </div>`;
 }
