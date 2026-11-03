@@ -78,3 +78,19 @@ test('디즈니 날에 비가 오면 비 안 오는 다른 날을 제안', () =>
 test('담은 곳 실내 비율', () => {
   assert.deepEqual(indoorShare(trip({ picked:{ uenozoo:true, kahaku:true, tdl:true, ginza:true } })), { indoor:1, total:3 });
 });
+
+test('하루 종일 곳을 그곳이 쉬는 날(요일·날짜 휴관)로는 옮기자고 하지 않음 (일정 짜기 fullAssign과 같게)', () => {
+  // 합친 뒤 점검(2026-11-03): 일정 짜기는 closedOn으로 쉬는 날을 피하는데, 비 오는 날 '다른 날로 옮기기' 제안은 쉬는 날도 골랐음
+  const s = trip({ picked:{ tdl:true } });
+  const P = plan(s); const di = where(P, 'tdl');
+  const date = i => `2027-03-${String(7 + i).padStart(2, '0')}`;
+  const wx = { forecast:[0, 1, 2, 3, 4].map(i => ({ date:date(i), rain:i === di ? 80 : i === 3 ? 10 : 40, text:i === di ? '비' : '흐림' })) };
+  const best = betterFullDay(P, wx, di).i;   // 가장 맑은 날
+  const full = P.days[di].full;               // 데이터(PLACES)는 그대로 두고 복사본에 휴관을 붙임
+  const byDate = Object.assign({}, full, { closedDates:[date(best)] });
+  P.days[di].full = byDate;
+  const b = betterFullDay(P, wx, di); assert.ok(b && b.i !== best && b.i !== di);
+  P.days[di].full = Object.assign({}, full, { closed:[0, 1, 2, 3, 4, 5, 6].filter(w => w !== P.days[di].wd) });   // 비 오는 그날만 엶
+  assert.equal(betterFullDay(P, wx, di), null);
+  assert.equal(full.closedDates, undefined);
+});

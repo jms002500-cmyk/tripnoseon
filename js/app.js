@@ -173,6 +173,12 @@ function unwatch(){ unsubs.forEach(f => { try{ f(); }catch(e){} }); unsubs = [];
 const BASE_KEY = 'tripnoseon-synced';
 function loadBase(id){ try{ const b = JSON.parse(localStorage.getItem(BASE_KEY) || 'null'); return b && b.id === id ? b.p : null; }catch(e){ return null; } }
 function saveBase(id, p){ try{ localStorage.setItem(BASE_KEY, JSON.stringify({ id, p })); }catch(e){} }
+// 일정을 통째로 바꾸기 전에(백업 되돌리기·참여 전 일정으로) 새 일정의 여행 지역 데이터를 불러옴.
+//   안 그러면 화면이 옛 지역의 동네·장소로 그려져서 숙소 동네 화면이 멈추고 장소가 안 보임. 못 불러오면 앱을 열 때처럼 도쿄로
+async function useRegionOf(city, sh){
+  if(REGION.key === city) return;
+  if(!(await loadRegion(city))){ await loadRegion('tokyo'); sh.cityMsg = `${(REGIONS[city] || {}).name || '이 지역'} 데이터를 불러오지 못했어요. 인터넷을 확인하고 다시 열어 주세요.`; }
+}
 // 다음에 받는 서버 일정을 그대로 따름 (참여·백업 되돌리기·공유 끊기)
 function forgetSync(){ lastSynced = null; try{ localStorage.removeItem(BASE_KEY); }catch(e){} }
 
@@ -185,18 +191,20 @@ function watchTrip(){
     s.sh.trip = { title:data.title || '', ownerUid:data.ownerUid, members:data.members || {}, memberUids:data.memberUids || [], open:!!data.open, updatedBy:data.updatedBy || null };
     s.sh.votes = data.votes || {};
     if(s.sh.locs) clearExpiredLocs(id, s.sh.locs);   // 주인인지 알게 된 뒤에도 한 번 (위치 목록이 먼저 왔을 때)
+    let regionWait = false;
     if(data.p){
       // 아직 서버에 못 올린 내 변경을 기억했다가, 서버 일정을 받은 뒤 그 위에 다시 얹음 (서로 덮어쓰지 않게, sharecore mergeRemote)
       //   앱을 막 열었으면 이 기기에 남긴 기준으로 (끊긴 동안 고친 것)
       const base = lastSynced || loadBase(id);
       const pending = mergeRemote(s, data.p, base);
-      if(REGION.key !== s.city) loadRegion(s.city).then(() => renderRemote());   // 가족이 여행 지역을 바꿈
+      // 가족이 여행 지역을 바꿨거나 다른 지역 여행에 참여함: 그 지역 데이터를 불러온 뒤에 그림 (옛 지역 동네로 그리면 숙소 동네 화면이 멈춤)
+      if(REGION.key !== s.city){ regionWait = true; loadRegion(s.city).then(() => renderRemote()); }
       lastSynced = syncedOf(data.p);        // 서버에 있는 모양 그대로 (옛 배열 모양 칸은 처음 고칠 때 통째로 새 모양으로)
       if(!mine) saveBase(id, lastSynced);   // 아직 서버가 안 받은 내 변경이 섞인 일정은 기준으로 남기지 않음
       saveLocal();
       if(pending) schedulePush();
     }
-    renderRemote();
+    if(!regionWait) renderRemote();
   }, code => {
     if(code === 'permission-denied') stopShare('이 공유 여행에 들어갈 수 없어요. 초대 링크가 닫혔거나 여행에서 빠졌어요. 이 기기의 일정은 그대로 남아요.');
     else { state.sh.msg = '공유 연결이 끊겼어요. 잠시 후 다시 열어 주세요.'; render(); }
@@ -262,7 +270,8 @@ async function shareAct(a, v){
       case 'restore': {
         let bk = null; try{ bk = JSON.parse(localStorage.getItem(BK_KEY) || 'null'); }catch(e){}
         if(!bk) return;
-        const keepSh = sh; state = Object.assign(clone(DEFAULT), bk, { shareId:null }); state.rkOn = !!rkKeys(); state.sh = keepSh;
+        const keepSh = sh; const next = Object.assign(clone(DEFAULT), bk, { shareId:null }); await useRegionOf(next.city, keepSh);
+        state = next; state.rkOn = !!rkKeys(); state.sh = keepSh;
         try{ localStorage.removeItem(BK_KEY); }catch(e){} keepSh.hasBackup = false; saveLocal(); break;
       }
       case 'copylink': copyText(inviteLink(location.href, id), '초대 링크를 복사했어요. 카톡이나 문자로 보내 주세요.'); return;
@@ -554,7 +563,8 @@ async function doRestore(){
   if(rs.data.rakuten && rs.data.rakuten.key){ try{ localStorage.setItem(RK_KEY, JSON.stringify(rs.data.rakuten)); }catch(e){} }
   unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();   // 공유 여행이면 서버 일정을 그대로 받음
   const keepIds = idCopies(s.vault).filter(it => !(rs.data.state.vault || []).some(x => x.id === it.id));
-  state = restoreState(rs.data); state.rkOn = !!rkKeys(); state.sh = sh;
+  const next = restoreState(rs.data); await useRegionOf(next.city, sh);
+  state = next; state.rkOn = !!rkKeys(); state.sh = sh;
   if(keepIds.length) state.vault = (state.vault || []).concat(keepIds);   // 여권 사본은 백업에 고를 때만 들어가서, 없으면 이 기기 것을 남김
   sh.restore = null; sh.bkbusy = false; sh.hasRestoreUndo = true;
   sh.bkmsg = failed ? `백업으로 바꿨지만 첨부 ${failed}개는 저장 공간이 모자라 넣지 못했어요.` : '백업으로 바꿨어요.';
@@ -563,12 +573,13 @@ async function doRestore(){
   render(); refreshUsage();
 }
 
-function undoRestore(){
+async function undoRestore(){
   let prev = null; try{ prev = JSON.parse(localStorage.getItem(RS_KEY) || 'null'); }catch(e){}
   if(!prev) return;
   const sh = state.sh;
   unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();
-  state = restoreState({ state:prev }); state.rkOn = !!rkKeys(); state.sh = sh;
+  const next = restoreState({ state:prev }); await useRegionOf(next.city, sh);
+  state = next; state.rkOn = !!rkKeys(); state.sh = sh;
   try{ localStorage.removeItem(RS_KEY); }catch(e){}
   sh.hasRestoreUndo = false; sh.bkmsg = '백업으로 바꾸기 전 상태로 돌아왔어요.';
   saveLocal();

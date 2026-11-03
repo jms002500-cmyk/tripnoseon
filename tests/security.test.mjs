@@ -150,3 +150,27 @@ test('화면도 한 겹 더: 바로잡기 전 값(이 기기 상태)이어도 �
   const html = [V.vWho(s), V.vWhere(s), V.vLedger(s), V.partyText(s)].join('');
   assert.ok(!html.includes('<x-xss'));
 });
+
+test('공유 여행에서 받은 값: 날짜 휴관·일정 순서·밤별 숙소·사이트별 가격 칸도 모양을 바로잡아 화면이 멈추지 않음', () => {
+  // 합친 뒤 점검(2026-11-03): 같은 날 들어온 날짜 휴관(closedDates)을 cleanShared가 몰라서 글자·객체가 오면 장소 담기·일정 화면이 멈췄고,
+  //   assign(날 번호)·nights(숙소 id)·숙소 prices(사이트별 가격) 칸도 모양을 안 봐서 일정·숙소 동네 화면이 멈췄음
+  const bad = [
+    p => { p.customItems.c1.closedDates = 'x'; }, p => { p.customItems.c1.closedDates = 5; }, p => { p.customItems.c1.closedDates = [{}, '2027-03-08', X]; },
+    p => { p.assign = { [pid]:[] }; }, p => { p.assign = { [pid]:X }; }, p => { p.nights = { '2027-03-08':{} }; }, p => { p.nights = { '2027-03-08':5 }; },
+    p => { p.hotelsItems.h1.prices = { agoda:null }; }, p => { p.hotelsItems.h1.prices = { agoda:{ v:X, cur:{} } }; }, p => { p.hotelsItems.h1.prices = X; }
+  ];
+  bad.forEach((f, i) => {
+    const p = sharedOf(trip()); f(p);
+    const s = applyRemote(trip(), p);
+    let html = ''; assert.doesNotThrow(() => { html = renderAll(s); }, `경우 ${i}`);
+    assert.ok(!html.includes('<x-xss'), `경우 ${i}`);
+  });
+  { const p = sharedOf(trip()); p.customItems.c1.closedDates = [{}, '2027-03-08', X]; assert.deepEqual(applyRemote(trip(), p).custom[0].closedDates, ['2027-03-08']); }
+  { const p = sharedOf(trip()); p.hotelsItems.h1.prices = { agoda:{ v:X, cur:{} }, x:5 }; assert.deepEqual(applyRemote(trip(), p).hotels[0].prices, { agoda:{ v:0, cur:'' } }); }
+  // 앱이 만드는 값은 그대로 (빼둔 곳 -1, 동네로 정한 밤 'area:', 날짜 휴관, 사이트별 가격)
+  const ok = Object.assign(trip(), { assign:{ [pid]:-1, c1:2 }, nights:{ '2027-03-07':'h1', '2027-03-08':`area:${area}` } });
+  ok.custom[0].closed = [2]; ok.custom[0].closedDates = ['2027-03-09'];
+  ok.hotels[0].prices = { agoda:{ v:12000, cur:'KRW', at:'11/3' }, booking:{ v:0, cur:'JPY' } };
+  const back = applyRemote(clone(ok), sharedOf(ok));
+  ['assign', 'nights', 'custom', 'hotels'].forEach(k => assert.deepEqual(back[k], ok[k], k));
+});

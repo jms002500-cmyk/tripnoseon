@@ -225,3 +225,28 @@ test('applyChanges: 목록 칸 경로를 배열에 id로 얹음', () => {
   applyChanges(s, [['p.movesItems.m3', mv('m3')], ['p.movesItems.m1', DELETE], ['p.movesOrder', ['m3', 'm2']], ['p.start', '2027-01-01']]);
   assert.deepEqual(ids(s.moves), ['m3', 'm2']); assert.equal(s.start, '2027-01-01');
 });
+
+test('앱이 만드는 모양 그대로면 받을 때마다 다시 올리는 고리가 없음 (cleanShared가 값을 안 바꿈)', () => {
+  // 합친 뒤 점검(2026-11-03): 받을 때 cleanShared가 정상 값을 바꾸면 mergeRemote → 올림 → 받음 → 또 차이로 끝없이 올리게 됨
+  const app = {
+    moves:[mv('go', { k:'go', time:'05:30', how:'abus', min:null, kap:'ICN1', barea:'seoul', bus:'6001', booked:true }), mv('e1', { min:40, note:'메모' })],
+    custom:[{ id:'g1', name:'구글 곳', ja:'', gid:'ChIJ_abc-1', area:'asakusa', lat:35.71, lng:139.79, hours:1.5, kind:'먹거리', indoor:true, tags:[], kid:'all', custom:true, src:'google', addr:'주소', gAt:1700000000000, closed:[1], closedDates:['2027-03-09'] },
+      { id:'c2', name:'테이크아웃', ja:'', area:'asakusa', lat:35.71, lng:139.79, hours:0, tags:[], kid:'all', custom:true, url:'', note:'', approx:true, src:'gmap' }],
+    hotels:[{ id:'h1', name:'호텔', ko:'', price:0, pcur:'', mapUrl:'', bookUrl:'', memo:'', lat:null, lng:null, area:'', st:'need', src:'', approx:false, label:'', vid:'v1', booked:true, addr:'주소', tel:'03' },
+      { id:'h2', name:'R', ko:'알', price:12000, pcur:'JPY', hotelNo:12345, priceAt:'11/3', soldOut:false, prices:{ agoda:{ v:500, cur:'HKD', at:'11/3' } }, lat:35.7, lng:139.7, area:'asakusa', st:'ok', src:'rakuten', approx:false, label:'' }],
+    hotelPick:'h1', nights:{ '2027-03-07':'h1', '2027-03-08':'area:asakusa' }, assign:{ sensoji:-1, g1:2 }, fullDay:{ tdl:1 }, dlock:{ '2027-03-08':true }, prep:{ visa:true, esim:false },
+    party:[{ id:'p1', name:'가' }, { id:'p2', name:'나' }], lrate:9.35, budget:{ total:2000000, cats:{ food:300000 } },
+    spend:{ bkv1:{ d:'', pay:'card', by:null, split:null, at:0, amt:1200.5, cur:'JPY', what:'호텔', cat:'stay', vid:'v1' },
+      e2:{ d:'2027-03-08', amt:900, cur:'JPY', what:'라멘', cat:'food', pay:'cash', by:'p1', split:['p1'], at:5, pl:'g1' },
+      x1:{ d:'2027-03-08', amt:300, cur:'JPY', what:'', cat:'food', pay:'', by:'p2', split:null, at:6, ik:'t-1', src:'triple' } },
+    pack:{ k_pass:{ t:'여권', c:'doc', who:'', done:true, doneBy:'가', at:1, src:'pass' }, c1:{ t:'우산', c:'etc', who:'p1', done:false, doneBy:'', at:2, src:'' }, k_x:{ t:'x', c:'etc', who:'', done:false, doneBy:'', at:3, src:'x', hide:true } },
+    flight:{ ap:'HND', arr:'10:30', dep:'' }, safety:{ hname:'ホテル', addr:'東京', tel:'03', meet:'로비' }, styles:['맛집'], cityOnly:'' };
+  const doc = startDoc(app); const a = device(doc), b = device(doc);
+  SHARED_KEYS.forEach(k => assert.deepEqual(a.s[k], Object.assign(base(), app)[k], k));   // 받아도 그대로
+  assert.deepEqual(diffShared(a.last, sharedOf(a.s)), []);
+  // 한 사람이 고쳐 올리고 둘 다 받으면 더 올릴 게 없음 (여러 번 주고받아도)
+  a.s.spend.e2.amt = 950; assert.ok(a.push().length);
+  for(let i = 0; i < 3; i++) [a, b].forEach(d => { const p = snap(doc); assert.equal(mergeRemote(d.s, p, d.last), false, `${i}번째 받기`); d.last = syncedOf(p); });
+  assert.deepEqual(diffShared(a.last, sharedOf(a.s)), []); assert.deepEqual(diffShared(b.last, sharedOf(b.s)), []);
+  assert.equal(b.s.spend.e2.amt, 950);
+});
