@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { planPrompt, parseAiPlaces, matchPlace, PLAN_MARK } from '../js/askai.js';
+import { planPrompt, parseAiPlaces, matchPlace, aiToPick, PLAN_MARK } from '../js/askai.js';
 
 const trip = () => Object.assign(clone(D.DEFAULT), { city:'hksz', who:'family', adults:2, kids:[12], start:'2026-12-06', end:'2026-12-10', styles:['체험'] });
 
@@ -85,4 +85,12 @@ test('우리 목록과 맞추기: 같은 이름 · 현지 이름 · 한쪽이 �
     assert.equal(m('홍콩 공원'), '');                                   // '홍콩 동식물공원'과 헷갈리지 않음
     assert.equal(m('피크'), '');                                       // 너무 짧으면 품는 이름으로 안 봄
   } finally { D.useRegion('tokyo'); }
+});
+
+test('모두 담기: 지금 보이는 목록에 있고 안 담은 곳만 (홍콩만으로 바꾼 뒤 선전 곳·다른 지역 id는 안 담음)', () => {
+  const found = [{ name:'a', id:'hk_peak' }, { name:'b', id:'sz_x' }, { name:'c', id:'' }, { name:'d', id:'hk_disney' }, { name:'e', id:'hk_peak' }, { name:'f', id:'tokyo_old' }];
+  const places = [{ id:'hk_peak' }, { id:'hk_disney' }];
+  assert.deepEqual(aiToPick(found, places, { hk_disney:true }), ['hk_peak']);
+  assert.deepEqual(aiToPick(found, places, {}), ['hk_peak', 'hk_disney']);
+  assert.deepEqual(aiToPick(undefined, places, {}), []);
 });

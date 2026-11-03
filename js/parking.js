@@ -27,6 +27,9 @@ export function guessKap(text){
   if(/인천|ICN/i.test(t)) return /(2|제2|T2)터미널|T2/i.test(t) ? 'ICN2' : /(1|제1|T1)터미널|T1/i.test(t) ? 'ICN1' : '';
   const a = KR_AIRPORTS.find(x => x.q && t.includes(x.q)); return a ? a.k : '';
 }
+// 이동의 공항: 고른 공항(kap), 안 골랐으면 공항 쪽 이름으로 짐작 — 집 → 공항은 도착, 공항 → 집은 출발
+//   (공항 → 집의 도착은 집이라 '김포 집'·'광주 집'을 공항으로 잘못 짐작했음)
+export const moveKap = m => m ? m.kap || guessKap(m.k === 'back' ? m.from : m.to) : '';
 
 // data.go.kr '인코딩' 키를 붙여 넣었으면 풀어서 씀 (URLSearchParams가 다시 인코딩함)
 export function cleanKey(k){
@@ -67,11 +70,14 @@ export function readApi(text){
     let j; try{ j = JSON.parse(t); }catch(e){ return { ok:false, err:'bad' }; }
     const auth = j.OpenAPI_ServiceResponse && j.OpenAPI_ServiceResponse.cmmMsgHeader;
     if(auth) return { ok:false, err:/LIMIT/i.test(auth.errMsg || '') || auth.returnReasonCode === '22' ? 'limit' : auth.returnReasonCode === '04' ? 'bad' : 'key' };
-    const r = j.response || j; code = String(((r.header || {}).resultCode) || '');
+    const r = j.response || j; if(!r || (!r.header && !r.body)) return { ok:false, err:'bad' };   // 게이트웨이 오류 같은 엉뚱한 JSON
+    code = String(((r.header || {}).resultCode) || '');
     const it = r.body && r.body.items; items = Array.isArray(it) ? it : it && it.item ? [].concat(it.item) : [];
     total = r.body ? num(r.body.totalCount) : null;
   } else if(t.startsWith('<')){
     if(/SERVICE_KEY|SERVICE KEY/i.test(t)) return { ok:false, err:/LIMIT/i.test(t) ? 'limit' : 'key' };
+    // '502 Bad Gateway' 같은 HTML 오류 쪽은 빈 목록이 아니라 못 읽은 답 (빈 목록으로 보면 공항버스는 30분 동안 '못 찾았어요'로 남았음)
+    if(!/<resultCode>|<items[\s>/]/.test(t)) return { ok:false, err:'bad' };
     code = ((t.match(/<resultCode>([^<]*)</) || [])[1] || '').trim(); items = xmlItems(t);
     total = num((t.match(/<totalCount>([^<]*)</) || [])[1]);
   } else return { ok:false, err:'bad' };
