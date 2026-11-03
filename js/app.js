@@ -9,6 +9,7 @@ import { askPrompt, planPrompt, parseAiPlaces, matchPlace, aiToPick } from './as
 import { PK_KEY, krAirport, moveKap, parkUrl, parseParking } from './parking.js';
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
+import { hkoWant, hkoDue, hkDates, loadHko, mergeHkoState } from './hko.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
 import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
@@ -112,6 +113,20 @@ function ensureWeather(force){
   if(!wxStale(s.wx, key, today, canForecast(s.start, new Date()), force, Date.now())) return;
   s.wxBusy = true;
   loadWeather(s.city, s.start, s.end).then(w => { if(state !== s) return; s.wxBusy = false; s.wx = keepWeather(s.wx, w, Date.now()); save(); render(); });
+}
+
+// 홍콩 천문대 9일 예보·지금 날씨·경보 (js/hko.js). 홍콩·선전 여행이고 여행 날짜가 9일 예보 안일 때만, 많아야 30분에 한 번.
+//   보내는 것은 자료 종류뿐. 결과 s.hko는 다시 받을 수 있는 칸(backup.js DROP, 공유 안 함)
+let hkoBusy = false;
+function ensureHko(){
+  const s = state; if(hkoBusy || s.city !== 'hksz' || !s.start || !s.end) return;
+  if(s.step !== 1 && s.step !== PLAN_STEP && s.mode !== 'today') return;
+  const today = tripClock(new Date(), REGION.tz).date; const nowMs = Date.now();
+  if(!hkoDue(s.hko, hkoWant(s, today, true), nowMs)) return;   // 30분 안이면 일정 계산도 하지 않음
+  const want = hkoWant(s, today, hkDates(plan(s), AREAS).has(today));
+  if(!hkoDue(s.hko, want, nowMs)) return;
+  hkoBusy = true;
+  loadHko(want, nowMs).then(got => { hkoBusy = false; if(state !== s) return; s.hko = mergeHkoState(s.hko, got); save(); render(); });
 }
 
 // 숙소 동네·가계부 단계에서 환율을 하루 한 번 받아 둠 (원·엔 가격 비교, 지출 합계)
@@ -369,6 +384,7 @@ function render(){
   else sheet.innerHTML = '';
   if(!(sosMode && s.sh.sbig)) document.body.classList.toggle('noscroll', anySheet);
   ensureWeather(false);
+  ensureHko();
   ensureFx();
   hydrateThumbs();
 }
@@ -828,7 +844,7 @@ function act(a, v){
       s.sh.cityMsg = '';
       loadRegion(v).then(ok => {
         if(!ok){ state.sh.cityMsg = `${(REGIONS[v] || {}).name || '이 지역'} 데이터를 아직 준비 중이에요. 조금 뒤에 다시 눌러 주세요.`; loadRegion(state.city); render(); return; }
-        const t = state; t.city = v; t.country = REGIONS[v].country; t.hotelArea = null; t.hotelCur = REGIONS[v].cur; t.wx = null;
+        const t = state; t.city = v; t.country = REGIONS[v].country; t.hotelArea = null; t.hotelCur = REGIONS[v].cur; t.wx = null; t.hko = null;
         save(); render();
       });
       return;

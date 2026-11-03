@@ -70,11 +70,11 @@ export function dayVault(vault, date, placeIds){
   return sortVault((vault || []).filter(it => it.date === date || (!it.date && it.placeId && ids.has(it.placeId))));
 }
 
-// 그날 날씨: 예보가 있으면 예보, 없으면 이맘때 평균
+// 그날 날씨: 예보가 있으면 예보, 없으면 이맘때 평균. 홍콩 천문대 예보면 src:'hko'와 큰비 가능성 말(psr)도
 export function dayWeather(wx, date){
   if(!wx) return null;
   const f = (wx.forecast || []).find(x => x.date === date);
-  if(f) return { kind:'forecast', text:f.text, hi:f.hi, lo:f.lo, rain:f.rain };
+  if(f) return { kind:'forecast', text:f.text, hi:f.hi, lo:f.lo, rain:f.rain, ...(f.src === 'hko' ? { src:'hko', psr:f.psr || '' } : {}) };
   if(wx.climate) return { kind:'climate', hi:wx.climate.hi, lo:wx.climate.lo, rainPct:wx.climate.rainPct, mean:wx.climate.mean };
   return null;
 }

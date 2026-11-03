@@ -162,6 +162,7 @@ export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'no
   hotels:[], hotelPick:null, hotelCur:'JPY', hotelSort:'place', hotelMsg:'', hotelBusy:false, hotelErr:false,   // hotels: 숙소 후보
   rkOn:false, rk:null, rkBusy:false,   // rkOn: 라쿠텐 키가 이 기기에 있는지(키 자체는 상태에 넣지 않음), rk: 마지막 빈방 검색 결과
   wx:null, wxBusy:false, fx:null,      // wx: 여행 날짜 날씨(이맘때 평균·예보), fx: 환율 { rate: 1엔당 원, date, src }
+  hko:null,   // 홍콩 천문대 9일 예보·지금 날씨·경보와 받은 시각 (js/hko.js, 다시 받을 수 있는 칸·공유 안 함)
   vault:[], vedit:null, vdraft:null, lastBackup:'',   // vault: 예약 보관함(이 기기에만, 공유 안 함), vedit: 고치는 항목 id, vdraft: 제안에서 채운 새 항목
   locOn:false,   // 위치 공유를 이 기기에서 켰는지 (js/loc.js, 기기마다)
   installHide:false,
