@@ -7,6 +7,7 @@ import { installHint } from './install.js';
 import { esc } from './ui.js';
 import { askPrompt, planPrompt, parseAiPlaces, matchPlace } from './askai.js';
 import { PK_KEY, krAirport, guessKap, parkUrl, parseParking } from './parking.js';
+import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
 import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend } from './bookings.js';
@@ -847,6 +848,8 @@ function act(a, v){
     case 'impfind': findLocations(); return;
     case 'aiplansend': sendPlanAsk(); return;
     case 'pkcheck': checkParking(v); return;
+    case 'busfind': findAirBus(v, ''); return;
+    case 'buspick': setMove(s.sh.mvEdit, () => ({ bus:v })); break;
     case 'pkforget': try{ localStorage.removeItem(PK_KEY); }catch(e){} s.sh.pkOn = false; s.sh.park = null; render(); return;
     case 'aiplanread': {   // AI 답에서 장소 이름을 읽어 우리 목록과 맞춰 봄
       const t = document.getElementById('aiplanpaste'); const ap = s.sh.aiPlan = s.sh.aiPlan || {};
@@ -1144,6 +1147,36 @@ async function checkParking(id){
   if(state !== s) return;
   const d = new Date(); s.sh.park = { id, kap:ap.k, res, when:`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}` }; render();
 }
+// 🚌 공항버스: 공항(·지역)별 목록을 받아 이 기기에서 동네 이름·번호로 찾음. 같은 목록은 30분 동안 다시 안 받음(하루 호출 한도)
+const busCache = new Map();
+async function busList(ap, area, key){
+  const ck = `${ap.k}|${ap.src === 'icn' ? area || '' : ''}`; const c = busCache.get(ck);
+  if(c && Date.now() - c.at < 30 * 60 * 1000) return c.res;
+  let res = parseBuses(ap, await (await fetch(busUrl(ap, key, area, 1), { headers:{ Accept:'application/json' } })).text());
+  // 한국공항공사는 한 번에 100개까지: 남은 쪽도 (최대 3쪽)
+  for(let p = 2; res.ok && ap.src !== 'icn' && res.buses.length < res.total && p <= 3; p++){
+    const r = parseBuses(ap, await (await fetch(busUrl(ap, key, area, p), { headers:{ Accept:'application/json' } })).text());
+    if(!r.ok) break; res = Object.assign({}, res, { buses:res.buses.concat(r.buses) });
+  }
+  if(res.ok) busCache.set(ck, { at:Date.now(), res });
+  return res;
+}
+async function findAirBus(id, q){
+  const s = state; const m = (s.moves || []).find(x => x.id === id); if(!m) return;
+  const ap = krAirport(m.kap || guessKap(m.to)); let key = ''; try{ key = localStorage.getItem(PK_KEY) || ''; }catch(e){}
+  if(!ap || !key || (s.sh.bus && s.sh.bus.busy)) return;
+  q = String(q || '').trim().slice(0, 30);
+  if(!q && !m.bus){ s.sh.bus = { id, kap:ap.k, q, err:'empty' }; render(); return; }
+  s.sh.bus = { id, kap:ap.k, q, busy:true }; render();
+  let out;
+  try{
+    const res = await busList(ap, m.barea, key);
+    if(!res.ok) out = { err:res.err };
+    else { const list = q ? findBuses(res.buses, q) : [busByNo(res.buses, m.bus)].filter(Boolean); out = list.length ? { list } : { err:'none' }; }
+  }catch(e){ out = { err:'net' }; }
+  if(state !== s) return;
+  s.sh.bus = Object.assign({ id, kap:ap.k, q }, out); render();
+}
 // 장소 추천 질문을 공유 창으로 (사용자가 AI 앱을 고름). 공유 창이 없거나 글을 빠뜨리는 앱이 있어서 복사도 해 둠
 async function sendPlanAsk(){
   const text = planPrompt(state, (state.sh.aiPlan || {}).want); const copied = clipText(text);
@@ -1200,7 +1233,10 @@ function onChange(e){
   else if(t.dataset.mv){
     const f = t.dataset.mv; const val = f === 'booked' ? t.checked : f === 'min' ? (+t.value > 0 ? Math.min(1440, Math.round(+t.value)) : null)
       : f === 'from' || f === 'to' ? t.value.trim().slice(0, 40) : f === 'note' ? t.value.trim().slice(0, 80) : t.value;
-    setMove(s.sh.mvEdit, () => ({ [f]:val })); save();
+    // 공항·지역을 바꾸면 정해 둔 공항버스는 그 목록에 없을 수 있어서 풀고, 찾은 결과도 지움
+    if(f === 'kap' || f === 'barea'){ setMove(s.sh.mvEdit, () => ({ [f]:val, bus:'' })); s.sh.bus = null; s.sh.park = null; }
+    else setMove(s.sh.mvEdit, () => ({ [f]:val }));
+    save();
     setTimeout(() => { const a = document.activeElement; const id = a && a.id; render(); const el = id && document.getElementById(id); if(el) el.focus({ preventScroll:true }); });   // 다음 칸으로 넘어가도 입력이 안 끊기게
     return;
   }
@@ -1284,6 +1320,7 @@ function onSubmit(e){
     Object.assign(state.pack, add); save(); render(); const i = document.getElementById('pkin'); if(i) i.focus(); return;
   }
   if(e.target.id === 'ledgerdetail'){ e.preventDefault(); saveDetail(); return; }
+  if(e.target.id === 'busform'){ e.preventDefault(); findAirBus(e.target.dataset.v, document.getElementById('busq').value); return; }
   if(e.target.id === 'pkform'){   // 공공데이터포털 인증키: 이 기기에만 (일정 상태·백업과 따로)
     e.preventDefault(); const k = document.getElementById('pkkey').value.trim(); if(!k) return;
     try{ localStorage.setItem(PK_KEY, k); }catch(e){ return; }

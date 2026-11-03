@@ -31,6 +31,9 @@ import { dayAgenda, nextUp } from './agenda.js';
 import { clockView, diffText } from './clock.js';
 import { prepTasks, prepNow } from './prep.js';
 import { KR_AIRPORTS, krAirport, guessKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES } from './parking.js';
+import { BUS_AREAS, BUS_PAGES, BUS_ERR, isWeekend, nextTimes, gapOf, hhmm } from './airbus.js';
+import { homeTime } from './ics.js';
+import { addDay } from './bookings.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
 import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
@@ -787,7 +790,7 @@ function agendaBox(s, d, P, live){
   const nu = nextUp(list, live ? (s.sh || {}).nowMin : null);
   const ck = clockView(null, REGION, (s.sh || {}).devOff, s.here); const atHome = !!ck.diff && (ck.where === 'home' || (!ck.where && (s.sh || {}).devOff === (s.sh || {}).homeOff));
   const tm = x => x.home && x.kst != null ? `${koTime(x.kst)}<small>한국 시각</small>` : x.min != null ? `${koTime(x.min)}${atHome ? `<small>한국 ${koTime((x.min - ck.diff + 1440) % 1440)}</small>` : ''}` : '';
-  const extra = x => x.m ? ttLinks(s, x.m) + parkTail(s, x.m) : x.kind === 'flight' ? flightRowLinks(s, x.dir) : x.kind === 'itc' ? `<span class="mvtt"><a class="link" href="${esc(HK.ITC.url)}" target="_blank" rel="noopener">시내 체크인 공식 안내 ↗</a></span>` : '';
+  const extra = x => x.m ? ttLinks(s, x.m) + parkTail(s, x.m) + busTail(s, x.m) : x.kind === 'flight' ? flightRowLinks(s, x.dir) : x.kind === 'itc' ? `<span class="mvtt"><a class="link" href="${esc(HK.ITC.url)}" target="_blank" rel="noopener">시내 체크인 공식 안내 ↗</a></span>` : '';
   const row = x => `<li><span class="mvt">${tm(x)}</span><div><span>${x.icon ? x.icon + ' ' : ''}${esc(x.text)}</span>${x.sub ? `<span class="fine">${esc(x.sub)}</span>` : ''}${extra(x)}</div></li>`;
   return `<div class="box agenda">
     <h2>⏰ ${live ? '다음에 할 일' : '이날 시간 정해진 일'}<small>${list.length}가지</small></h2>
@@ -859,7 +862,7 @@ function mvLi(time, main, extra, home, tail){
   return `<li><span class="mvt">${time != null ? koTime(time) : ''}${home && time != null ? '<small>한국 시각</small>' : ''}</span><div><span>${main}</span>${extra ? `<span class="fine">${extra}</span>` : ''}${tail || ''}</div></li>`;
 }
 function moveLi(m, ctx, more, s){
-  const tt = s ? ttLinks(s, m) + parkTail(s, m) : '';
+  const tt = s ? ttLinks(s, m) + parkTail(s, m) + busTail(s, m) : '';
   return mvLi(toMin(m.time), `${esc(moveText(m, ctx, minText))}${m.booked ? ' <span class="mvok">예약함</span>' : ''}`, [esc(m.note || '')].concat(more || []).filter(Boolean).join(' · '), legOf(m.k).home, tt);
 }
 // 그날 운행 시간 확인 바로가기 (공식 누리집, 새 창). 여행 중 이동에 출발·도착을 적었으면 구글 지도 대중교통 경로도
@@ -888,20 +891,78 @@ function parkTail(s, m){
   const ap = krAirport(kapOf(m)); if(!ap) return '';
   return `<span class="mvtt"><button type="button" class="link" data-act="pkcheck" data-v="${esc(m.id)}">🅿️ ${esc(ap.label)} 주차장 남은 자리</button></span>${parkResult(s, m)}`;
 }
+// 공항 고르기 (주차·공항버스가 같이 씀, 이동의 kap)
+const kapSelect = (kap, label) => `<label class="shlabel" for="mvkap">${label}<select id="mvkap" data-mv="kap"><option value="">공항 고르기</option>${KR_AIRPORTS.map(a => `<option value="${a.k}"${kap === a.k ? ' selected' : ''}>${a.label}</option>`).join('')}</select></label>`;
+// 공공데이터포털 인증키 넣는 칸 (주차·공항버스 같은 키, 이 기기에만)
+const keyForm = (pages, tip) => `<form id="pkform" class="pasteform"><label for="pkkey">공공데이터포털 인증키<input id="pkkey" type="text" autocomplete="off" spellcheck="false" placeholder="data.go.kr 일반 인증키 붙여 넣기"></label><div><button type="submit" class="ghost small">저장</button></div></form>
+  <details class="more"><summary>인증키는 어떻게 받나요? (무료)</summary><ol class="howto">
+    <li>data.go.kr에 로그인해요.</li>
+    <li>아래 두 페이지에서 각각 '활용신청'을 눌러요. 바로 승인돼요. ${tip}</li>
+    <li>마이페이지 → 데이터활용 → 개발계정에서 '일반 인증키'를 복사해 위에 붙여 넣어요.</li>
+    <li>신청하고 1~2시간 지나야 키가 열려요. 주차·공항버스는 같은 키를 써요.</li></ol>
+    <div class="chips">${pages.map(p => `<a class="chip" href="${p.url}" target="_blank" rel="noopener">${esc(p.label)} ↗</a>`).join('')}</div></details>`;
+
+// 🚌 공항버스로 집 ↔ 공항 (airbus.js, 누를 때만 불러옴, 결과는 화면 전용 s.sh.bus, 고른 버스는 이동의 bus)
+const isBusMove = m => m && (m.k === 'go' || m.k === 'back') && m.how === 'abus';
+// 그 이동이 한국 날짜로 며칠인지 (밤 비행기로 자정 넘어 내리면 다음 날) → 평일/주말 시간표
+function busDayKey(s, m){ const k = moveDate(s, m); if(!k) return ''; const ht = homeTime(s, m); return ht && ht.day ? addDay(k, ht.day) : k; }
+function busCard(s, m, b, ap){
+  const back = m.k === 'back'; const key = busDayKey(s, m); const we = isWeekend(key); const dayw = we ? '주말' : '평일';
+  const times = ap.src === 'icn' ? (we ? b.we : b.wd) : []; const t = toMin(m.time); const gap = gapOf(times);
+  const won = n => `${n.toLocaleString('ko-KR')}원`;
+  const fare = b.fare ? `${won(b.fare)}${b.card && b.card !== b.fare ? ` (카드 ${won(b.card)})` : ''}` : '';
+  let when;
+  if(ap.src === 'icn' && !times.length) when = `${ap.label}에 서는 ${dayw} 시간표가 없어요.`;
+  else if(ap.src === 'icn' && back){
+    const nx = t != null ? nextTimes(times, t, 4) : [];
+    when = t != null ? (nx.length ? `${koTime(t)} 뒤 탈 수 있는 차 (${dayw}): <b>${nx.map(hhmm).join(' · ')}</b>` : `${koTime(t)} 뒤로는 이 버스가 없어요 (${dayw} 막차 ${hhmm(times[times.length - 1])}).`)
+      : `${ap.label} 출발 ${dayw} 첫차 ${hhmm(times[0])} · 막차 ${hhmm(times[times.length - 1])}${gap ? ` · 보통 ${gap}분마다` : ''}`;
+  } else if(ap.src === 'icn') when = `공항에서 ${dayw} 하루 ${times.length}번${gap ? `, 보통 ${gap}분마다` : ''} 다녀요. 우리 동네 정류장에 서는 시각은 위 공식 검색이나 운수사 전화로 확인해 주세요.`;
+  else when = `첫차 ${esc(b.first)} · 막차 ${esc(b.last)}`;
+  const ride = b.ride && (back || ap.src !== 'icn') ? `<span class="fine">공항 ${back ? '타는' : '타고 내리는'} 곳: ${esc(b.ride)}</span>` : '';
+  const all = times.length > 4 ? `<details class="more"><summary>${esc(ap.label)} 출발 ${dayw} 시간표 전체 (${times.length}번)</summary><p class="fine bustimes">${times.map(hhmm).join(' ')}</p></details>` : '';
+  const pick = s.sh.mvEdit === m.id ? `<button type="button" class="${m.bus === b.no ? 'primary' : 'ghost'} small" data-act="buspick" data-v="${esc(b.no)}">${m.bus === b.no ? '✓ 정한 버스' : '이 버스로 정하기'}</button>` : '';
+  return `<li><div class="busrow"><b>${esc(b.no)}</b>${b.cls ? `<span class="fine">${esc(b.cls)}</span>` : ''}${fare ? `<span>${fare}</span>` : ''}</div>
+    ${b.hits && b.hits.length ? `<span class="fine">지나는 곳: ${esc(b.hits.slice(0, 3).join(', '))}</span>` : ''}
+    <span>${when}</span>${ap.src !== 'icn' && b.etc ? `<span class="fine">안내: ${esc(b.etc.slice(0, 160))}</span>` : ''}${ride}${all}
+    <div class="pfoot">${pick}${b.tel ? `<a class="link" href="tel:${esc(b.tel)}">📞 ${esc(b.co.slice(0, 30))}</a>` : ''}</div></li>`;
+}
+function busResult(s, m){
+  const bs = s.sh.bus; if(!bs || bs.id !== m.id) return '';
+  if(bs.busy) return '<p class="fine">공항버스 정보를 불러오고 있어요…</p>';
+  if(bs.err) return `<p class="warnline">${esc(BUS_ERR[bs.err] || BUS_ERR.bad)}</p>`;
+  const ap = krAirport(bs.kap); if(!ap) return '';
+  const L = bs.list || []; const more = L.length > 12;
+  return `<ul class="buslist">${L.slice(0, 12).map(b => busCard(s, m, b, ap)).join('')}</ul>
+    ${more ? `<p class="fine">${L.length - 12}개 더 있어요. 역 이름처럼 더 좁혀 넣어 보세요.</p>` : ''}
+    <p class="fine">${ap.src === 'icn' ? '공휴일은 주말 시간표와 다를 수 있어요. ' : '한국공항공사 자료에는 옛 안내가 섞여 있을 수 있어요. '}출발 전에 공식 검색으로 한 번 더 확인하세요.</p>`;
+}
+// 날짜 카드·오늘 화면의 그 줄 끝: 정해 둔 버스 시간 보기
+function busTail(s, m){
+  if(!isBusMove(m) || !m.bus || !s.sh.pkOn || s.sh.mvEdit === m.id) return '';
+  const ap = krAirport(kapOf(m)); if(!ap) return '';
+  return `<span class="mvtt"><button type="button" class="link" data-act="busfind" data-v="${esc(m.id)}">🚌 ${esc(m.bus)} ${m.k === 'back' ? `${esc(ap.label)} 출발 시간` : '버스 정보'} 보기</button></span>${busResult(s, m)}`;
+}
+// 고치는 칸: 공항·지역 고르기 + 동네·정류장·번호로 찾기 + 이 버스로 정하기
+function busPanel(s, m){
+  if(!isBusMove(m)) return '';
+  const kap = kapOf(m); const ap = krAirport(kap); const bs = s.sh.bus && s.sh.bus.id === m.id ? s.sh.bus : null;
+  const area = ap && ap.src === 'icn' ? `<label class="shlabel" for="mvbarea">어느 지역에서 타요?<select id="mvbarea" data-mv="barea"><option value="">지역 전체</option>${BUS_AREAS.map(a => `<option value="${a.k}"${m.barea === a.k ? ' selected' : ''}>${a.label}</option>`).join('')}</select></label>` : '';
+  const body = !s.sh.pkOn ? keyForm(BUS_PAGES, '인천공항만 쓰면 첫 번째만 해도 돼요. 주차 정보 때 넣은 키가 있으면 그대로 써요.')
+    : `<form id="busform" class="pasteform" data-v="${esc(m.id)}"><label for="busq">동네·정류장 이름이나 버스 번호<input id="busq" type="search" maxlength="30" value="${esc(bs ? bs.q || '' : '')}" placeholder="예: 노원역, 수원, 6003"></label><div><button type="submit" class="primary small"${ap ? '' : ' disabled'}>버스 찾기</button></div></form>
+      ${m.bus ? `<p class="fine">정한 버스: <b>${esc(m.bus)}</b> <button type="button" class="link" data-act="buspick" data-v="">빼기</button></p>` : ''}${busResult(s, m)}`;
+  return `<div class="mvttbox"><p class="fine"><b>🚌 공항버스 찾기</b> · ${m.k === 'back' ? '공항에서 나가는 시간표로 탈 수 있는 차를 골라 드려요.' : '우리 동네를 지나는 공항버스를 찾아 드려요.'}</p>${kapSelect(kap, m.k === 'back' ? '어느 공항(터미널)에 내려요?' : '어느 공항(터미널)으로 가요?')}${area}${body}
+    <p class="fine">누르면 인증키${ap && ap.src === 'icn' ? '와 고른 지역' : '와 공항'}만 공공데이터포털로 보내요. 넣은 동네 이름은 이 기기 안에서만 찾아요.${m.k === 'back' ? ' 위 \'공항에서 출발 시각\'을 넣으면 그 뒤에 탈 수 있는 차를 보여 드려요.' : ''}</p></div>`;
+}
+
 // 고치는 칸: 공항 고르기 + 인증키 넣기 + 남은 자리 보기
 function parkPanel(s, m){
   if(!isParkMove(m)) return '';
   const kap = kapOf(m);
-  const sel = `<label class="shlabel" for="mvkap">어느 공항에 세워요?<select id="mvkap" data-mv="kap"><option value="">공항 고르기</option>${KR_AIRPORTS.map(a => `<option value="${a.k}"${kap === a.k ? ' selected' : ''}>${a.label}</option>`).join('')}</select></label>`;
+  const sel = kapSelect(kap, '어느 공항에 세워요?');
   const key = s.sh.pkOn
     ? `<div class="pfoot"><button type="button" class="primary small" data-act="pkcheck" data-v="${esc(m.id)}"${kap ? '' : ' disabled'}>지금 남은 자리 보기</button><button type="button" class="link" data-act="pkforget">인증키 지우기</button></div>${parkResult(s, m)}`
-    : `<form id="pkform" class="pasteform"><label for="pkkey">공공데이터포털 인증키<input id="pkkey" type="text" autocomplete="off" spellcheck="false" placeholder="data.go.kr 일반 인증키 붙여 넣기"></label><div><button type="submit" class="ghost small">저장</button></div></form>
-      <details class="more"><summary>인증키는 어떻게 받나요? (무료)</summary><ol class="howto">
-        <li>data.go.kr에 로그인해요.</li>
-        <li>아래 두 페이지에서 각각 '활용신청'을 눌러요. 바로 승인돼요. 인천공항만 쓰면 첫 번째만 해도 돼요.</li>
-        <li>마이페이지 → 데이터활용 → 개발계정에서 '일반 인증키'를 복사해 위에 붙여 넣어요.</li>
-        <li>신청하고 1~2시간 지나야 키가 열려요.</li></ol>
-        <div class="chips">${PK_PAGES.map(p => `<a class="chip" href="${p.url}" target="_blank" rel="noopener">${esc(p.label)} ↗</a>`).join('')}</div></details>`;
+    : keyForm(PK_PAGES, '인천공항만 쓰면 첫 번째만 해도 돼요.');
   return `<div class="mvttbox"><p class="fine"><b>🅿️ 공항 주차장 남은 자리</b> · 공항 실시간 자료를 출발 전에 볼 수 있어요.</p>${sel}${key}
     <p class="fine">누르면 인증키만 공공데이터포털로 보내요. 키는 이 기기에만 저장되고 함께 짜는 가족과 나누지 않아요. 남은 자리는 금방 바뀌니 출발 직전에 한 번 더 보세요.</p></div>`;
 }
@@ -956,7 +1017,7 @@ function moveForm(s, m, P, ctx){
     <p class="fine">어떻게 가요?</p>
     <div class="chips">${MOVE_HOW.map(h => chip('mvhow', h.k, `${h.icon} ${h.label}`, m.how === h.k)).join('')}</div>
     ${(tt => tt ? `<div class="mvttbox"><p class="fine">${(d => d ? `${d.i + 1}일차 ${d.label}` : '그날')(D.find(d => d.key === moveDate(s, m)))} 운행 시간은 아래에서 날짜를 골라 확인하세요. 시간표는 바뀔 수 있으니 전날 한 번 더 보세요.</p>${tt}</div>` : '')(ttLinks(s, m))}
-    ${parkPanel(s, m)}
+    ${parkPanel(s, m)}${busPanel(s, m)}
     ${m.k === 'etc' ? `<label class="shlabel" for="mvdate">날짜<select id="mvdate" data-mv="date">${D.map(d => `<option value="${d.key}"${m.date === d.key ? ' selected' : ''}>${d.i + 1}일차 · ${d.label}</option>`).join('')}</select></label>` : ''}
     <div class="dates">
       <label for="mvtime">${L.timeLabel}${L.home ? ' (한국 시각)' : ''}<input id="mvtime" type="time" value="${esc(m.time || '')}" data-mv="time"></label>
