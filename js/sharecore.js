@@ -248,6 +248,10 @@ function itemsForm(b){
 }
 
 // 초대 링크와 읽기. 여행 번호(Firestore 자동 id, 20자)를 아는 것이 곧 초대
+// 공유 여행 문서 소식을 어떻게 받을지: 'data'(일정) | 'gone'(정말 지워짐) | 'wait'(아직 모름)
+//   끊긴 채로 열면 Firestore가 서버에 묻지 못하고 '이 기기 사본엔 없음'(exists:false, fromCache:true)을 먼저 줌.
+//   그걸 '지워졌어요'로 보면 공유가 끊기고 끊긴 동안 고친 것도 못 올림 → 서버가 답할 때까지 기다림
+export function tripSnap(exists, fromCache){ return exists ? 'data' : fromCache ? 'wait' : 'gone'; }
 export function inviteLink(base, tripId){ return `${base.split('#')[0]}#join=${tripId}`; }
 export function parseJoin(hash){ const m = String(hash || '').match(/^#join=([A-Za-z0-9]{10,40})$/); return m ? m[1] : null; }
 

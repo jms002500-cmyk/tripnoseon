@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT } from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { sharedOf, syncedOf, diffShared, applyRemote, mergeRemote, applyChanges, afterPush, setPath, inviteLink, parseJoin, voteSummary, describeChange, defaultTitle, DELETE, SHARED_KEYS, LIST_KEYS } from '../js/sharecore.js';
+import { sharedOf, syncedOf, diffShared, applyRemote, mergeRemote, applyChanges, afterPush, setPath, inviteLink, parseJoin, voteSummary, describeChange, defaultTitle, tripSnap, DELETE, SHARED_KEYS, LIST_KEYS } from '../js/sharecore.js';
 
 const base = () => Object.assign(clone(DEFAULT), { who:'family', adults:2, kids:[9], start:'2027-03-07', end:'2027-03-11', picked:{ tdl:true }, must:{ tdl:true } });
 
@@ -249,4 +249,11 @@ test('앱이 만드는 모양 그대로면 받을 때마다 다시 올리는 고
   for(let i = 0; i < 3; i++) [a, b].forEach(d => { const p = snap(doc); assert.equal(mergeRemote(d.s, p, d.last), false, `${i}번째 받기`); d.last = syncedOf(p); });
   assert.deepEqual(diffShared(a.last, sharedOf(a.s)), []); assert.deepEqual(diffShared(b.last, sharedOf(b.s)), []);
   assert.equal(b.s.spend.e2.amt, 950);
+});
+
+test('끊긴 채로 열 때 이 기기 사본에 없다는 소식은 \'지워졌어요\'가 아님 (공유가 끊기지 않게)', () => {
+  assert.equal(tripSnap(true, true), 'data');
+  assert.equal(tripSnap(true, false), 'data');
+  assert.equal(tripSnap(false, true), 'wait');   // 서버에 못 물어봄 → 기다림
+  assert.equal(tripSnap(false, false), 'gone');  // 서버가 없다고 함 → 정말 지워짐
 });
