@@ -1561,7 +1561,7 @@ function eatsBox(s, cities){
   const groups = eatsByArea(EATS, AREAS, { cities, area:s.areaFilter });
   const n = groups.reduce((x, g) => x + g.items.length, 0);
   if(!n) return one ? `<p class="fine">🍜 ${esc(one.name)}에는 앱이 고른 식당이 아직 없어요. 여행 중엔 '오늘 하루' 화면의 식당 찾기를 써 주세요.</p>` : '';
-  return `<details class="box more eatbox"><summary>🍜 ${one ? esc(one.name) : '동네별'} 가족 식당 ${n}곳</summary>
+  return `<details class="box more eatbox"${(s.sh || {}).eatsOpen ? ' open' : ''}><summary>🍜 ${one ? esc(one.name) : '동네별'} 가족 식당 ${n}곳</summary>
     <p class="fine">아이와 함께 가기 좋은 곳을 미슐랭 가이드·현지 매체 등 출처 두 곳 이상으로 확인해 골랐어요(2026년 11월). 일정 시간에는 안 들어가고, 여행 중 '오늘 하루' 화면에서 점심·저녁 자리 근처 식당으로 다시 보여 드려요. 가격·영업시간은 대략값이라 가기 전에 한 번 더 확인하세요.</p>
     ${groups.map(g => `<h3 class="vday">${cities.length > 1 ? CITY_FLAG[g.area.city] + ' ' : ''}${esc(g.area.name)}</h3><ul class="implist flist">${g.items.map(eatRow).join('')}</ul>`).join('')}
   </details>`;
