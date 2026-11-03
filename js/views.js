@@ -38,6 +38,7 @@ import { MTR_STATIONS, MTR_LINES, MTR_ERR, MTR_SOURCE, nearStations, distText, s
 import { CPS, cpOfBorder, crossDir, moveCross, BORDER_ALT } from './border.js';
 import { homeTime } from './ics.js';
 import { addDay } from './bookings.js';
+import { guideFor } from './guide.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
 import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
@@ -1842,6 +1843,26 @@ function borderBox(s, key, info){
       ${info.at === 'xrl' ? '<p class="fine">서구룡역 고속철은 대기 시간 자료에 없어요(역 안에서 두 나라 심사를 한 번에 받아요).</p>' : ''}
       <p class="fine">페이지는 영어예요. 'Normal'은 보통(30분 안쪽), 'Busy'는 붐빔(45분 안쪽), 'Very Busy'는 아주 붐빔(45분 넘음)이에요. 선전(중국) 쪽 심사 대기 시간은 공개 자료가 없어요. 링크는 주소만 열고 아무 정보도 보내지 않아요.</p>
     </div>`;
+}
+
+// ❓ 도움: 이럴 땐 이렇게 (js/guide.js). 상황별로 기능을 모으고 '바로 가기'로 그 화면·칸에 데려감. 맨 아래 '처음부터'
+export function vHelp(s){
+  const G = guideFor(s);
+  return `<section class="step">
+    <p class="eyebrow">도움</p>
+    <h1>이럴 땐 이렇게</h1>
+    <p class="lead">필요한 때를 고르면 그 기능이 있는 곳으로 바로 데려가 드려요.</p>
+    <nav class="chips" aria-label="상황 고르기">${G.map(g => `<button type="button" class="chip" data-act="helpjump" data-v="${g.key}">${g.icon} ${esc(g.title)}</button>`).join('')}</nav>
+    ${G.map(g => `<div class="box helpbox" id="help-${g.key}">
+      <h2>${g.icon} ${esc(g.title)}</h2>
+      <ul class="helplist">${g.items.map(x => `<li><div><b>${esc(x.t)}</b><p>${esc(x.d)}</p></div>${x.to ? `<button type="button" class="ghost small" data-act="helpgo" data-v="${esc(x.to)}">바로 가기</button>` : ''}</li>`).join('')}</ul>
+    </div>`).join('')}
+    <div class="box">
+      <h2>처음부터 다시</h2>
+      <p class="fine">이 폰의 일정을 모두 지우고 처음부터 시작해요. 함께 짜기 여행이면 이 폰만 빠지고 공유 여행은 남아요. 보관함은 그대로예요.</p>
+      <div><button type="button" class="ghost small" id="resetBtn" data-act="reset">처음부터</button></div>
+    </div>
+  </section>`;
 }
 
 export function vToday(s){

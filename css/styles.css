@@ -179,6 +179,15 @@ a.ghost, a.primary{display:inline-flex; align-items:center; justify-content:cent
 .buslist > li{display:flex; flex-direction:column; gap:3px; padding:8px 0; border-top:1px solid var(--rule)}
 .busrow{display:flex; flex-wrap:wrap; gap:4px 8px; align-items:baseline}
 .bustimes{word-spacing:4px; font-variant-numeric:tabular-nums}
+/* ❓ 도움: 이럴 땐 이렇게 (views.js vHelp) */
+.helpbox{scroll-margin-top:160px}
+.helplist{list-style:none; margin:0; padding:0}
+.helplist li{display:flex; gap:12px; align-items:center; justify-content:space-between; padding:12px 0; border-top:1px solid var(--rule)}
+.helplist li:first-child{border-top:0; padding-top:2px}
+.helplist li > div{min-width:0}
+.helplist b{display:block; font-size:var(--fs-base); line-height:1.45}
+.helplist p{margin-top:3px; color:var(--muted); font-size:var(--fs-sm); line-height:1.6}
+.helplist .ghost{flex:none}
 .pkres{margin-top:6px}
 .pklist{list-style:none; margin:4px 0 0; padding:0}
 .pklist li{display:grid; grid-template-columns:1fr auto auto; gap:8px; padding:4px 0; border-top:1px solid var(--rule); font-size:.92em}

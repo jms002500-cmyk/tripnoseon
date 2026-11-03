@@ -1,7 +1,8 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, recordHead, moveCtx, idWipeCard } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard } from './views.js';
+import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
@@ -351,11 +352,13 @@ function render(){
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
     STEPS.map((l, i) => `<li class="stn${i < s.step ? ' done' : ''}${i === s.step ? ' now' : ''}"><button type="button" data-act="go" data-v="${i}"${i === s.step ? ' aria-current="step"' : ''}><span class="dot"></span><span class="lbl">${l}</span></button></li>`).join('');
   { const c = tripClock(new Date(), REGION.tz); s.sh.today = c.date; s.sh.nowMin = c.min; s.sh.devOff = -new Date().getTimezoneOffset(); s.sh.homeOff = tzOffset(HOME_TZ); }   // 여행지 시각 (폰 시간대가 한국 그대로여도)
-  const todayMode = s.mode === 'today', sosMode = s.mode === 'sos', recMode = s.mode === 'record';
-  if(todayMode || sosMode || recMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
-  document.getElementById('view').innerHTML = (sosMode || recMode ? '' : installCard(s) + idWipeCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : VIEWS[s.step](s));
+  const todayMode = s.mode === 'today', sosMode = s.mode === 'sos', recMode = s.mode === 'record', helpMode = s.mode === 'help';
+  if(todayMode || sosMode || recMode || helpMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
+  document.getElementById('view').innerHTML = (sosMode || recMode || helpMode ? '' : installCard(s) + idWipeCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : helpMode ? vHelp(s) : VIEWS[s.step](s));
   document.getElementById('line').style.setProperty('--n', STEPS.length);
-  document.getElementById('bar').innerHTML = (sosMode
+  document.getElementById('bar').innerHTML = (helpMode
+    ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="helpgo" data-v="today">오늘 하루 보기</button>`
+    : sosMode
     ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="sbig" data-v="hotel">🏨 숙소 카드</button>`
     : todayMode
     ? `<button type="button" class="ghost" data-act="tclose">계획으로</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`
@@ -365,9 +368,9 @@ function render(){
     ? `<button type="button" class="ghost" data-act="prev"${s.step === 0 ? ' disabled' : ''}>이전</button><button type="button" class="primary" data-act="next">다음 · ${STEPS[s.step+1]}</button>`
     : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`) + ASK_BTN;
   devBar();
-  const rb = document.getElementById('resetBtn');
-  rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터';
-  rb.classList.toggle('armed', resetArmed);
+  const rb = document.getElementById('resetBtn');   // '처음부터'는 도움 화면 맨 아래에만
+  if(rb){ rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터'; rb.classList.toggle('armed', resetArmed); }
+  const hb = document.getElementById('helpBtn'); hb.classList.toggle('on', helpMode); hb.setAttribute('aria-pressed', String(helpMode));
   const tb = document.getElementById('todayBtn');
   tb.hidden = phaseOf(s, s.sh.today).phase === 'none';
   tb.classList.toggle('on', todayMode); tb.setAttribute('aria-pressed', String(todayMode));
@@ -818,6 +821,9 @@ function act(a, v){
     case 'topen': s.mode = s.mode === 'today' ? null : 'today'; s.tday = null; scroll = true; break;
     case 'tclose': s.mode = null; s.sh.sbig = null; scroll = true; break;
     case 'sos': packTick('appsos'); s.mode = s.mode === 'sos' ? null : 'sos'; s.sh.sbig = null; scroll = true; break;
+    case 'helpopen': s.mode = s.mode === 'help' ? null : 'help'; scroll = true; break;
+    case 'helpgo': goTo(v); return;
+    case 'helpjump': { const b = document.getElementById('help-' + v); if(b) b.scrollIntoView({ block:'start' }); return; }
     case 'sbig': s.sh.sbig = v || null; if(v && s.mode !== 'sos') s.mode = 'sos'; break;   // 크게 보여 주기 (직원·택시 기사에게)
     case 'tday': s.tday = +v; s.sh.lplace = null; break;
     case 'locask': s.sh.locAsk = true; s.sh.locMsg = ''; break;
@@ -1079,9 +1085,21 @@ async function addDayPhotos(date, files){
 function goTo(to){
   const s = state; if(!to) return;
   if(to === 'sos'){ s.mode = 'sos'; packTick('appsos'); save(); render(); window.scrollTo(0, 0); return; }
+  // 도움 화면·출발 전 할 일의 목적지 (js/guide.js DEST): 단계·화면을 바꾸고 그 칸으로, 접힌 칸이면 펼침
+  const d = DEST[to] && !['movebox', 'icsbox', 'pack', 'where', 'vault', 'idbox'].includes(to) ? DEST[to] : null;
+  if(d){
+    if(d.act){ act(d.act, ''); return; }
+    if(d.mode){ s.mode = d.mode; if(d.mode === 'today') s.tday = null; } else { s.mode = null; s.step = Math.max(0, STEPS.indexOf(d.step)); }
+    save(); render();
+    const el = d.el ? document.querySelector(d.el) : null;
+    if(el){ if(d.open && el.tagName === 'DETAILS') el.open = true; scrollBelowTop(el); flash(el); } else window.scrollTo(0, 0);
+    return;
+  }
   s.mode = null; s.step = to === 'movebox' || to === 'icsbox' ? PLAN_STEP : to === 'pack' ? PACK_STEP : to === 'where' ? STEPS.indexOf('여행지') : VAULT_STEP; save(); render();
-  const el = document.getElementById(to === 'vault' ? 'vaultform' : to); if(el) el.scrollIntoView({ block:'start' }); else window.scrollTo(0, 0);
+  const el = document.getElementById(to === 'vault' ? 'vaultform' : to); if(el) scrollBelowTop(el); else window.scrollTo(0, 0);
 }
+// 위에 붙어 있는 머리(단계 줄·끊김 띠) 아래에 그 칸이 오게
+function scrollBelowTop(el){ const top = document.querySelector('.top'); const h = top ? top.getBoundingClientRect().bottom : 0; window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - h - 12)); }
 
 /* ---------- 약도 번호 ↔ 목록 카드 ---------- */
 function flash(el){ el.classList.remove('flash'); void el.getBoundingClientRect(); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1800); }
