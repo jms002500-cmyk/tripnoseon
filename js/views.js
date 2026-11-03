@@ -23,14 +23,14 @@ import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDat
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
-import { ASK_KINDS, askKindOf, askPrompt, AI_SITES, QUICK_TRANSLATE, planPrompt } from './askai.js';
+import { ASK_KINDS, askKindOf, askPrompt, AI_SITES, QUICK_TRANSLATE, planPrompt, aiToPick } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
 import { dayAgenda, nextUp } from './agenda.js';
 import { clockView, diffText } from './clock.js';
 import { prepTasks, prepNow } from './prep.js';
-import { KR_AIRPORTS, krAirport, guessKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES } from './parking.js';
+import { KR_AIRPORTS, krAirport, moveKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES } from './parking.js';
 import { BUS_AREAS, BUS_PAGES, BUS_ERR, isWeekend, nextTimes, gapOf, hhmm } from './airbus.js';
 import { homeTime } from './ics.js';
 import { addDay } from './bookings.js';
@@ -388,7 +388,7 @@ function placeCard(p, s, n){
 function aiPlanBox(s){
   const ap = s.sh.aiPlan || {}; const found = ap.found || [];
   const byId = id => allPlaces(s).find(p => p.id === id);
-  const have = found.filter(x => x.id && byId(x.id)); const toPick = have.filter(x => !s.picked[x.id]).length;
+  const toPick = aiToPick(found, allPlaces(s), s.picked).length;
   const rest = found.filter(x => !(x.id && byId(x.id)) && !x.sent);
   const row = x => { const p = x.id && byId(x.id);
     if(p) return `<li class="imp ok"><div class="sbody"><b>${esc(x.name)}</b><span>우리 목록의 '${esc(p.name)}'</span></div>
@@ -874,7 +874,7 @@ function ttLinks(s, m){
 }
 // 🅿️ 자가용으로 집 → 공항: 그 공항 주차장 남은 자리 (parking.js, 누를 때만 불러옴, 결과는 화면 전용 s.sh.park)
 const isParkMove = m => m && m.k === 'go' && m.how === 'car';
-const kapOf = m => m.kap || guessKap(m.to);
+const kapOf = moveKap;   // 공항 → 집은 출발 이름으로 짐작
 function parkResult(s, m){
   const pk = s.sh.park; if(!pk || pk.id !== m.id) return '';
   if(pk.busy) return '<p class="fine">주차 정보를 불러오고 있어요…</p>';

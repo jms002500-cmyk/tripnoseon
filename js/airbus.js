@@ -29,11 +29,14 @@ export function busUrl(ap, key, area, page){
 }
 
 // '0549, 0614' · '8:00 / 8:40' → [349, 374] (분, 오름차순, 겹침 없음). 24:50처럼 자정 넘는 막차는 1490
+//   '2330, 0010'처럼 00시대로 적은 막차도 저녁 차(18시 뒤)가 있는 시간표면 자정 넘은 차로 봄(0010 → 1450).
+//   그냥 두면 00:10이 첫차가 되고, 23시에 내리면 '이 뒤로는 버스가 없어요'가 됐음
 export function timesOf(text){
   const out = []; const re = /(?:^|[^\d:])(\d{1,2}):?(\d{2})(?![\d:])/g; let m;
   const t = String(text || '');
   while((m = re.exec(t))){ const h = +m[1], mi = +m[2]; if(h <= 26 && mi < 60) out.push(h * 60 + mi); }
-  return [...new Set(out)].sort((a, b) => a - b);
+  const late = out.some(x => x >= 18 * 60 && x < 1440);
+  return [...new Set(out.map(x => late && x < 3 * 60 ? x + 1440 : x))].sort((a, b) => a - b);
 }
 // '16,000' · '19700/19700' → 16000 · 19700 (첫 금액)
 const money = n => { const m = String(n == null ? '' : n).match(/\d[\d,]*/); return m ? parseInt(m[0].replace(/,/g, ''), 10) : 0; };
@@ -86,8 +89,12 @@ export const busByNo = (buses, no) => buses.find(b => b.no === no) || null;
 
 // 주말(토·일)인지: 'YYYY-MM-DD'. 공휴일은 모름 → 화면에 안내
 export const isWeekend = key => { const [y, m, d] = String(key || '').split('-').map(Number); if(!y) return false; const w = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); return w === 0 || w === 6; };
-// 그 시각 뒤로 탈 수 있는 차 (n대)
-export const nextTimes = (times, from, n) => times.filter(t => t >= from).slice(0, n || 4);
+// 그 시각 뒤로 탈 수 있는 차 (n대). 자정 넘어 내리면(from이 이른 시각) 전날 시간표의 자정 넘은 막차(1440 이상)도 탈 수 있음
+//   → 그 차는 from과 같은 날 시각(1490 → 50)으로 돌려줌. hhmm으로 보이면 같은 글자
+export function nextTimes(times, from, n){
+  const eff = times.filter(t => t >= from).concat(times.filter(t => t >= 1440 && t - 1440 >= from).map(t => t - 1440));
+  return [...new Set(eff)].sort((a, b) => a - b).slice(0, n || 4);
+}
 // 보통 몇 분마다 (가운데 값). 차가 3대보다 적으면 null
 export function gapOf(times){
   if(!times || times.length < 3) return null;
