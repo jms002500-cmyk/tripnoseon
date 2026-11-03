@@ -6,6 +6,7 @@ import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './r
 import { installHint } from './install.js';
 import { esc } from './ui.js';
 import { askPrompt, planPrompt, parseAiPlaces, matchPlace } from './askai.js';
+import { PK_KEY, krAirport, guessKap, parkUrl, parseParking } from './parking.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
 import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend } from './bookings.js';
@@ -141,7 +142,7 @@ document.addEventListener('click', e => {
 });
 
 // 함께 짜기 화면 상태(로그인, 참여자, 투표, 의견, 기록). 기기에 저장하지 않음
-function freshSh(){ return { open:false, user:null, authReady:false, trip:null, votes:{}, comments:[], log:[], msg:'', busy:false, pendingJoin:null, cmPlace:null, delArmed:false, hasBackup:hasBackup(), hasRestoreUndo:hasKey(RS_KEY), restore:null, bkmsg:'', bkbusy:false }; }
+function freshSh(){ return { open:false, user:null, authReady:false, trip:null, votes:{}, comments:[], log:[], msg:'', busy:false, pendingJoin:null, cmPlace:null, delArmed:false, hasBackup:hasBackup(), hasRestoreUndo:hasKey(RS_KEY), restore:null, bkmsg:'', bkbusy:false, pkOn:hasKey(PK_KEY) }; }
 function hasKey(k){ try{ return !!localStorage.getItem(k); }catch(e){ return false; } }
 function hasBackup(){ try{ return !!localStorage.getItem(BK_KEY); }catch(e){ return false; } }
 
@@ -845,6 +846,8 @@ function act(a, v){
     case 'dunlock': unlockDay(s, +v); break;
     case 'impfind': findLocations(); return;
     case 'aiplansend': sendPlanAsk(); return;
+    case 'pkcheck': checkParking(v); return;
+    case 'pkforget': try{ localStorage.removeItem(PK_KEY); }catch(e){} s.sh.pkOn = false; s.sh.park = null; render(); return;
     case 'aiplanread': {   // AI 답에서 장소 이름을 읽어 우리 목록과 맞춰 봄
       const t = document.getElementById('aiplanpaste'); const ap = s.sh.aiPlan = s.sh.aiPlan || {};
       const list = parseAiPlaces(t ? t.value : ''); const places = allPlaces(s);
@@ -1129,6 +1132,18 @@ function setAskPhoto(f){
   askPhoto = f ? { file:f, url:URL.createObjectURL(f) } : null;
 }
 async function clipText(t){ try{ await navigator.clipboard.writeText(t); return true; }catch(e){ return false; } }
+// 🅿️ 공항 주차장 남은 자리: 누를 때만 공공데이터포털에 물어봄(보내는 것은 인증키뿐). 결과는 화면 전용
+async function checkParking(id){
+  const s = state; const m = (s.moves || []).find(x => x.id === id); if(!m) return;
+  const ap = krAirport(m.kap || guessKap(m.to)); let key = ''; try{ key = localStorage.getItem(PK_KEY) || ''; }catch(e){}
+  if(!ap || !key || (s.sh.park && s.sh.park.busy)) return;
+  s.sh.park = { id, kap:ap.k, busy:true }; render();
+  let res;
+  try{ const r = await fetch(parkUrl(ap, key), { headers:{ Accept:'application/json' } }); res = parseParking(ap, await r.text()); }
+  catch(e){ res = { ok:false, err:'net' }; }
+  if(state !== s) return;
+  const d = new Date(); s.sh.park = { id, kap:ap.k, res, when:`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}` }; render();
+}
 // 장소 추천 질문을 공유 창으로 (사용자가 AI 앱을 고름). 공유 창이 없거나 글을 빠뜨리는 앱이 있어서 복사도 해 둠
 async function sendPlanAsk(){
   const text = planPrompt(state, (state.sh.aiPlan || {}).want); const copied = clipText(text);
@@ -1269,6 +1284,11 @@ function onSubmit(e){
     Object.assign(state.pack, add); save(); render(); const i = document.getElementById('pkin'); if(i) i.focus(); return;
   }
   if(e.target.id === 'ledgerdetail'){ e.preventDefault(); saveDetail(); return; }
+  if(e.target.id === 'pkform'){   // 공공데이터포털 인증키: 이 기기에만 (일정 상태·백업과 따로)
+    e.preventDefault(); const k = document.getElementById('pkkey').value.trim(); if(!k) return;
+    try{ localStorage.setItem(PK_KEY, k); }catch(e){ return; }
+    state.sh.pkOn = true; render(); return;
+  }
   if(e.target.id === 'rkform'){
     e.preventDefault();
     const appId = document.getElementById('rkapp').value.trim(), key = document.getElementById('rkkey').value.trim();
