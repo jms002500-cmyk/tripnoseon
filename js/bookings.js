@@ -90,6 +90,7 @@ export function applyPlace(s, it){
 }
 
 // 예약 금액 → 가계부 지출 한 줄(id 'bk' + 예약 id). 금액이 없으면 지울 id. 이미 있으면 날짜·낸 사람·나누기는 그대로
+//   예약을 지울 때는 bookingSpendOf로 그 줄을 찾아 같이 지울지 물음(app.js vdel2)
 //   o: { today, by, day(cat) → 기본 날짜(ledger.js defaultDay) }
 export const BOOK_CAT = { flight:'flight', hotel:'stay', ticket:'ticket', transport:'move', insurance:'etc', entry:'etc', etc:'etc' };
 export function bookingSpend(s, it, o = {}){
@@ -98,6 +99,15 @@ export function bookingSpend(s, it, o = {}){
   const cat = BOOK_CAT[it.kind] || 'etc';
   return { id, e:Object.assign({ d:o.day ? o.day(cat) : (o.today || ''), pay:'card', by:o.by || null, split:null, at:o.now || 0 }, old || {},
     { amt:Math.round(it.amt * 100) / 100, cur:it.cur || 'KRW', what:String(it.title || '').slice(0, 40), cat, vid:it.id }) };
+}
+
+// 예약을 지울 때 같이 볼 가계부 줄: 이 예약 금액으로 만든 지출(spend['bk'+예약 id])이 있으면 { id, e, edited }, 없으면 null
+//   edited: 가계부에서 손으로 고친 줄(자세히 적기로 고치면 vid가 빠짐)이거나 금액·통화가 예약과 다름 → 지우기 전에 알려 줌
+export function bookingSpendOf(s, it){
+  if(!it || !it.id) return null;
+  const id = 'bk' + it.id; const e = (s.spend || {})[id]; if(!e) return null;
+  const edited = e.vid !== it.id || e.amt !== Math.round((+it.amt || 0) * 100) / 100 || (e.cur || 'KRW') !== (it.cur || 'KRW');
+  return { id, e, edited };
 }
 
 // 예약 하나 반영. o: applyHotel에 넘길 값

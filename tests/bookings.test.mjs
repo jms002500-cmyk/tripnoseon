@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from '../js/data.js';
 import { clone, plan } from '../js/logic.js';
-import { flightDir, applyFlight, applyHotel, applyPlace, applyBooking, applyAll, bookingRows, addDay } from '../js/bookings.js';
+import { flightDir, applyFlight, applyHotel, applyPlace, applyBooking, applyAll, bookingRows, addDay, bookingSpend, bookingSpendOf } from '../js/bookings.js';
 
 const trip = extra => Object.assign(clone(D.DEFAULT), { start:'2027-03-07', end:'2027-03-10', who:'family', adults:2, kids:[12],
   picked:{ sensoji:true, ameyoko:true } }, extra);
@@ -82,4 +82,25 @@ test('이미 반영된 숙소는 다시 반영해도 바꿀 것 없음', () => {
   Object.assign(s, applyHotel(s, it, { newId:'hA' }).patch);
   const again = applyHotel(s, it, { newId:'hZ' });
   assert.deepEqual(again.patch, {}); assert.deepEqual(again.msgs, []);
+});
+
+test('예약을 지울 때: 그 예약 금액으로 만든 가계부 줄을 찾고, 손으로 고친 줄인지 알려 줌', () => {
+  const it = { id:'v1', kind:'hotel', title:'지어낸 호텔', amt:3200.5, cur:'HKD' };
+  const s = { spend:{ x1:{ amt:100, cur:'HKD', what:'점심' } } };
+  assert.equal(bookingSpendOf(s, it), null);                       // 아직 가계부 줄 없음 → 묻지 않고 바로 지움
+  const r = bookingSpend(s, it, { by:'p1', now:1, today:'2027-03-08' }); s.spend[r.id] = r.e;
+  const a = bookingSpendOf(s, it);
+  assert.equal(a.id, 'bkv1'); assert.equal(a.e.amt, 3200.5); assert.equal(a.edited, false);
+  // 날짜만 바뀌어도(예약 다시 저장은 날짜·낸 사람을 그대로 둠) 예약 줄 그대로
+  s.spend.bkv1 = Object.assign({}, s.spend.bkv1, { d:'2027-03-09' }); assert.equal(bookingSpendOf(s, it).edited, false);
+  // 가계부 '자세히 적기'로 고치면 vid 없이 새로 씀(app.js saveDetail) → 고친 줄
+  const { vid, ...hand } = s.spend.bkv1; s.spend.bkv1 = Object.assign(hand, { by:'p2' });
+  assert.equal(bookingSpendOf(s, it).edited, true);
+  // 금액·통화가 예약과 달라도 고친 줄
+  s.spend.bkv1 = Object.assign({}, r.e, { amt:3000 }); assert.equal(bookingSpendOf(s, it).edited, true);
+  s.spend.bkv1 = Object.assign({}, r.e, { cur:'KRW' }); assert.equal(bookingSpendOf(s, it).edited, true);
+  // 다른 예약·없는 예약·가계부 없음
+  assert.equal(bookingSpendOf(s, { id:'v2', amt:10 }), null);
+  assert.equal(bookingSpendOf(s, null), null);
+  assert.equal(bookingSpendOf({}, it), null);
 });
