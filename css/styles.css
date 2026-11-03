@@ -221,6 +221,7 @@ details.more .list{margin-top:8px}
 .day > header p{font-size:var(--fs-sm); color:var(--muted)}
 .stops{list-style:none; margin:0; padding:0; display:flex; flex-direction:column}
 .stops li{display:grid; grid-template-columns:28px 1fr auto; align-items:center; gap:10px; padding:8px 0; border-top:1px dashed var(--rule)}
+.stops.evlist li{grid-template-columns:1fr; align-items:start}   /* 행사 목록: 번호 동그라미 없이 (순서가 아님) */
 .stops .num{width:24px; height:24px; border-radius:50%; background:var(--day); color:#FFFFFF; display:grid; place-items:center; font:600 var(--fs-sm) var(--f-mono)}
 .sbody{min-width:0; display:flex; flex-direction:column}
 .sbody span{font-size:var(--fs-sm); color:var(--muted)}
@@ -378,6 +379,7 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 
 /* 보관함 */
 .vday{margin:6px 0 -4px; font-size:var(--fs-base)}
+.eatbox .vday{margin:18px 0 2px}   /* 접는 상자(details)는 flex gap이 없어서 동네 이름 위를 띄움 */
 .vcard{background:var(--surface); border:1.5px solid var(--rule); border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; gap:8px}
 .vhead{display:flex; gap:10px; align-items:center}
 .vhead > div{min-width:0}
