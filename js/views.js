@@ -30,6 +30,7 @@ import { bookingRows, flightDir, PLACE_KINDS } from './bookings.js';
 import { dayAgenda, nextUp } from './agenda.js';
 import { clockView, diffText } from './clock.js';
 import { prepTasks, prepNow } from './prep.js';
+import { KR_AIRPORTS, krAirport, guessKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES } from './parking.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
 import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
@@ -786,7 +787,7 @@ function agendaBox(s, d, P, live){
   const nu = nextUp(list, live ? (s.sh || {}).nowMin : null);
   const ck = clockView(null, REGION, (s.sh || {}).devOff, s.here); const atHome = !!ck.diff && (ck.where === 'home' || (!ck.where && (s.sh || {}).devOff === (s.sh || {}).homeOff));
   const tm = x => x.home && x.kst != null ? `${koTime(x.kst)}<small>한국 시각</small>` : x.min != null ? `${koTime(x.min)}${atHome ? `<small>한국 ${koTime((x.min - ck.diff + 1440) % 1440)}</small>` : ''}` : '';
-  const extra = x => x.m ? ttLinks(s, x.m) : x.kind === 'flight' ? flightRowLinks(s, x.dir) : x.kind === 'itc' ? `<span class="mvtt"><a class="link" href="${esc(HK.ITC.url)}" target="_blank" rel="noopener">시내 체크인 공식 안내 ↗</a></span>` : '';
+  const extra = x => x.m ? ttLinks(s, x.m) + parkTail(s, x.m) : x.kind === 'flight' ? flightRowLinks(s, x.dir) : x.kind === 'itc' ? `<span class="mvtt"><a class="link" href="${esc(HK.ITC.url)}" target="_blank" rel="noopener">시내 체크인 공식 안내 ↗</a></span>` : '';
   const row = x => `<li><span class="mvt">${tm(x)}</span><div><span>${x.icon ? x.icon + ' ' : ''}${esc(x.text)}</span>${x.sub ? `<span class="fine">${esc(x.sub)}</span>` : ''}${extra(x)}</div></li>`;
   return `<div class="box agenda">
     <h2>⏰ ${live ? '다음에 할 일' : '이날 시간 정해진 일'}<small>${list.length}가지</small></h2>
@@ -858,7 +859,7 @@ function mvLi(time, main, extra, home, tail){
   return `<li><span class="mvt">${time != null ? koTime(time) : ''}${home && time != null ? '<small>한국 시각</small>' : ''}</span><div><span>${main}</span>${extra ? `<span class="fine">${extra}</span>` : ''}${tail || ''}</div></li>`;
 }
 function moveLi(m, ctx, more, s){
-  const tt = s ? ttLinks(s, m) : '';
+  const tt = s ? ttLinks(s, m) + parkTail(s, m) : '';
   return mvLi(toMin(m.time), `${esc(moveText(m, ctx, minText))}${m.booked ? ' <span class="mvok">예약함</span>' : ''}`, [esc(m.note || '')].concat(more || []).filter(Boolean).join(' · '), legOf(m.k).home, tt);
 }
 // 그날 운행 시간 확인 바로가기 (공식 누리집, 새 창). 여행 중 이동에 출발·도착을 적었으면 구글 지도 대중교통 경로도
@@ -867,6 +868,42 @@ function ttLinks(s, m){
   if(m.k === 'etc' && (m.from || '').trim() && (m.to || '').trim() && ['rail', 'metro', 'bus', 'ferry'].includes(m.how))
     L.push(`<a class="link" href="${esc(`https://www.google.com/maps/dir/?${new URLSearchParams({ api:'1', origin:m.from.trim(), destination:m.to.trim(), travelmode:'transit' })}`)}" target="_blank" rel="noopener">구글 지도 대중교통 경로 ↗</a>`);
   return L.length ? `<span class="mvtt">⏱ ${L.join('')}</span>` : '';
+}
+// 🅿️ 자가용으로 집 → 공항: 그 공항 주차장 남은 자리 (parking.js, 누를 때만 불러옴, 결과는 화면 전용 s.sh.park)
+const isParkMove = m => m && m.k === 'go' && m.how === 'car';
+const kapOf = m => m.kap || guessKap(m.to);
+function parkResult(s, m){
+  const pk = s.sh.park; if(!pk || pk.id !== m.id) return '';
+  if(pk.busy) return '<p class="fine">주차 정보를 불러오고 있어요…</p>';
+  const r = pk.res; const ap = krAirport(pk.kap);
+  if(!r || !r.ok) return `<p class="warnline">${esc(PK_ERR[(r && r.err) || 'net'])}</p>`;
+  const free = r.rows.reduce((a, x) => a + x.free, 0), total = r.rows.reduce((a, x) => a + x.total, 0);
+  const rows = r.rows.slice().sort((a, b) => b.free - a.free);
+  return `<div class="pkres"><p><b>${esc(ap ? ap.label : '')}</b> 남은 자리 약 <b>${free.toLocaleString('ko-KR')}</b>면 / 전체 ${total.toLocaleString('ko-KR')}면 <span class="fine">${r.at ? `${esc(r.at)} 기준` : ''} · ${esc(pk.when || '')}에 봄</span></p>
+    <ul class="pklist">${rows.map(x => { const c = crowdOf(x); return `<li><span>${esc(x.name)}</span><span class="pk-${c.k}">${c.text}</span><span>${x.free.toLocaleString('ko-KR')} / ${x.total.toLocaleString('ko-KR')}</span></li>`; }).join('')}</ul></div>`;
+}
+// 날짜 카드·오늘 화면의 그 줄 끝: 남은 자리 보기 버튼 (키와 공항이 있을 때만)
+function parkTail(s, m){
+  if(!isParkMove(m) || !s.sh.pkOn) return '';
+  const ap = krAirport(kapOf(m)); if(!ap) return '';
+  return `<span class="mvtt"><button type="button" class="link" data-act="pkcheck" data-v="${esc(m.id)}">🅿️ ${esc(ap.label)} 주차장 남은 자리</button></span>${parkResult(s, m)}`;
+}
+// 고치는 칸: 공항 고르기 + 인증키 넣기 + 남은 자리 보기
+function parkPanel(s, m){
+  if(!isParkMove(m)) return '';
+  const kap = kapOf(m);
+  const sel = `<label class="shlabel" for="mvkap">어느 공항에 세워요?<select id="mvkap" data-mv="kap"><option value="">공항 고르기</option>${KR_AIRPORTS.map(a => `<option value="${a.k}"${kap === a.k ? ' selected' : ''}>${a.label}</option>`).join('')}</select></label>`;
+  const key = s.sh.pkOn
+    ? `<div class="pfoot"><button type="button" class="primary small" data-act="pkcheck" data-v="${esc(m.id)}"${kap ? '' : ' disabled'}>지금 남은 자리 보기</button><button type="button" class="link" data-act="pkforget">인증키 지우기</button></div>${parkResult(s, m)}`
+    : `<form id="pkform" class="pasteform"><label for="pkkey">공공데이터포털 인증키<input id="pkkey" type="text" autocomplete="off" spellcheck="false" placeholder="data.go.kr 일반 인증키 붙여 넣기"></label><div><button type="submit" class="ghost small">저장</button></div></form>
+      <details class="more"><summary>인증키는 어떻게 받나요? (무료)</summary><ol class="howto">
+        <li>data.go.kr에 로그인해요.</li>
+        <li>아래 두 페이지에서 각각 '활용신청'을 눌러요. 바로 승인돼요. 인천공항만 쓰면 첫 번째만 해도 돼요.</li>
+        <li>마이페이지 → 데이터활용 → 개발계정에서 '일반 인증키'를 복사해 위에 붙여 넣어요.</li>
+        <li>신청하고 1~2시간 지나야 키가 열려요.</li></ol>
+        <div class="chips">${PK_PAGES.map(p => `<a class="chip" href="${p.url}" target="_blank" rel="noopener">${esc(p.label)} ↗</a>`).join('')}</div></details>`;
+  return `<div class="mvttbox"><p class="fine"><b>🅿️ 공항 주차장 남은 자리</b> · 공항 실시간 자료를 출발 전에 볼 수 있어요.</p>${sel}${key}
+    <p class="fine">누르면 인증키만 공공데이터포털로 보내요. 키는 이 기기에만 저장되고 함께 짜는 가족과 나누지 않아요. 남은 자리는 금방 바뀌니 출발 직전에 한 번 더 보세요.</p></div>`;
 }
 const guessMin = (m, info) => !moveMin(m) && info ? `약 ${fminText(info.transfer)} 걸린다고 봤어요` : '';
 // 날짜 카드의 이동 줄. part 'start': 집→공항·도착 비행기·공항→숙소·여행 중 이동 / 'end': 숙소→공항·출발 비행기·공항→집
@@ -919,6 +956,7 @@ function moveForm(s, m, P, ctx){
     <p class="fine">어떻게 가요?</p>
     <div class="chips">${MOVE_HOW.map(h => chip('mvhow', h.k, `${h.icon} ${h.label}`, m.how === h.k)).join('')}</div>
     ${(tt => tt ? `<div class="mvttbox"><p class="fine">${(d => d ? `${d.i + 1}일차 ${d.label}` : '그날')(D.find(d => d.key === moveDate(s, m)))} 운행 시간은 아래에서 날짜를 골라 확인하세요. 시간표는 바뀔 수 있으니 전날 한 번 더 보세요.</p>${tt}</div>` : '')(ttLinks(s, m))}
+    ${parkPanel(s, m)}
     ${m.k === 'etc' ? `<label class="shlabel" for="mvdate">날짜<select id="mvdate" data-mv="date">${D.map(d => `<option value="${d.key}"${m.date === d.key ? ' selected' : ''}>${d.i + 1}일차 · ${d.label}</option>`).join('')}</select></label>` : ''}
     <div class="dates">
       <label for="mvtime">${L.timeLabel}${L.home ? ' (한국 시각)' : ''}<input id="mvtime" type="time" value="${esc(m.time || '')}" data-mv="time"></label>

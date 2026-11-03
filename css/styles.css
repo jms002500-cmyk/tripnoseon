@@ -171,6 +171,13 @@ p{margin:0}
 .m-num{fill:#FFFFFF; font:600 18px var(--f-mono)}
 .m-num.dark{fill:var(--ink)}
 .m-num-off{fill:var(--surface); stroke:var(--accent); stroke-width:4}
+.pkres{margin-top:6px}
+.pklist{list-style:none; margin:4px 0 0; padding:0}
+.pklist li{display:grid; grid-template-columns:1fr auto auto; gap:8px; padding:4px 0; border-top:1px solid var(--rule); font-size:.92em}
+.pklist li span:last-child{font-variant-numeric:tabular-nums; text-align:right; min-width:7.5em}
+.pk-ok{color:var(--good); font-weight:600}
+.pk-mid{color:var(--accent-ink); font-weight:600}
+.pk-busy, .pk-full{color:var(--warn); font-weight:700}
 .m-go{cursor:pointer; transform-box:fill-box; transform-origin:center}
 .m-go .m-hit{fill:transparent}
 .m-go:focus{outline:none}
