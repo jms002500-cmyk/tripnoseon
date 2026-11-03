@@ -1,6 +1,6 @@
 // 단계별 화면. 각 함수는 상태(s)를 받아 HTML 문자열을 돌려줌.
 // 버튼은 data-act / data-v, 입력은 data-kid / data-date / data-full / data-move 로 app.js가 처리.
-import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, EATS, disneyArea, cityOfArea, CITY_KO, CITY_FLAG } from './data.js';
+import { AREAS, PLACES, WHO, STYLES, PACE, DAY_COLORS, CURRENCY, KINDS, STEPS, REGIONS, REGION, EATS, BORDER, disneyArea, cityOfArea, CITY_KO, CITY_FLAG } from './data.js';
 import { PACK_CATS, packCatOf, suggestPacking, missingSuggestions, bulkSuggestions, packView, PACK_GO } from './packing.js';
 import { dayRain, outdoorStops, indoorAlternatives, betterFullDay, indoorShare } from './rain.js';
 import { CHECKED, PHRASES, QUAKE, LOST, EMBASSY, telHref, callsFor, hotelCard as tonightCard, otherHotelCards, kidCardJa } from './safety.js';
@@ -35,6 +35,7 @@ import { prepTasks, prepNow } from './prep.js';
 import { KR_AIRPORTS, krAirport, moveKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES } from './parking.js';
 import { BUS_AREAS, BUS_PAGES, BUS_ERR, isWeekend, nextTimes, gapOf, hhmm } from './airbus.js';
 import { MTR_STATIONS, MTR_LINES, MTR_ERR, MTR_SOURCE, nearStations, distText, stationKo, waitText, dirText } from './hktransit.js';
+import { CPS, cpOfBorder, crossDir, moveCross, BORDER_ALT } from './border.js';
 import { homeTime } from './ics.js';
 import { addDay } from './bookings.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
@@ -1119,6 +1120,7 @@ export function vPlan(s){
         ${dayEvents(s, d, EV).map(e => `<p class="fine">🎄 이날 행사: ${esc(e.name)}${e.time ? ' · ' + esc(e.time) : ''}</p>`).join('')}
         ${dayMoves(s, d, mctx, 'end')}
         ${itcLine(s, d)}
+        ${borderBox(s, d.key, crossInfo(s, d, T))}
         ${rainBox(s, P, d)}
         <div class="tacts"><button type="button" class="link" data-act="tfood" data-v="${d.i}">🍜 이날 점심·저녁 식당 찾기</button>${d.full || d.items.length ? (d.locked
           ? `<button type="button" class="link" data-act="dunlock" data-v="${d.i}">확정 풀기</button>` : `<button type="button" class="link" data-act="dlock" data-v="${d.i}">🔒 이날 확정</button>`) : ''}</div>
@@ -1811,6 +1813,37 @@ function mtrBox(s, date, from){
     </div>`;
 }
 
+// 🛂 홍콩 ↔ 선전 국경 대기 시간 (border.js): 국경을 넘는 날만. 누를 때만 부르고 결과는 화면 전용(s.sh.border, 그날 key)
+//   넘는 날: 그날 동선에 국경 구간이 있거나(dayTrips), 숙소를 옮기며 도시가 바뀌거나(d.cross), 여행 중 이동에 선전·국경을 적은 날
+function crossInfo(s, d, T){
+  if(REGION.key !== 'hksz' || !BORDER.length || !d) return null;
+  const pairs = []; let at = '';
+  (T || dayTrips(d, d.from)).legs.forEach(l => { const b = l.segs.find(x => x.kind === 'border'); if(!b) return;
+    pairs.push([ptCity(l.from), ptCity(l.to)]); if(!at) at = (BORDER.find(x => x.name === b.at) || {}).key || ''; });
+  if(d.cross && d.from && d.to) pairs.push([ptCity(d.from), ptCity(d.to)]);
+  const mv = movesOn(s, d.key).filter(m => m.k === 'etc').map(m => moveCross(m.from, m.to, m.note)).filter(Boolean);
+  if(!pairs.length && !d.cross && !mv.length) return null;
+  const dirs = [crossDir(pairs)].concat(mv.map(x => x.dir)).filter(Boolean);
+  const dir = dirs.includes('both') || (dirs.includes('out') && dirs.includes('in')) ? 'both' : dirs[0] || '';
+  return { dir, at };
+}
+function borderBox(s, key, info){
+  if(!info) return '';
+  // 출입국관리처 자료(CPQueueTimeV.json)는 브라우저에서 바로 못 부름(CORS 머리 없음, 2026-11-03 PC에서 확인) →
+  //   같은 자료를 보여 주는 홍콩 보안국 대기 시간 페이지로 연결하고, 검문소별 통관 시간·일정에서 지나는 곳만 앱에서 보여 줌
+  const prefer = cpOfBorder(info.at);
+  const main = Object.keys(CPS).filter(c => CPS[c].main).sort((a, b) => (b === prefer) - (a === prefer));
+  const head = info.dir === 'out' ? '홍콩 → 선전 가는 날' : info.dir === 'in' ? '선전 → 홍콩 오는 날' : '국경 넘는 날';
+  const url = info.dir === 'in' ? BORDER_ALT.replace('outbound', 'inbound') : BORDER_ALT;
+  return `<div class="bdbox">
+      <p class="fine"><b>🛂 ${head}</b> · 검문소마다 홍콩 쪽 심사 줄이 얼마나 붐비는지 홍콩 정부 페이지에서 볼 수 있어요.</p>
+      <div><a class="ghost small" href="${esc(url)}" target="_blank" rel="noopener">🛂 지금 국경 대기 시간 (홍콩 보안국) ↗</a></div>
+      <ul class="bdlist">${main.map(c => `<li${c === prefer ? ' class="on"' : ''}><p><b>${esc(CPS[c].ko)}</b> <small lang="zh-Hant">${esc(CPS[c].zh)}</small>${c === prefer ? ' <span class="bdtag">일정에서 지나는 곳</span>' : ''}</p>${CPS[c].hours ? `<p class="fine">통관 시간 ${esc(CPS[c].hours)} (대략)</p>` : ''}</li>`).join('')}</ul>
+      ${info.at === 'xrl' ? '<p class="fine">서구룡역 고속철은 대기 시간 자료에 없어요(역 안에서 두 나라 심사를 한 번에 받아요).</p>' : ''}
+      <p class="fine">페이지는 영어예요. 'Normal'은 보통(30분 안쪽), 'Busy'는 붐빔(45분 안쪽), 'Very Busy'는 아주 붐빔(45분 넘음)이에요. 선전(중국) 쪽 심사 대기 시간은 공개 자료가 없어요. 링크는 주소만 열고 아무 정보도 보내지 않아요.</p>
+    </div>`;
+}
+
 export function vToday(s){
   const sh = s.sh || {}; const today = sh.today || '';
   const ph = phaseOf(s, today);
@@ -1867,6 +1900,7 @@ export function vToday(s){
     ${d.depart && d.depart.leave >= 0 ? `<p class="warnline">✈️ ${koTime(d.depart.at)}${nightTag(d.depart.at)} 비행기 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로 출발</b>해야 해요. 짐 찾을 시간도 챙기세요.</p>` : ''}
     ${agendaBox(s, d, P, ph.phase === 'during' && date === today)}
     ${next}
+    ${borderBox(s, date, crossInfo(s, d))}
     ${ph.phase === 'during' && date === today ? catchBox(s, P, i, date) : ''}
     ${locBox(s, today)}
     ${rainBox(s, P, d)}

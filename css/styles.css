@@ -482,6 +482,24 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .mtrdirs li > span:first-child{color:var(--muted)}
 .mtrmins{font-variant-numeric:tabular-nums; overflow-wrap:anywhere}
 .mtrmins small{color:var(--muted)}
+/* 🛂 홍콩 ↔ 선전 국경 대기 시간 (views.js borderBox) */
+.bdbox{display:grid; gap:6px; border-top:1px solid var(--rule); padding-top:8px; margin-top:6px; min-width:0}
+.bdbox > div > .ghost{align-self:auto}
+.bdlist{list-style:none; margin:0; padding:0; display:grid; gap:0}
+.bdlist li{padding:6px 0; border-top:1px solid var(--rule); min-width:0}
+.bdlist li.on{box-shadow:inset 3px 0 0 var(--accent); padding-left:8px}
+.bdlist p{margin:0; overflow-wrap:anywhere}
+.bdlist small{color:var(--muted)}
+.bdtag{font-size:12px; color:var(--accent-ink); background:var(--accent-soft); border-radius:6px; padding:1px 6px; white-space:nowrap}
+.bdq{display:flex; flex-wrap:wrap; justify-content:space-between; gap:2px 8px; font-size:.92em}
+.bdq > span:first-child{color:var(--muted)}
+.bdq.main{font-weight:600}
+.bdq.main > span:first-child{color:var(--ink)}
+.bdv{font-variant-numeric:tabular-nums}
+.bdv.q-ok{color:var(--good)}
+.bdv.q-busy{color:var(--accent-ink)}
+.bdv.q-very{color:var(--warn); font-weight:700}
+.bdv.q-off{color:var(--muted)}
 .tstops li.done .sbody{opacity:.55}
 .tstops li.done .sbody b{text-decoration:line-through}
 .tstops li.nx .num{box-shadow:0 0 0 3px var(--accent-soft)}

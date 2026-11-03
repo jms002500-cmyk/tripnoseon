@@ -29,7 +29,7 @@ GitHub Pages 배포, 상태는 브라우저 localStorage. 여행 지역은 **도
 
 - 계획: 동행 맞춤 추천(이유 표시)·꼭 갈 곳·장소 담기(AI에게 추천 받아 담기 `askai.js planPrompt`/`parseAiPlaces`, 구글 지도 시트 `gmap.js`/`gplace.js`, 25일 지나면 새로 받기, 테이크아웃 가져오기 `gimport.js`)·숙소 동네 순위·숙소 후보 비교·라쿠텐 빈방(`rakuten.js`, 한글 이름 `janame.js`)·사이트별 가격 비교(`prices.js`)·이맘때 날씨(`weather.js`, 홍콩 날짜는 천문대 9일 예보 `hko.js`)
 - 일정: 자동 초안(`logic.js plan`, 쉬는 요일 `closed`·날짜 휴관 `closedDates`를 피함)·여행 기간 행사(`EVENTS`, `logic.js tripEvents`)·나눠 자기(`nightHotel`/`dayHotels`)·이동 시간 어림(`transit.js legMinutes`)·일차별 확정(`lockDay`)·비 오는 날 대안(`rain.js`)·식당 찾기(`food.js`)·앱이 고른 가족 식당(`eats.js`, 장소와 따로라 일정 시간에 안 들어감)·교통패스(`transit.js`)·약도(`map.js`)·구글 길찾기 링크·공항 주차장 남은 자리(`parking.js`, 집 → 공항 자가용)·공항버스 찾기(`airbus.js`, 집 ↔ 공항 공항버스)
-- 여행 중: 오늘 하루(`today.js`, 장소에서 바로 비용, 홍콩이면 가까운 MTR역 다음 열차 `hktransit.js`·천문대 경보 한 줄과 지금 날씨 `hko.js`)·준비물(`packing.js`)·보관함(`vault.js`/`vaultdb.js`)·가계부·정산·예산·엑셀·영수증 사진(`ledger.js`/`budget.js`/`ledgerexport.js`)·트리플 가져오기(`ledgerimport.js`)·긴급 정보(`safety.js`)·가족 위치(켜는 사람만, `loc.js`)·끊김 안내 띠(`net.js`)·백업(`backup.js`)
+- 여행 중: 오늘 하루(`today.js`, 장소에서 바로 비용, 홍콩이면 가까운 MTR역 다음 열차 `hktransit.js`, 국경 넘는 날 홍콩 보안국 대기 시간 링크 `border.js`·천문대 경보 한 줄과 지금 날씨 `hko.js`)·준비물(`packing.js`)·보관함(`vault.js`/`vaultdb.js`)·가계부·정산·예산·엑셀·영수증 사진(`ledger.js`/`budget.js`/`ledgerexport.js`)·트리플 가져오기(`ledgerimport.js`)·긴급 정보(`safety.js`)·가족 위치(켜는 사람만, `loc.js`)·끊김 안내 띠(`net.js`)·백업(`backup.js`)
 - 함께 짜기: 구글 로그인·초대 링크·실시간 공동 편집·투표·의견·변경 기록(`share.js`/`sharecore.js`, `firestore.rules`)
 - PWA 오프라인(`sw.js`, 네트워크 우선·3초 넘게 늦으면 사본·글꼴 사본) · 바깥 호출 시간 제한(`net.js fetchTimed`/`withTimeout`)
 
