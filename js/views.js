@@ -12,7 +12,7 @@ import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHEC
 // 한 구간 이동 시간 한 줄: '약 15분 · 지하철' (직선거리 어림)
 const legText = (a, b) => { const segs = legSegments(a, b); return `약 ${minText(legMinutes(a, b, segs))} · ${legMode(segs)}`; };
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
-import { nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf, tripCities, onlyCity, placeCity, dist } from './logic.js';
+import { nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, closedOn, tripEvents, dayEvents, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf, tripCities, onlyCity, placeCity, dist } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
@@ -348,7 +348,7 @@ export function vMust(s){
       return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
         <div class="ptop"><div><h3><span class="pnum">${n}</span>${esc(p.name)}</h3><p class="ja">${esc(p.ja)}</p></div>
           <button type="button" class="mustbtn" data-act="anchor" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '꼭 갈 곳 ✓' : '꼭 갈 곳으로'}</button></div>
-        <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${p.book ? ' · 예약 필요' : ''}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}</p>
+        <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${p.book ? ' · 예약 필요' : ''}${closedText(p) ? ` · <span class="closed">${esc(closedText(p))}</span>` : ''}</p>
         ${anchors.length > 1 ? `<p class="near">${nearText(nearest(p))}</p>` : ''}
         ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
         ${on && p.full && fa[p.id] != null ? daySelect(p, days, fa, s) : ''}
@@ -372,7 +372,7 @@ function placeCard(p, s, n){
   return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
     <div class="ptop"><div><h3>${n ? `<span class="pnum">${n}</span>` : ''}${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
-    <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${p.closed ? ` · <span class="closed">${closedText(p)}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
+    <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${closedText(p) ? ` · <span class="closed">${esc(closedText(p))}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
     ${(f.why.length || f.neg.length) ? `<div class="why">${f.why.map(w => `<span>${esc(w)}</span>`).join('')}${f.neg.map(w => `<span class="neg">${esc(w)}</span>`).join('')}</div>` : ''}
     ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
     ${on ? voteBar(s, p) : ''}
@@ -1044,6 +1044,23 @@ function moveSelect(p, days, cur){
   return `<select data-move="${esc(p.id)}" aria-label="${esc(p.name)} 날짜 옮기기">${opts.join('')}</select>`;
 }
 
+// 여행 기간에 열리는 행사 (지역 데이터 EVENTS 중 여행 날짜·도시와 겹치는 것, logic.js tripEvents)
+function eventsBox(s, P, list){
+  if(!list.length) return '';
+  const when = x => x.whole ? '여행 내내' : x.days.map(i => P.days[i].label).join(', ');
+  const two = tripCities(s).length > 1;
+  return `<div class="box" id="evbox">
+    <h2>🎄 여행 기간에 열리는 행사</h2>
+    <ol class="stops">${list.map(x => { const e = x.e; const p = e.place ? allPlaces(s).find(q => q.id === e.place) : null; const on = p && !!s.picked[p.id];
+      return `<li><span class="num" style="--day:var(--muted)">·</span><div class="sbody"><b>${esc(e.name)}</b>
+        <span>${two && e.city ? CITY_KO[e.city] + ' · ' : ''}${esc(when(x))}${e.tbc ? ' · 날짜·시간은 발표 전이에요' : ''}${e.time ? ' · ' + esc(e.time) : ''}</span>
+        ${e.where || p ? `<span>${esc(e.where || p.name)}${e.fee ? ' · ' + esc(e.fee) : ''}</span>` : e.fee ? `<span>${esc(e.fee)}</span>` : ''}
+        ${e.note ? `<span>${esc(e.note)}</span>` : ''}
+        ${p ? `<button type="button" class="link" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '✓ ' + esc(p.name) + ' 담았어요' : esc(p.name) + ' 담기'}</button>` : ''}</div></li>`; }).join('')}</ol>
+    <p class="fine">발표된 내용을 모았어요. 행사는 바뀌기 쉬우니 가기 전에 공식 누리집에서 한 번 더 확인하세요.</p>
+  </div>`;
+}
+
 export function vPlan(s){
   const P = plan(s);
   if(!P.days.length) return `<section class="step">
@@ -1051,7 +1068,7 @@ export function vPlan(s){
     <h1>날짜별 일정 초안</h1>
     <div class="box tip"><p>여행 날짜를 먼저 정해 주세요. 날짜가 있어야 하루씩 나눠서 일정을 짤 수 있어요.</p><div><button type="button" class="ghost small" data-act="go" data-v="1">날짜 정하러 가기</button></div></div>
   </section>`;
-  const anyItems = P.days.some(d => d.full || d.items.length); const split = isSplitStay(s, P.days); const mctx = moveCtx(s, P);
+  const anyItems = P.days.some(d => d.full || d.items.length); const split = isSplitStay(s, P.days); const mctx = moveCtx(s, P); const EV = tripEvents(s, P.days);
   return `<section class="step">
     <p class="eyebrow">Step 6 · 일정</p>
     <h1>날짜별 일정 초안</h1>
@@ -1066,9 +1083,9 @@ export function vPlan(s){
       const T = dayTrips(d, P.hotel); const mvMin = d.cross ? 0 : etcMinutes(s, d.key);   // 숙소 옮기며 국경 넘는 날은 이미 2시간 뺐음
       const tight = !d.full && (T.travelMin || mvMin) && d.used + (T.travelMin + mvMin) / 60 > d.cap + 0.5;
       const body = d.full
-        ? `<div class="fullday"><b>${esc(d.full.name)}</b><span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(d.from, d.full))}" target="_blank" rel="noopener">숙소에서 ${T.legs[0] ? `약 ${minText(T.legs[0].min)} · ${esc(T.legs[0].mode)} · ` : ''}길찾기 ↗</a>${(d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
+        ? `<div class="fullday"><b>${esc(d.full.name)}</b><span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(d.from, d.full))}" target="_blank" rel="noopener">숙소에서 ${T.legs[0] ? `약 ${minText(T.legs[0].min)} · ${esc(T.legs[0].mode)} · ` : ''}길찾기 ↗</a>${closedOn(d.full, d) ? '<p class="warnline">이날은 쉬는 날이에요. 다른 날로 옮겨 주세요.</p>' : (d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
         : d.items.length
-          ? `<ol class="stops">${d.items.map((p, j) => { const cl = p.closed && p.closed.includes(d.wd);
+          ? `<ol class="stops">${d.items.map((p, j) => { const cl = closedOn(p, d);
               const prev = j ? d.items[j-1] : d.from;
               return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${esc(p.hours)}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
@@ -1078,6 +1095,7 @@ export function vPlan(s){
         ${dayMoves(s, d, mctx, 'start')}
         ${split ? `<p class="fine">🏨 ${d.from.name !== d.to.name ? `🧳 숙소 옮기는 날: ${esc(d.from.name)} → ${esc(d.to.name)}${d.cross ? ' · 짐 옮기고 국경 넘는 2시간을 빼고 짰어요' : ''}` : `${esc(d.to.name)}`}</p>` : ''}
         ${body}
+        ${dayEvents(s, d, EV).map(e => `<p class="fine">🎄 이날 행사: ${esc(e.name)}${e.time ? ' · ' + esc(e.time) : ''}</p>`).join('')}
         ${dayMoves(s, d, mctx, 'end')}
         ${itcLine(s, d)}
         ${rainBox(s, P, d)}
@@ -1086,6 +1104,7 @@ export function vPlan(s){
         ${d.locked ? `<p class="fine">확정한 날이에요. 다시 짜기·비 오는 날 바꾸기·다른 장소 자동 배치가 이날을 바꾸지 않아요.${s.shareId ? ' 함께 짜는 가족에게도 확정으로 보여요.' : ''}</p>` : ''}
         ${d.full ? '' : `<div class="meter${d.used > d.cap ? ' over' : ''}"><span style="width:${pct}%"></span></div>`}
       </article>`; }).join('')}
+    ${eventsBox(s, P, EV)}
     ${REGION.key === 'tokyo' ? transitBox(s, P) : ''}
     <div class="box" id="sendbox">
       <h2>💬 가족에게 일정 보내기</h2>
@@ -1712,7 +1731,7 @@ export function vToday(s){
   const isDone = p => !!(s.tdone || {})[doneKey(date, p.id)];
   const vault = dayVault(bookings(s.vault), date, stops.map(p => p.id).concat(d.full ? [d.full.id] : []));
   const L = ledgerSummary(s); const g = L.groups.find(x => x.d === date);
-  const closed = p => p.closed && p.closed.includes(d.wd);
+  const closed = p => closedOn(p, d);
   const lp = sh.lplace ? allPlaces(s).find(p => p.id === sh.lplace) : null;   // '여기서 쓴 돈'을 누른 장소
 
   let next;

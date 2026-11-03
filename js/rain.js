@@ -1,7 +1,7 @@
 // 비 오는 날 실내 대안. 예보(출발 16일 안)에 비가 있으면 그날 실외 장소마다 가까운 실내 장소를 제안하고,
 // 하루 종일 장소(디즈니)는 비 안 오는 날로 옮기기를 제안. 예보가 없을 때도 '비 오면?'으로 미리 볼 수 있음.
 // 순수 함수(테스트 대상). 장소의 실내 표시는 data.js PLACES의 indoor (true | 'part' | false).
-import { allPlaces, pickedPlaces, dist, fitScore } from './logic.js';
+import { allPlaces, pickedPlaces, dist, fitScore, closedOn } from './logic.js';
 
 const RAIN_WORDS = ['비', '이슬비', '소나기', '뇌우', '눈', '눈 소나기'];
 
@@ -26,7 +26,7 @@ export function indoorAlternatives(s, P, dayIndex, place, limit){
   const kids = s.who === 'family' && (s.kids || []).length;
   return allPlaces(s)
     .filter(p => p.indoor === true && !p.full && p.id !== place.id && !onPlan.has(p.id))
-    .filter(p => !(p.closed && p.closed.includes(d.wd)))
+    .filter(p => !closedOn(p, d))
     .filter(p => !(kids && p.kid === 'adult'))
     .map(p => {
       const km = dist(place, p); const fit = fitScore(p, s);
