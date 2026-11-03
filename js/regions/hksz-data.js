@@ -58,6 +58,9 @@
 //   확인 못 함: 디즈니 12월 날짜별 운영 시간·쉬는 날, 오션파크 2026 크리스마스 행사, 하버시티 등 쇼핑몰 장식,
 //     세계의 창·환러구 겨울 행사(지난해 세계의 창 눈 내리기는 12/7부터), 윈터페스트 정확한 날짜·시간·요금(EVENTS의 tbc)
 
+// 가족 식당 목록은 따로 둔 파일에서 (장소와 섞이지 않게)
+export { EATS } from './hksz-eats.js';
+
 export const AREAS = {
   // 홍콩
   tst:{name:'침사추이', city:'hk', station:'MTR 침사추이역', q:'尖沙咀站', lat:22.2975, lng:114.1722, hotel:true, disneyMin:40,
