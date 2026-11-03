@@ -110,10 +110,12 @@ function ensureWeather(force){
   const s = state; if((s.step !== 1 && s.step !== PACK_STEP && s.step !== PLAN_STEP && s.mode !== 'today') || !s.start || !s.end || s.wxBusy) return;
   const key = `${s.city}|${tripMonthDays(s.start, s.end).join(',')}`;
   const today = ymd(new Date());
-  const stale = !s.wx || s.wx.key !== key || (canForecast(s.start, new Date()) && s.wx.forecastAt !== today) || (s.wx.error && force);
+  // 못 받았을 때(끊김·서버 오류) 그리기마다 다시 부르지 않게: 마지막으로 부른 지 30분 안이면 기다림('다시 불러오기'는 바로)
+  const tried = s.wx && s.wx.tryAt > 0 ? Date.now() - s.wx.tryAt : Infinity; const recent = tried >= 0 && tried < 30 * 60000;
+  const stale = !s.wx || s.wx.key !== key || (s.wx.error && force) || (!recent && (s.wx.error || (canForecast(s.start, new Date()) && s.wx.forecastAt !== today)));
   if(!stale) return;
   s.wxBusy = true;
-  loadWeather(s.city, s.start, s.end).then(w => { if(state !== s) return; s.wxBusy = false; s.wx = w; save(); render(); });
+  loadWeather(s.city, s.start, s.end).then(w => { if(state !== s) return; s.wxBusy = false; s.wx = { ...w, tryAt:Date.now() }; save(); render(); });
 }
 
 // 홍콩 천문대 9일 예보·지금 날씨·경보 (js/hko.js). 홍콩·선전 여행이고 여행 날짜가 9일 예보 안일 때만, 많아야 30분에 한 번.
