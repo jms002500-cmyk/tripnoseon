@@ -38,10 +38,11 @@ export function indoorAlternatives(s, P, dayIndex, place, limit){
 }
 
 // 하루 종일 장소가 비 오는 날에 걸렸으면, 예보상 비가 안 오는 다른 날(온종일 쓸 수 있는 날) 중 가장 맑은 날
+//   그 장소가 쉬는 날(요일·날짜 휴관, logic.js closedOn)로는 옮기자고 하지 않음 (일정 짜기 fullAssign과 같게)
 export function betterFullDay(P, wx, dayIndex){
   const cur = P.days[dayIndex]; if(!cur || !cur.full) return null;
   const date = d => { const x = d.date; return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
-  const opts = P.days.filter(d => d.i !== dayIndex && !d.full && !d.locked && (d.kind === 'full' || d.kind === 'single'))
+  const opts = P.days.filter(d => d.i !== dayIndex && !d.full && !d.locked && (d.kind === 'full' || d.kind === 'single') && !closedOn(cur.full, d))
     .map(d => ({ d, r:dayRain(wx, date(d)) })).filter(x => x.r && !x.r.rainy)
     .sort((a, b) => (a.r.prob ?? 100) - (b.r.prob ?? 100) || (a.d.wd >= 1 && a.d.wd <= 5 ? 0 : 1) - (b.d.wd >= 1 && b.d.wd <= 5 ? 0 : 1));
   return opts.length ? { i:opts[0].d.i, prob:opts[0].r.prob, label:opts[0].d.label } : null;
