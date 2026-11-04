@@ -4,7 +4,7 @@
 //   이미 있는 도쿄 장소 65곳과 같은 곳이면 새로 만들지 않고 그 장소를 씀
 // 구글 이용 약관: 장소 ID는 계속 저장해도 되고, 좌표 등은 30일 넘게 두지 않게 받은 날(gAt)을 남기고 앱을 열 때 새로 받음(staleGoogle·applyRefresh)
 import { PLACES } from './data.js';
-import { dist } from './logic.js';
+import { dist, allPlaces } from './logic.js';
 import { nearestArea } from './gimport.js';
 
 // 앞에서부터 먼저 맞는 것 (구글 종류 이름은 developers.google.com/maps/documentation/places/web-service/place-types)
@@ -102,4 +102,42 @@ export function applyRefresh(p, g, now){
 export function gmapsPlaceUrl(name, gid){
   const q = new URLSearchParams({ api:'1', query:name || '' }); if(gid) q.set('query_place_id', gid);
   return `https://www.google.com/maps/search/?${q}`;
+}
+
+// ── 구글 지도 시트(gmap.js)가 쓰는 계산 ──
+// 지도에 올려도 되는 좌표 → { lat, lng } | null (빈 값·글자·범위 밖은 null. +null·+''은 0이 되니 따로 거름)
+export function latLngOf(p){
+  if(!p || p.lat == null || p.lng == null || p.lat === '' || p.lng === '') return null;
+  const lat = +p.lat, lng = +p.lng;
+  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+// 핀 종류: 꼭 갈 곳 > 담은 곳 > 안 담은 추천
+export const pinKind = (s, p) => s.must && s.must[p.id] ? 'must' : s.picked && s.picked[p.id] ? 'on' : 'rec';
+// 지도에 그릴 핀 → [{ kind, pos, title, place | hotel }]. showRec가 false면 안 담은 추천은 뺌(꼭 갈 곳은 늘 담은 곳)
+export function pinList(s, showRec){
+  const out = [];
+  allPlaces(s).forEach(p => { const pos = latLngOf(p); const kind = pinKind(s, p); if(pos && (showRec || kind !== 'rec')) out.push({ kind, pos, title:p.name || '', place:p }); });
+  (s.hotels || []).forEach(h => { const pos = latLngOf(h); if(pos) out.push({ kind:'hotel', pos, title:h.name || '', hotel:h }); });
+  return out;
+}
+// 담은 장소가 지금 들어 있는 날(카드의 날짜 고르기 기본값) → 일차 번호 | null(자동·빼 둠·안 담음). 하루 종일 장소는 fullDay
+export function dayOf(s, p){
+  if(!p || !s.picked || !s.picked[p.id]) return null;
+  const d = p.full ? (s.fullDay || {})[p.id] : (s.assign || {})[p.id];
+  return Number.isInteger(d) && d >= 0 ? d : null;
+}
+// 공유받은 장소를 자동 완성으로 찾을 말: 이름+주소 → 이름만 → 이름 앞 세 낱말 (같은 말은 한 번, 100자까지)
+export function findInputs(q, name){
+  const n = String(name || '').trim();
+  const list = [q, n, n.split(/\s+/).slice(0, 3).join(' ')].map(x => String(x || '').trim().slice(0, 100)).filter(Boolean);
+  return list.filter((x, i) => list.indexOf(x) === i);
+}
+// 담기·옮기기 뒤 알림 (name: onPick이 돌려준 장소 이름, ''면 못 담음). wasDay: 누르기 전 그 장소의 날(dayOf), wasOn: 이미 담겨 있었는지
+//   → { ok, text }
+export function pickMsg(name, day, wasOn, wasDay){
+  if(!name) return { ok:false, text:'담지 못했어요. 닫았다가 다시 눌러 주세요.' };
+  const q = `'${name}'`;
+  if(!wasOn) return { ok:true, text:`${q}을(를) ${day == null ? '일정에' : `${day + 1}일차에`} 담았어요.` };
+  if(day == null) return { ok:true, text:`${q}은(는) 날짜를 자동으로 정해요.` };
+  return { ok:true, text:day === wasDay ? `${q}은(는) 이미 ${day + 1}일차에 있어요.` : `${q}을(를) ${day + 1}일차로 옮겼어요.` };
 }

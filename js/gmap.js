@@ -7,14 +7,15 @@
 // 계산(종류·영업시간·같은 장소 찾기)은 gplace.js. #view 밖(body 끝)에 붙어서 다시 그려도 지도가 남음.
 import { mapsConfig } from './maps-config.js';
 import { REGION } from './data.js';
-import { allPlaces } from './logic.js';
 import { esc } from './ui.js';
-import { matchKnown, closedDays } from './gplace.js';
+import { matchKnown, closedDays, pinList, dayOf, findInputs, pickMsg } from './gplace.js';
 import { withTimeout } from './net.js';
 
 const FIELDS = ['id', 'displayName', 'location', 'formattedAddress', 'types', 'rating', 'userRatingCount', 'regularOpeningHours', 'googleMapsURI', 'primaryTypeDisplayName'];
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 let G = null, map = null, sheet = null, cb = null, pins = [], temp = null, token = null, typing = null, cur = null, loading = null, script = null;
+// want: 마지막으로 띄우려는 장소 카드 차례(늦게 온 옛 응답·닫은 뒤 응답은 버림), sugN: 자동 완성 차례, kp: 지금 카드로 보는 앱 추천 장소
+let want = 0, sugN = 0, kp = null;
 let showRec = true;   // 안 담은 추천 장소도 지도에 (범례의 '추천도 보기')
 const MAPS_WAIT = 20000;   // 구글 지도 스크립트·라이브러리를 기다리는 시간
 
@@ -70,21 +71,19 @@ const PIN = {
   rec:{ background:'#FFFFFF', borderColor:'#5A6775', glyphColor:'#5A6775', scale:0.75, z:1 },
   hotel:{ background:'#1D7F47', borderColor:'#FFFFFF', glyphColor:'#FFFFFF', scale:0.95, z:2 }
 };
-export const pinKind = (s, p) => s.must[p.id] ? 'must' : s.picked[p.id] ? 'on' : 'rec';
+//   어떤 핀을 그릴지(종류·좌표 거르기)는 gplace.js pinList
 function drawPins(){
   if(!map) return;
   pins.forEach(m => { m.map = null; }); pins = [];
-  const s = cb.getState(); const { AdvancedMarkerElement, PinElement } = G.marker;
-  const add = (pos, kind, title, onTap) => {
+  const { AdvancedMarkerElement, PinElement } = G.marker;
+  pinList(cb.getState(), showRec).forEach(({ kind, pos, title, place:p, hotel:h }) => {
     const { z, ...o } = PIN[kind];
-    const pin = new PinElement(o);
-    const m = new AdvancedMarkerElement({ map, position:pos, title, content:pin.element, gmpClickable:true, zIndex:z });
-    m.addListener('click', onTap); pins.push(m);
-  };
-  allPlaces(s).filter(p => p.lat != null && (showRec || s.picked[p.id])).forEach(p => {
-    const k = pinKind(s, p); add({ lat:p.lat, lng:p.lng }, k, p.name, () => p.gid ? showPlace(p.gid) : showKnown(p));
+    try{
+      const m = new AdvancedMarkerElement({ map, position:pos, title, content:new PinElement(o).element, gmpClickable:true, zIndex:z });
+      m.addListener('click', () => p ? (p.gid ? showPlace(p.gid) : showKnown(p)) : info(`<p><b>${esc(h.name)}</b> <span class="fine">숙소 후보</span></p>`));
+      pins.push(m);
+    }catch(e){ /* 핀 하나가 안 그려져도 나머지는 그림 */ }
   });
-  (s.hotels || []).filter(h => h.lat != null).forEach(h => add({ lat:h.lat, lng:h.lng }, 'hotel', h.name, () => info(`<p><b>${esc(h.name)}</b> <span class="fine">숙소 후보</span></p>`)));
 }
 
 function dayOptions(sel){
@@ -93,24 +92,28 @@ function dayOptions(sel){
 
 // 앱 추천 장소(구글 정보 없이): 담은 곳은 날 옮기기·빼기, 안 담은 곳은 담기
 function showKnown(p){
+  want++; clearTemp(); kp = p;   // 앞서 보던 구글 장소 카드·파란 핀은 치움
   const s = cb.getState(); const on = !!s.picked[p.id];
   const tag = s.must[p.id] ? '꼭 갈 곳' : on ? '담은 곳' : '아직 안 담은 추천';
   const meta = [p.kind, p.full ? '하루 종일' : p.hours ? `약 ${p.hours}시간` : ''].filter(Boolean).join(' · ');
   info(`<div class="gmcard"><b>${esc(p.name)}</b><span class="fine">${esc(tag)}${meta ? ' · ' + esc(meta) : ''}</span>${p.note ? `<p class="fine">${esc(p.note)}</p>` : ''}
-    <div class="pfoot"><select data-gmday aria-label="담을 날">${dayOptions(s.assign[p.id] != null && s.assign[p.id] >= 0 ? s.assign[p.id] : null)}</select>
+    <div class="pfoot"><select data-gmday aria-label="담을 날">${dayOptions(dayOf(s, p))}</select>
       <button type="button" class="primary small" data-gm="move" data-v="${esc(p.id)}">${on ? '이 날로' : '일정에 담기'}</button>
       ${on ? `<button type="button" class="ghost small" data-gm="toggle" data-v="${esc(p.id)}">빼기</button>` : ''}</div></div>`);
 }
 
 // 구글 장소 카드
 async function showPlace(placeOrId){
+  const n = ++want;
   info('<p class="fine">장소 정보를 불러오는 중…</p>');
   let place = placeOrId;
   try{
     if(typeof placeOrId === 'string') place = new G.places.Place({ id:placeOrId, requestedLanguage:'ko' });
     await place.fetchFields({ fields:FIELDS });
-  }catch(e){ info('<p class="warnline">장소 정보를 못 불러왔어요. 잠시 후 다시 눌러 주세요.</p>'); return; }
-  const loc = place.location; if(!loc) return;
+  }catch(e){ if(n === want && !sheet.hidden) info('<p class="warnline">장소 정보를 못 불러왔어요. 잠시 후 다시 눌러 주세요.</p>'); return; }
+  if(n !== want || sheet.hidden) return;   // 그사이 다른 곳을 눌렀거나 시트를 닫았으면(파란 핀이 남지 않게)
+  const loc = place.location;
+  if(!loc){ info('<p class="warnline">이 장소는 위치 정보가 없어요. 다른 장소를 골라 주세요.</p>'); return; }
   const oh = place.regularOpeningHours;
   const periods = oh && oh.periods ? oh.periods.map(p => ({ open:p.open && { day:p.open.day, hour:p.open.hour, minute:p.open.minute }, close:p.close && { day:p.close.day, hour:p.close.hour, minute:p.close.minute } })) : null;
   cur = { id:place.id, name:place.displayName || '', lat:loc.lat(), lng:loc.lng(), types:place.types || [], addr:place.formattedAddress || '', periods, mapsUrl:place.googleMapsURI || '' };
@@ -129,7 +132,7 @@ async function showPlace(placeOrId){
     ${off.length ? `<span class="warnline">${off.map(d => WD[d]).join('·')}요일 휴무</span>` : ''}
     ${oh && oh.weekdayDescriptions ? `<details class="more"><summary>영업시간</summary><p class="fine">${oh.weekdayDescriptions.map(esc).join('<br>')}</p></details>` : ''}
     ${known ? `<span class="fine">트립노선 추천 장소 '${esc(known.name)}'(으)로 담아요.</span>` : ''}
-    <div class="pfoot"><select data-gmday aria-label="담을 날">${dayOptions(mine && s.assign[mine.id] >= 0 ? s.assign[mine.id] : null)}</select>
+    <div class="pfoot"><select data-gmday aria-label="담을 날">${dayOptions(dayOf(s, mine))}</select>
       <button type="button" class="primary small" data-gm="pick">${on ? '이 날로 옮기기' : '일정에 담기'}</button>
       ${on ? `<button type="button" class="ghost small" data-gm="toggle" data-v="${esc(mine.id)}">빼기</button>` : ''}
       ${cur.mapsUrl ? `<a class="link" href="${esc(cur.mapsUrl)}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}</div></div>`);
@@ -138,16 +141,18 @@ async function showPlace(placeOrId){
 // 자동 완성 (같은 검색 흐름은 한 세션으로 묶음: 고르기 전까지 후보 요청은 따로 돈을 받지 않는 방식)
 async function suggest(q){
   const ul = sheet.querySelector('.gmsug');
+  const n = ++sugN;
   if(q.length < 2){ ul.hidden = true; ul.innerHTML = ''; return; }
   try{
     if(!token) token = new G.places.AutocompleteSessionToken();
     const { suggestions } = await G.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input:q, sessionToken:token, language:'ko', region:REGION.gl,
       includedRegionCodes:REGION.codes, locationBias:map ? map.getBounds() || undefined : undefined });
+    if(n !== sugN) return;   // 더 친 글자의 후보가 먼저 왔으면 옛 후보로 덮지 않음
     const list = (suggestions || []).map(x => x.placePrediction).filter(Boolean).slice(0, 6);
     sheet.__sug = list;
     ul.innerHTML = list.map((p, i) => `<li><button type="button" data-gm="sug" data-i="${i}"><b>${esc(p.mainText ? p.mainText.toString() : p.text.toString())}</b><span>${esc(p.secondaryText ? p.secondaryText.toString() : '')}</span></button></li>`).join('');
     ul.hidden = !list.length;
-  }catch(e){ ul.hidden = true; }
+  }catch(e){ if(n === sugN) ul.hidden = true; }
 }
 
 function onClick(e){
@@ -155,14 +160,26 @@ function onClick(e){
   const a = b.dataset.gm; const daySel = sheet.querySelector('[data-gmday]'); const day = daySel && daySel.value !== '' ? +daySel.value : null;
   if(a === 'close') closeMap();
   else if(a === 'sug'){
-    const p = sheet.__sug[+b.dataset.i]; sheet.querySelector('.gmsug').hidden = true;
+    const p = (sheet.__sug || [])[+b.dataset.i]; sheet.querySelector('.gmsug').hidden = true;
+    if(!p) return;   // 후보가 그사이 바뀜
     const place = p.toPlace(); token = null; showPlace(place);
   } else if(a === 'pick' && cur){
-    const name = cb.onPick(cur, day); drawPins();
-    info(`<p class="lmsg">'${esc(name)}'을(를) ${day == null ? '일정에' : `${day + 1}일차에`} 담았어요. 계속 찾거나 닫기를 눌러 주세요.</p>`);
-  } else if(a === 'move'){ const name = cb.onPick(null, day, b.dataset.v); drawPins(); info(`<p class="lmsg">'${esc(name)}'을(를) ${day == null ? '일정에' : `${day + 1}일차에`} 담았어요.</p>`); }
-  else if(a === 'toggle'){ cb.onToggle(b.dataset.v); drawPins(); defaultInfo(); }
+    const s = cb.getState(); const mine = matchKnown(cur) || (s.custom || []).find(c => c.gid === cur.id);
+    const wasOn = !!(mine && s.picked[mine.id]), wasDay = dayOf(s, mine);
+    picked(cb.onPick(cur, day), day, wasOn, wasDay, ' 계속 찾거나 닫기를 눌러 주세요.');
+  } else if(a === 'move'){
+    const s = cb.getState(); const p = kp && kp.id === b.dataset.v ? kp : { id:b.dataset.v };
+    const wasOn = !!s.picked[p.id], wasDay = dayOf(s, p);   // 담기 전에 (onPick이 상태를 바꿈)
+    picked(cb.onPick(null, day, p.id), day, wasOn, wasDay, '');
+  }
+  else if(a === 'toggle'){ cb.onToggle(b.dataset.v); clearTemp(); drawPins(); defaultInfo(); }
 }
+// onPick이 돌려준 이름으로 알림 ('' = 못 담음 → 경고). 담은 뒤 핀 다시 그림
+function picked(name, day, wasOn, wasDay, more){
+  const m = pickMsg(name, day, wasOn, wasDay); drawPins();
+  info(m.ok ? `<p class="lmsg">${esc(m.text)}${more}</p>` : `<p class="warnline">${esc(m.text)}</p>`);
+}
+function clearTemp(){ if(temp){ temp.map = null; temp = null; } cur = null; }
 
 async function libs(){
   await loadMaps();
@@ -205,7 +222,8 @@ export async function refreshPlaces(gids){
   return out;
 }
 
-// query: 구글 지도 앱에서 공유받은 장소(이름·주소) — 지도를 연 뒤 그 장소 카드를 띄움. 지도를 못 열면 false
+// query: 구글 지도 앱에서 공유받은 장소 — 문자열(찾을 말) | { q, name } (gimport.js sharedPlace). 지도를 연 뒤 그 장소 카드를 띄움
+//   → true(지도를 염) | false(키·인터넷·지도 오류: 시트에 까닭을 적어 둠. 공유는 app.js가 가져온 곳 목록으로 돌림)
 export async function openMap(callbacks, query){
   cb = callbacks;
   if(!sheet) buildSheet();
@@ -217,37 +235,46 @@ export async function openMap(callbacks, query){
       : '<p class="warnline">구글 지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>');
     return false;
   }
-  if(!map){
-    map = new G.maps.Map(sheet.querySelector('#gmmap'), { center:REGION.center, zoom:REGION.key === 'hksz' ? 11 : 12, mapId:mapsConfig.mapId || 'DEMO_MAP_ID',
-      clickableIcons:true, gestureHandling:'greedy', mapTypeControl:false, streetViewControl:false, fullscreenControl:false });
-    map.addListener('click', ev => { if(ev.placeId){ ev.stop(); showPlace(ev.placeId); } });
+  try{
+    if(!map){
+      map = new G.maps.Map(sheet.querySelector('#gmmap'), { center:REGION.center, zoom:REGION.key === 'hksz' ? 11 : 12, mapId:mapsConfig.mapId || 'DEMO_MAP_ID',
+        clickableIcons:true, gestureHandling:'greedy', mapTypeControl:false, streetViewControl:false, fullscreenControl:false });
+      map.addListener('click', ev => { if(ev.placeId){ ev.stop(); showPlace(ev.placeId); } });
+    }
+    drawPins(); defaultInfo();
+  }catch(e){ map = null; info('<p class="warnline">구글 지도를 그리지 못했어요. 닫았다가 다시 열어 주세요.</p>'); return false; }
+  if(query){
+    const sh = typeof query === 'string' ? { q:query, name:'' } : query;
+    if(sh.q) findPlace(sh);
+    else info('<p class="warnline">공유한 링크에 장소 이름이 없어서 찾지 못했어요. 위 검색칸에 이름을 쳐 주세요.</p>');
   }
-  drawPins(); defaultInfo();
-  if(query) findPlace(query);
   return true;
 }
 
-// 이름(·주소)으로 구글 장소 하나 찾기 → 카드. 검색칸과 같은 자동 완성으로 찾음
-//   (글 검색 searchByText는 이 프로젝트에서 하루 한도를 0으로 막아 둠 — 돈이 나가지 않게, 2026-11-04 확인)
-async function findPlace(q){
+// 이름(·주소)으로 구글 장소 하나 찾기 → 카드. 검색칸과 같은 자동 완성으로 찾음(이름+주소 → 이름만 → 앞 세 낱말, gplace.js findInputs)
+//   (글 검색 searchByText는 이 프로젝트에서 하루 한도를 0으로 막아 둠 — 돈이 나가지 않게, 2026-11-04 확인. 쓰지 않음)
+async function findPlace({ q, name }){
+  const n = want;   // 찾는 사이 다른 장소를 눌렀거나 닫으면 그만둠
+  const live = () => n === want && !sheet.hidden;
   info('<p class="fine">공유한 장소를 찾고 있어요…</p>');
-  const box = sheet.querySelector('#gmq'); if(box) box.value = q.slice(0, 60);
-  const name = q.split(/\s{2,}|\n/)[0];
-  for(const input of [q, q.split(' ').slice(0, 3).join(' ')].filter((x, i, a) => x && a.indexOf(x) === i)){
+  const box = sheet.querySelector('#gmq'); if(box) box.value = (name || q).slice(0, 60);
+  for(const input of findInputs(q, name)){
     try{
       if(!token) token = new G.places.AutocompleteSessionToken();
-      const { suggestions } = await withTimeout(G.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input:input.slice(0, 100), sessionToken:token, language:'ko', region:REGION.gl,
+      const { suggestions } = await withTimeout(G.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input, sessionToken:token, language:'ko', region:REGION.gl,
         includedRegionCodes:REGION.codes, locationBias:REGION.center }), MAPS_WAIT);
+      if(!live()) return;
       const p = (suggestions || []).map(x => x.placePrediction).find(Boolean);
       if(p){ const place = p.toPlace(); token = null; showPlace(place); return; }
-    }catch(e){}
+    }catch(e){ if(!live()) return; }
   }
-  info(`<p class="warnline">공유한 장소${name ? ` '${esc(name)}'` : ''}을(를) 못 찾았어요. 위 검색칸에서 이름을 고쳐 찾아 보세요.</p>`);
+  const nm = name || q;
+  if(live()) info(`<p class="warnline">공유한 장소${nm ? ` '${esc(nm)}'` : ''}을(를) 못 찾았어요. 위 검색칸에서 이름을 고쳐 찾아 보세요.</p>`);
 }
 
 export function closeMap(){
   if(!sheet) return;
   sheet.hidden = true; document.body.classList.remove('noscroll');
-  if(temp){ temp.map = null; temp = null; } cur = null;
+  want++; clearTemp(); kp = null;   // 아직 오는 장소 응답은 버림(닫은 뒤 파란 핀이 남지 않게)
   if(cb && cb.onClose) cb.onClose();
 }

@@ -1,7 +1,8 @@
 // 실행: npm test  (구글 응답 모양은 Places API (New) 문서 기준, 값은 지어냄)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { kindOf, openAtPeriods, closedDays, matchKnown, toCustom, gmapsPlaceUrl } from '../js/gplace.js';
+import { kindOf, openAtPeriods, closedDays, matchKnown, toCustom, gmapsPlaceUrl, latLngOf, pinKind, pinList, dayOf, findInputs, pickMsg } from '../js/gplace.js';
+import { PLACES } from '../js/data.js';
 import { gdir } from '../js/ui.js';
 
 const P = (d, oh, om, cd, ch, cm) => ({ open:{ day:d, hour:oh, minute:om }, close:{ day:cd, hour:ch, minute:cm } });
@@ -73,4 +74,70 @@ test('구글에서 담은 곳: 25일 지나면 새로 받고, 좌표·쉬는 요
   assert.equal(r.name, '옛 가게'); assert.equal(r.kind, '먹거리'); assert.equal(r.hours, 1);
   assert.equal(r.closed, undefined);   // 쉬는 요일 정보가 없어졌으면 지움
   assert.equal(applyRefresh(custom[0], { lat:'x', lng:1 }, now), custom[0]);
+});
+
+// ── 구글 지도 시트(gmap.js)의 계산 ──
+const ST = o => Object.assign({ picked:{}, must:{}, assign:{}, fullDay:{}, custom:[], hotels:[] }, o);
+
+test('지도 핀: 좌표 거르기', () => {
+  assert.deepEqual(latLngOf({ lat:35.7, lng:139.8 }), { lat:35.7, lng:139.8 });
+  assert.deepEqual(latLngOf({ lat:'35.7', lng:'139.8' }), { lat:35.7, lng:139.8 });
+  for(const p of [null, {}, { lat:null, lng:139 }, { lat:35, lng:null }, { lat:'', lng:'' }, { lat:35 }, { lat:'abc', lng:1 }, { lat:NaN, lng:1 }, { lat:95, lng:1 }, { lat:1, lng:200 }])
+    assert.equal(latLngOf(p), null, JSON.stringify(p));
+});
+
+test('지도 핀: 꼭 갈 곳·담은 곳·안 담은 추천·숙소 후보, 추천 끄기', () => {
+  const [a, b, c] = PLACES;
+  const s = ST({ must:{ [a.id]:true }, picked:{ [a.id]:true, [b.id]:true },
+    custom:[{ id:'gx', name:'좌표 없는 곳', area:a.area, lat:null, lng:null, custom:true }, { id:'gy', name:'빈 좌표', area:a.area, lat:'', lng:'', custom:true }],
+    hotels:[{ id:'h1', name:'호텔 가', lat:35.69, lng:139.70 }, { id:'h2', name:'위치 못 찾은 호텔', lat:null, lng:null }] });
+  assert.equal(pinKind(s, a), 'must'); assert.equal(pinKind(s, b), 'on'); assert.equal(pinKind(s, c), 'rec');
+  assert.equal(pinKind({ picked:{} }, a), 'rec');   // must 칸이 없어도
+  const all = pinList(s, true);
+  assert.equal(all.find(x => x.place && x.place.id === a.id).kind, 'must');
+  assert.equal(all.find(x => x.place && x.place.id === c.id).kind, 'rec');
+  assert.ok(!all.some(x => x.place && /^g[xy]$/.test(x.place.id)));   // 좌표 없는 곳은 핀 없음(지도 오류 막기)
+  assert.deepEqual(all.filter(x => x.kind === 'hotel').map(x => x.hotel.id), ['h1']);
+  assert.ok(all.every(x => Number.isFinite(x.pos.lat) && Number.isFinite(x.pos.lng)));
+  const off = pinList(s, false);
+  assert.ok(!off.some(x => x.kind === 'rec'));
+  assert.deepEqual(off.filter(x => x.place).map(x => x.place.id).sort(), [a.id, b.id].sort());
+  assert.equal(off.filter(x => x.kind === 'hotel').length, 1);   // 숙소 후보는 추천을 꺼도 보임
+});
+
+test('지도 카드: 담은 날 기본값 (하루 종일 장소는 fullDay, 빼 둠은 자동)', () => {
+  const full = PLACES.find(p => p.full), half = PLACES.find(p => !p.full);
+  assert.equal(dayOf(ST({ picked:{ [half.id]:true }, assign:{ [half.id]:2 } }), half), 2);
+  assert.equal(dayOf(ST({ picked:{ [half.id]:true }, assign:{ [half.id]:-1 } }), half), null);   // 빼 둔 곳
+  assert.equal(dayOf(ST({ picked:{ [half.id]:true } }), half), null);
+  assert.equal(dayOf(ST({ assign:{ [half.id]:2 } }), half), null);   // 안 담은 곳
+  assert.equal(dayOf(ST({ picked:{ [full.id]:true }, fullDay:{ [full.id]:1 } }), full), 1);
+  assert.equal(dayOf(ST({ picked:{ [full.id]:true }, assign:{ [full.id]:3 } }), full), null);
+  assert.equal(dayOf(ST({}), null), null);
+});
+
+test('공유 장소 찾을 말: 이름+주소 → 이름 → 앞 세 낱말', () => {
+  assert.deepEqual(findInputs('팀호완 삼수이포 9-11 Fuk Wing St', '팀호완 삼수이포'), ['팀호완 삼수이포 9-11 Fuk Wing St', '팀호완 삼수이포']);
+  assert.deepEqual(findInputs('Tim Ho Wan Sham Shui Po 9-11 Fuk Wing St', 'Tim Ho Wan Sham Shui Po'),
+    ['Tim Ho Wan Sham Shui Po 9-11 Fuk Wing St', 'Tim Ho Wan Sham Shui Po', 'Tim Ho Wan']);
+  assert.deepEqual(findInputs('센소지', '센소지'), ['센소지']);
+  assert.deepEqual(findInputs('센소지', ''), ['센소지']);
+  assert.deepEqual(findInputs('', ''), []);
+  assert.ok(findInputs('가'.repeat(150), '').every(x => x.length <= 100));
+});
+
+test('담기 알림: 담음·옮김·이미 그 날·자동·못 담음', () => {
+  assert.deepEqual(pickMsg('', 1, false, null), { ok:false, text:'담지 못했어요. 닫았다가 다시 눌러 주세요.' });
+  assert.equal(pickMsg('센소지', null, false, null).text, "'센소지'을(를) 일정에 담았어요.");
+  assert.equal(pickMsg('센소지', 1, false, null).text, "'센소지'을(를) 2일차에 담았어요.");
+  assert.equal(pickMsg('센소지', 2, true, 0).text, "'센소지'을(를) 3일차로 옮겼어요.");
+  assert.equal(pickMsg('센소지', 0, true, 0).text, "'센소지'은(는) 이미 1일차에 있어요.");
+  assert.equal(pickMsg('센소지', null, true, 1).text, "'센소지'은(는) 날짜를 자동으로 정해요.");
+});
+
+test('구글 지도 시트는 자동 완성만 씀: 글 검색(searchByText, 한도 0으로 막음)을 부르지 않음', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../js/gmap.js', import.meta.url), 'utf8').split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+  assert.ok(!/searchByText|SearchByText|textSearch/.test(src.replace(/\/\/.*$/gm, '')));
+  assert.ok(/fetchAutocompleteSuggestions/.test(src));
 });
