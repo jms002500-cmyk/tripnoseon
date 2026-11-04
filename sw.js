@@ -2,7 +2,7 @@
 // 파일 목록을 바꾸면 CACHE 이름의 숫자를 올려 주세요.
 // GitHub Pages는 파일을 10분 동안 브라우저 캐시에 두라고 해서, 앱 파일은 늘 서버에 새것인지 물어봄(no-cache).
 // 안 그러면 새 버전을 올려도 10분 동안 옛 파일과 새 파일이 섞여 열릴 수 있음(2026-10-29 실제 폰에서 확인)
-const CACHE = 'tripnoseon-v70';
+const CACHE = 'tripnoseon-v71';
 const SHELL = [
   './', './index.html', './css/styles.css', './manifest.webmanifest',
   './js/app.js', './js/data.js', './js/logic.js', './js/map.js', './js/ui.js', './js/views.js',
@@ -14,8 +14,9 @@ self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache:'reload' })))).then(() => self.skipWaiting()));
 });
 
+// 옛 버전 사본만 지움. github.io는 한 사용자의 여러 Pages 앱이 같은 출처라, 이름이 tripnoseon-이 아닌 남의 사본은 건드리지 않음
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('tripnoseon-') && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 // 느린 연결(해외 로밍·중국 본토에서 github.io가 느릴 때): 네트워크를 WAIT만큼만 기다리고 저장한 사본으로.
@@ -64,8 +65,10 @@ self.addEventListener('fetch', e => {
   const nav = req.mode === 'navigate';
   // 화면(페이지 이동)은 주소 뒤 ?…가 달라도 같은 화면 사본으로
   const cached = () => caches.match(req, nav ? { ignoreSearch:true } : undefined).then(hit => hit || (nav ? caches.match('./index.html') : undefined));
+  // 화면 사본은 ?… 없는 주소로 저장(공유로 받은 ?st=…&sx=… 글이 사본 이름으로 남거나 공유할 때마다 사본이 늘지 않게, './' 사본도 새로)
+  const key = nav ? url.origin + url.pathname : req;
   const fromNet = () => fetch(req.url, { cache:'no-cache' })   // 페이지 이동 요청은 Request로 다시 만들 수 없어서 주소로
-    .then(res => { if(res.ok) put(req, res); return res; });
+    .then(res => { if(res.ok) put(key, res); return res; });
   if(Date.now() < slowUntil){
     e.respondWith(cached().then(hit => hit || fromNet()));
     return;

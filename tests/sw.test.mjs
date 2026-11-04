@@ -55,6 +55,7 @@ function fakeSW(){
   const listeners = {};
   const net = { mode:'ok', calls:[] };   // ok | off | hang | 503
   const pending = [];
+  const names = new Set(['tripnoseon-v1', 'other-app-v3']);   // 이 출처(github.io)의 사본 이름들
   const ctx = {
     self:{ addEventListener:(t, f) => { listeners[t] = f; }, skipWaiting(){}, clients:{ claim(){} } },
     location:{ origin:ORIGIN }, URL, Response, Request, Headers, Promise, console,
@@ -68,7 +69,7 @@ function fakeSW(){
         if(o && o.ignoreSearch) u.search = '';
         const r = store.get(u.href); return r ? r.clone() : undefined;
       },
-      keys:async () => [], delete:async () => true
+      keys:async () => [...names], delete:async k => names.delete(k)
     },
     fetch:(req) => {
       const url = typeof req === 'string' ? req : req.url; net.calls.push(url);
@@ -81,7 +82,8 @@ function fakeSW(){
   vm.createContext(ctx); vm.runInContext(sw, ctx);
   const flush = () => new Promise(r => setImmediate(r));
   return {
-    store, net, pending,
+    store, net, pending, names,
+    async activate(){ let p; listeners.activate({ waitUntil:x => { p = x; } }); await p; },
     seed:(path, body) => store.set(new URL(path, ORIGIN + '/app/').href, new Response(body, { status:200 })),
     async tick(ms){ now += ms; for(const t of timers.filter(t => t.at <= now)){ ctx.clearTimeout(t); t.f(); } await flush(); await flush(); },
     // 요청 하나 보내고 응답 promise를 돌려줌
@@ -168,4 +170,44 @@ test('sw: 화면을 사본으로 연 뒤에는 글꼴 스타일도 기다리지 
   assert.equal(await text(w.req(css)), '', '바로 빈 스타일');
   w.pending.forEach(f => f()); await w.tick(0);
   assert.ok(w.store.has(css), '뒤에서 받은 건 저장');
+});
+
+test('sw: share_target(?st=…&sx=…&su=…)로 열어도 끊겼으면 앱 사본, 느리면 3초 뒤 사본', async () => {
+  const share = '?st=%EA%B0%80%EA%B2%8C&sx=x&su=https%3A%2F%2Fmaps.app.goo.gl%2Fabc';
+  const w = fakeSW(); w.seed('', 'page'); w.net.mode = 'off';
+  assert.equal(await text(w.req(share, { mode:'navigate' })), 'page');
+  const w2 = fakeSW(); w2.seed('', 'page'); w2.net.mode = 'hang';
+  let got = null; w2.req(share, { mode:'navigate' }).then(r => r.text()).then(t => { got = t; });
+  await w2.tick(3000); assert.equal(got, 'page');
+});
+
+test('sw: 화면 사본은 ?… 없는 주소로 저장(공유 글이 사본 이름으로 남지 않고, ./ 사본이 새것으로)', async () => {
+  const w = fakeSW(); w.seed('', 'old');
+  await w.req('?st=secret&sx=x', { mode:'navigate' }); await w.tick(0);
+  assert.deepEqual([...w.store.keys()], [`${ORIGIN}/app/`], '?st= 붙은 사본이 따로 생기지 않음');
+  assert.equal(await w.store.get(`${ORIGIN}/app/`).clone().text(), `net:${ORIGIN}/app/?st=secret&sx=x`);
+});
+
+test('sw: 공공데이터·홍콩 MTR·천문대·구글 지도·Firebase 요청은 사본에 넣지 않음', async () => {
+  const w = fakeSW();
+  ['https://apis.data.go.kr/B551177/StatusOfParking/getTrackingParking?serviceKey=k',
+   'https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=TWL&sta=TST',
+   'https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=tc',
+   'https://maps.googleapis.com/maps/api/js?key=k&v=weekly',
+   'https://places.googleapis.com/v1/places/abc',
+   'https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel',
+   'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js',
+   'https://open.er-api.com/v6/latest/KRW'
+  ].forEach(u => assert.equal(w.req(u), null, `${u}는 브라우저가 바로`));
+  await w.tick(0);
+  assert.equal(w.store.size, 0);
+  assert.equal(w.net.calls.length, 0);
+});
+
+test('sw: 새 버전이 켜지면 옛 tripnoseon 사본만 지우고 같은 출처의 다른 앱 사본은 둠', async () => {
+  const w = fakeSW();
+  const cur = sw.match(/const CACHE = '([^']+)'/)[1];
+  w.names.add(cur);
+  await w.activate();
+  assert.deepEqual([...w.names].sort(), [cur, 'other-app-v3'].sort());
 });
