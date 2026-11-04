@@ -3,6 +3,7 @@
 import { AREAS, YAMANOTE, KEIYO, DAY_COLORS, REGION, LINES } from './data.js';
 import { allPlaces, pickedPlaces, rankAreas, buildDays, nightHotel, onlyCity } from './logic.js';
 import { esc } from './ui.js';
+import { MTR_STATIONS, MTR_LINES, mtrPaths } from './hktransit.js';
 
 // 지역마다 약도 범위가 다름 (data.js REGIONS의 bounds). mapSVG가 그릴 때마다 지금 지역으로 맞춤
 //   보여 줄 곳(pts)을 주면 그곳들이 다 들어오게 확대 (종류별로 거른 곳끼리 가까운지 보이게)
@@ -54,6 +55,17 @@ export function mapSVG(mode, s, P, focus){
     { const [x, y] = px({ lat:35.6560, lng:139.8330 }); g += `<text x="${x}" y="${y-14}" text-anchor="middle" class="m-cap">게이요선 → 디즈니</text>`; }
   }
   LINES.forEach(l => { if(l.pts && l.pts.length > 1) g += `<path d="${pathOf(l.pts, false)}" fill="none" stroke="${esc(l.color || '#888')}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>`; });
+  // 홍콩 MTR: 공개 자료의 역 좌표를 노선 순서대로 이어 굵게(흰 테두리), 역은 흰 점(갈아타는 역은 크게). 확대했을 때만 역 이름
+  const mtr = REGION.key === 'hksz';
+  if(mtr){
+    const paths = mtrPaths();
+    paths.forEach(l => { g += `<path d="${pathOf(l.pts, false)}" class="m-mtr-case"/>`; });
+    paths.forEach(l => { g += `<path d="${pathOf(l.pts, false)}" class="m-mtr" stroke="${esc(l.color)}"/>`; });
+    const named = KMW <= 14;
+    Object.values(MTR_STATIONS).forEach(st => { if(!inB(st)) return; const [x, y] = px(st); const hub = st.lines.length > 1;
+      g += `<circle cx="${x}" cy="${y}" r="${hub ? 6 : 4}" class="m-sta${hub ? ' hub' : ''}"/>`;
+      if(named) g += `<text x="${x}" y="${y - 13}" text-anchor="middle" class="m-staname">${esc(st.ko)}</text>`; });
+  }
   Object.values(AREAS).forEach(a => { if(!inB(a)) return; const [x, y] = px(a); g += `<text x="${x + a.lx}" y="${y + a.ly}" text-anchor="${a.anchor}" class="m-area">${esc(a.name)}</text>`; });
 
   if(focus && (mode === 'pick' || mode === 'must')){
@@ -120,6 +132,7 @@ export function mapSVG(mode, s, P, focus){
       + `<span class="lg"><i style="background:var(--ink);border-radius:3px"></i>숙소</span>`;
   }
 
+  if(mtr) legend += `<span class="lg"><i class="lg-mtr" style="background:linear-gradient(90deg,${['TWL', 'ISL', 'KTL', 'TML'].map((k, i) => `${MTR_LINES[k].color} ${i * 25}% ${i * 25 + 25}%`).join(',')})"></i>MTR 지하철 · 흰 점 = 역</span>`;
   g += scaleBar();
   return `<figure class="map"><svg viewBox="0 0 ${MW} ${MH}" role="img" aria-label="${esc(REGION.name)} 약도">${g}</svg><figcaption>${legend}<span class="lg">위치 관계만 보여주는 약도예요</span></figcaption></figure>`;
 }

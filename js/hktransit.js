@@ -13,11 +13,25 @@
 //   [한국어, 중문, 위도, 경도, '노선 …']
 export const MTR_CHECKED = '2026-11-03';
 export const MTR_SOURCE = 'https://data.gov.hk/en-data/dataset/mtr-data2-nexttrain-data';
+// color: 노선 고유색(MTR 노선도의 색, 약도에 그릴 때 씀 — DAY_COLORS처럼 고정값)
 export const MTR_LINES = {
-  AEL:{ ko:'공항 익스프레스', zh:'機場快綫' }, TCL:{ ko:'퉁청선', zh:'東涌綫' }, TML:{ ko:'툰마선', zh:'屯馬綫' },
-  TKL:{ ko:'청콴오선', zh:'將軍澳綫' }, EAL:{ ko:'동철선', zh:'東鐵綫' }, SIL:{ ko:'사우스아일랜드선', zh:'南港島綫' },
-  TWL:{ ko:'췐완선', zh:'荃灣綫' }, ISL:{ ko:'아일랜드선', zh:'港島綫' }, KTL:{ ko:'쿤통선', zh:'觀塘綫' }, DRL:{ ko:'디즈니선', zh:'迪士尼綫' }
+  AEL:{ ko:'공항 익스프레스', zh:'機場快綫', color:'#00888A' }, TCL:{ ko:'퉁청선', zh:'東涌綫', color:'#F7943E' }, TML:{ ko:'툰마선', zh:'屯馬綫', color:'#923011' },
+  TKL:{ ko:'청콴오선', zh:'將軍澳綫', color:'#7D499D' }, EAL:{ ko:'동철선', zh:'東鐵綫', color:'#5EB6E4' }, SIL:{ ko:'사우스아일랜드선', zh:'南港島綫', color:'#BAC429' },
+  TWL:{ ko:'췐완선', zh:'荃灣綫', color:'#E2231A' }, ISL:{ ko:'아일랜드선', zh:'港島綫', color:'#0075C2' }, KTL:{ ko:'쿤통선', zh:'觀塘綫', color:'#00AB4E' }, DRL:{ ko:'디즈니선', zh:'迪士尼綫', color:'#F173AC' }
 };
+// 약도에 그릴 노선: 끝에서 끝까지 역 순서(갈래는 따로 한 줄). 노선마다 들어가는 역은 위 역 목록(MTR 공개 자료)과 같은지 tests/hktransit.test.mjs가 확인
+export const MTR_ROUTES = [
+  ['ISL', 'KET HKU SYP SHW CEN ADM WAC CAB TIH FOH NOP QUB TAK SWH SKW HFC CHW'],
+  ['TWL', 'CEN ADM TST JOR YMT MOK PRE SSP CSW LCK MEF LAK KWF KWH TWH TSW'],
+  ['KTL', 'WHA HOM YMT MOK PRE SKM KOT LOF WTS DIH CHH KOB NTK KWT LAT YAT TIK'],
+  ['TKL', 'NOP QUB YAT TIK TKO HAH POA'], ['TKL', 'TKO LHP'],
+  ['TCL', 'HOK KOW OLY NAC LAK TSY SUN TUC'],
+  ['AEL', 'HOK KOW TSY AIR AWE'],
+  ['DRL', 'SUN DIS'],
+  ['EAL', 'ADM EXC HUH MKK KOT TAW SHT FOT UNI TAP TWO FAN SHS LOW'], ['EAL', 'SHS LMC'],
+  ['TML', 'WKS MOS HEO TSH SHM CIO STW CKT TAW HIK DIH KAT SUW TKW HOM HUH ETS AUS NAC MEF TWW KSR YUL LOP TIS SIH TUM'],
+  ['SIL', 'ADM OCP WCH LET SOH']
+].map(([line, seq]) => ({ line, seq:seq.split(' ') }));
 const RAW = {
   AWE:['아시아월드엑스포','博覽館',22.3218,113.9412,'AEL'],
   AIR:['공항','機場',22.3159,113.9365,'AEL'],
@@ -119,6 +133,8 @@ const RAW = {
 };
 export const MTR_STATIONS = Object.fromEntries(Object.entries(RAW).map(([k, [ko, zh, lat, lng, l]]) => [k, { code:k, ko, zh, lat, lng, lines:l.split(' ') }]));
 export const stationKo = code => MTR_STATIONS[code] ? `${MTR_STATIONS[code].ko}역` : String(code || '');
+// 약도에 그릴 MTR 노선 → [{ line, color, pts:[[lat,lng]…] }]
+export const mtrPaths = () => MTR_ROUTES.map(r => ({ line:r.line, color:MTR_LINES[r.line].color, pts:r.seq.map(c => [MTR_STATIONS[c].lat, MTR_STATIONS[c].lng]) }));
 
 const km = (a, b) => {
   const r = Math.PI / 180, x = (b.lng - a.lng) * r * Math.cos((a.lat + b.lat) / 2 * r), y = (b.lat - a.lat) * r;

@@ -35,6 +35,7 @@ import { prepTasks, prepNow } from './prep.js';
 import { KR_AIRPORTS, krAirport, moveKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES } from './parking.js';
 import { BUS_AREAS, BUS_PAGES, BUS_ERR, isWeekend, nextTimes, gapOf, hhmm } from './airbus.js';
 import { MTR_STATIONS, MTR_LINES, MTR_ERR, MTR_SOURCE, nearStations, distText, stationKo, waitText, dirText } from './hktransit.js';
+import { THEMES, themeOf, inTheme, themeCounts } from './themes.js';
 import { CPS, cpOfBorder, crossDir, moveCross, BORDER_ALT } from './border.js';
 import { homeTime } from './ics.js';
 import { addDay } from './bookings.js';
@@ -389,12 +390,35 @@ export function vMust(s){
 }
 
 /* Step 4 · 장소 담기 */
+// 홍콩 장소에서 가장 가까운 MTR역 (1.2km 안, 선전 장소는 국경 너머 역이 잡히지 않게 뺌) → '몽콕역 약 300m' | ''
+function stationNear(p){
+  if(REGION.key !== 'hksz' || placeCity(p) === 'sz') return '';
+  const n = nearStations(p, 1, 1.2)[0]; return n ? `${stationKo(n.code)} ${distText(n.km)}` : '';
+}
+
+// 테마로 골라 보기: 테마를 누르면 우리 가족에 맞는 곳 5곳을 바로 담을 수 있게, 아래 목록도 그 테마로 거름 (js/themes.js)
+function themeBox(s){
+  const all = allPlaces(s); const n = themeCounts(all); const cur = themeOf(s.themeFilter);
+  const top = cur ? all.filter(cur.test).map(p => ({ p, f:fitScore(p, s) })).sort((a, b) => (b.f.score + (s.must[b.p.id] ? 100 : 0)) - (a.f.score + (s.must[a.p.id] ? 100 : 0))).slice(0, 5) : [];
+  const row = ({ p, f }) => { const on = !!s.picked[p.id]; const st = stationNear(p);
+    return `<li><div class="sbody"><b>${esc(p.name)}</b><span>${esc((AREAS[p.area] || {}).name || '')}${st ? ` · 🚇 ${esc(st)}` : ''}${f.why[0] ? ` · ${esc(f.why[0])}` : ''}</span></div>
+      <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></li>`; };
+  return `<div class="box" id="themebox">
+      <h2>테마로 골라 보기</h2>
+      <p class="fine">하고 싶은 것을 누르면 ${esc(partyText(s))}에게 맞는 곳부터 보여 드려요. 다시 누르면 풀려요.</p>
+      <div class="chips" role="group" aria-label="테마">${THEMES.filter(t => n[t.key]).map(t => chip('theme', t.key, `${t.icon} ${t.label} ${n[t.key]}`, !!cur && cur.key === t.key)).join('')}</div>
+      ${cur ? `<ul class="themetop">${top.map(row).join('')}</ul>
+      <div class="pfoot"><button type="button" class="ghost small" data-act="helpgo" data-v="picklist">${esc(cur.label)} ${n[cur.key]}곳 모두 보기 ↓</button>${cur.key === 'food' && EATS.length ? '<button type="button" class="ghost small" data-act="helpgo" data-v="eats">가족 식당 보기 ↓</button>' : ''}</div>` : ''}
+    </div>`;
+}
+
 function placeCard(p, s, n){
   const on = !!s.picked[p.id]; const must = !!s.must[p.id]; const f = fitScore(p, s);
   return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
     <div class="ptop"><div><h3>${n ? `<span class="pnum">${n}</span>` : ''}${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
     <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${closedText(p) ? ` · <span class="closed">${esc(closedText(p))}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
+    ${stationNear(p) ? `<p class="meta sta">🚇 가까운 역: ${esc(stationNear(p))}</p>` : ''}
     ${(f.why.length || f.neg.length) ? `<div class="why">${f.why.map(w => `<span>${esc(w)}</span>`).join('')}${f.neg.map(w => `<span class="neg">${esc(w)}</span>`).join('')}</div>` : ''}
     ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
     ${on ? voteBar(s, p) : ''}
@@ -508,13 +532,15 @@ function importBox(s){
 export function vPick(s){
   const cap = capacity(s); const pct = cap.total ? Math.min(100, cap.used / cap.total * 100) : 0; const over = cap.used > cap.total;
   let list = allPlaces(s).map(p => ({ p, sc: fitScore(p, s).score + (s.must[p.id] ? 100 : 0) }));
+  const theme = themeOf(s.themeFilter);
+  if(theme) list = list.filter(x => inTheme(x.p, theme.key));
   if(s.areaFilter !== 'all') list = list.filter(x => x.p.area === s.areaFilter);
   const byArea = list.map(x => x.p);
   if(s.kindFilter !== 'all') list = list.filter(x => x.p.kind === s.kindFilter);
   list.sort((a, b) => b.sc - a.sc);
   const counts = {}; allPlaces(s).forEach(p => { counts[p.area] = (counts[p.area] || 0) + 1; });
   // 동네·종류로 거르면 그곳만 번호를 달아 지도에 (너무 많으면 번호 없이 전체 약도)
-  const focus = (s.areaFilter !== 'all' || s.kindFilter !== 'all') && list.length && list.length <= 40 ? list.map(x => x.p) : null;
+  const focus = (theme || s.areaFilter !== 'all' || s.kindFilter !== 'all') && list.length && list.length <= 40 ? list.map(x => x.p) : null;
   const cities = tripCities(s); const areaKeys = Object.keys(AREAS).filter(k => !cities.length || cities.includes(AREAS[k].city));
   return `<section class="step">
     <p class="eyebrow">Step 4 · 장소 담기</p>
@@ -528,6 +554,7 @@ export function vPick(s){
       <p class="fine">${!cap.total ? '여행 날짜를 정하면 쓸 수 있는 시간을 계산해 드려요.' : over ? '쓸 수 있는 시간보다 많이 담았어요. 일정에서 넘치는 곳은 따로 모아둘게요.' : (cap.total - cap.used < 0.5 ? '쓸 수 있는 시간을 거의 다 채웠어요. 더 담으면 일정에서 넘치는 곳은 따로 모아둘게요.' : `하루 종일 쓰는 곳을 뺀 나머지 날에 ${+(cap.total - cap.used).toFixed(1)}시간 정도 여유가 있어요.`)}</p>
       <div><button type="button" class="ghost small" data-act="autopick">추천 순서대로 빈 시간 채우기</button></div>
     </div>
+    ${themeBox(s)}
     <div class="box">
       <h2>구글 지도에서 찾아 담기</h2>
       <p class="fine">한국어 구글 지도에서 이름으로 찾거나 장소 아이콘을 눌러, 평점·영업시간을 보고 몇 일차에 갈지 골라 바로 담아요. 쉬는 요일은 일정 짜기가 알아서 피해요.</p>
@@ -536,12 +563,13 @@ export function vPick(s){
     </div>
     ${aiPlanBox(s)}
     ${importBox(s)}
-    <div class="scroller" role="group" aria-label="동네로 거르기">
+    ${theme ? `<div class="chips" id="pickfilters">${chip('theme', 'all', `${theme.icon} ${theme.label}만 보는 중 · 풀기 ✕`, true)}</div>` : ''}
+    <div class="scroller" role="group" aria-label="동네로 거르기"${theme ? '' : ' id="pickfilters"'}>
       ${chip('filter', 'all', '추천순 전체', s.areaFilter === 'all')}
       ${areaKeys.map(k => chip('filter', k, `${cities.length > 1 ? CITY_FLAG[AREAS[k].city] + ' ' : ''}${AREAS[k].name} ${counts[k] || 0}`, s.areaFilter === k)).join('')}
     </div>
     ${kindChips('kfilter', s.kindFilter, byArea)}
-    ${list.length ? '' : '<p class="empty">이 조건에 맞는 곳이 없어요. 다른 동네나 종류를 골라 보세요.</p>'}
+    ${list.length ? '' : `<p class="empty">이 조건에 맞는 곳이 없어요. 다른 동네나 종류${theme ? '·테마' : ''}를 골라 보세요.</p>`}
     <div class="list">${list.map((x, i) => placeCard(x.p, s, focus ? i + 1 : 0)).join('')}</div>
     ${eatsBox(s, cities)}
     <form class="box" id="customform">

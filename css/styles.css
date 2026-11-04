@@ -165,6 +165,17 @@ a.ghost, a.primary{display:inline-flex; align-items:center; justify-content:cent
 .m-loop{fill:none; stroke:var(--map-loop); stroke-width:8; stroke-linejoin:round; opacity:.7}
 .m-keiyo{fill:none; stroke:var(--muted); stroke-width:4; stroke-dasharray:12 9; opacity:.7}
 .m-area{fill:var(--muted); font:600 27px var(--f-body); paint-order:stroke; stroke:var(--map-bg); stroke-width:9px; stroke-linejoin:round}
+/* 홍콩 MTR (map.js): 흰 테두리 위에 노선색, 역은 흰 점 */
+.m-mtr-case{fill:none; stroke:var(--map-bg); stroke-width:13; stroke-linecap:round; stroke-linejoin:round}
+.m-mtr{fill:none; stroke-width:7; stroke-linecap:round; stroke-linejoin:round}
+.m-sta{fill:#FFFFFF; stroke:var(--ink); stroke-width:2}
+.m-sta.hub{stroke-width:3}
+.m-staname{fill:var(--ink); font:600 22px var(--f-body); paint-order:stroke; stroke:var(--map-bg); stroke-width:6px; stroke-linejoin:round; opacity:.8}
+.lg i.lg-mtr{width:18px; height:6px; border-radius:3px}
+.pcard .meta.sta{color:var(--ink)}
+/* 테마로 골라 보기 (views.js themeBox) */
+.themetop{list-style:none; margin:10px 0 0; padding:0}
+.themetop li{display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; padding:9px 0; border-top:1px dashed var(--rule)}
 .m-cap{fill:var(--muted); font:500 21px var(--f-body); paint-order:stroke; stroke:var(--map-bg); stroke-width:7px}
 .m-off{fill:var(--surface); stroke:var(--muted); stroke-width:3}
 .m-on{fill:var(--accent); stroke:var(--surface); stroke-width:4}

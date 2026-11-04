@@ -1,7 +1,7 @@
 // 홍콩 MTR 다음 열차: 역 목록·좌표 · 가까운 역 · 주소 · 답 읽기(실제 응답 모양) · 문구
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MTR_STATIONS, MTR_LINES, nearStations, distText, mtrUrl, parseNextTrain, waitText, dirText, stationKo, MTR_ERR } from '../js/hktransit.js';
+import { MTR_STATIONS, MTR_LINES, MTR_ROUTES, mtrPaths, nearStations, distText, mtrUrl, parseNextTrain, waitText, dirText, stationKo, MTR_ERR } from '../js/hktransit.js';
 import { AREAS } from '../js/regions/hksz-data.js';
 
 const km = (a, b) => { const r = Math.PI / 180; return 6371 * Math.hypot((b.lng - a.lng) * r * Math.cos((a.lat + b.lat) / 2 * r), (b.lat - a.lat) * r); };
@@ -121,4 +121,20 @@ test('답 읽기: 특별 운행 안내·빈 자료·이상한 답', () => {
 test('역 이름', () => {
   assert.equal(stationKo('TST'), '침사추이역');
   assert.equal(stationKo('ZZZ'), 'ZZZ');
+});
+
+test('약도 노선: 노선마다 역이 공개 자료 역 목록과 같고, 이웃 역끼리 가까움, 색', () => {
+  Object.entries(MTR_LINES).forEach(([k, l]) => assert.ok(/^#[0-9A-F]{6}$/.test(l.color), `${k} 색`));
+  const byLine = {};
+  MTR_ROUTES.forEach(r => r.seq.forEach((c, i) => {
+    assert.ok(MTR_STATIONS[c], `${r.line} ${c}`);
+    assert.ok(MTR_STATIONS[c].lines.includes(r.line), `${c}는 ${r.line} 역이 아님`);
+    (byLine[r.line] = byLine[r.line] || new Set()).add(c);
+    if(i){ const d = km(MTR_STATIONS[r.seq[i - 1]], MTR_STATIONS[c]); const far = ['AEL', 'TCL', 'TML', 'EAL'].includes(r.line) ? 20 : 4;   // 교외 구간(공항·퉁청·툰마 서쪽·동철 북쪽)만 역 사이가 김
+      assert.ok(d < far, `${r.line} ${r.seq[i - 1]}→${c} ${d.toFixed(1)}km`); }
+  }));
+  // 역 목록의 모든 역이 그 노선 길에 빠짐없이
+  Object.values(MTR_STATIONS).forEach(s => s.lines.forEach(l => assert.ok(byLine[l] && byLine[l].has(s.code), `${s.code}(${l})가 노선 길에 없음`)));
+  const paths = mtrPaths(); assert.equal(paths.length, MTR_ROUTES.length);
+  paths.forEach(p => { assert.equal(p.color, MTR_LINES[p.line].color); p.pts.forEach(([lat, lng]) => assert.ok(Number.isFinite(lat) && Number.isFinite(lng))); });
 });

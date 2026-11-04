@@ -8,6 +8,8 @@ export const DEST = {
   aiplan:{ step:'장소 담기', el:'#aiplan' },
   eats:{ step:'장소 담기', el:'.eatbox', open:'eatsOpen' },   // open: 펼친 채로 두는 화면 칸 이름(s.sh) — 실시간 갱신으로 다시 그려도 안 접히게
   gmap:{ step:'장소 담기', el:'#customform' },
+  themes:{ step:'장소 담기', el:'#themebox' },
+  picklist:{ step:'장소 담기', el:'#pickfilters' },
   hotels:{ step:'숙소 동네', el:'#hotelform' },
   where:{ step:'여행지' },
   movebox:{ step:'일정', el:'#movebox' },
@@ -36,6 +38,7 @@ export const DEST = {
 export const GUIDE = [
   { key:'before', icon:'🧳', title:'출발 전 준비', items:[
     { t:'어디 갈지 추천받고 싶을 때', d:'쓰시는 AI 앱에 우리 가족에 맞는 곳을 물어보고, 답을 붙여 넣으면 장소를 찾아 담아 드려요.', to:'aiplan' },
+    { t:'쇼핑·먹거리처럼 테마로 고르고 싶을 때', d:'장소 담기에서 테마(쇼핑·시장, 먹거리, 아이가 신나는 곳, 밤·야경, 비 와도 OK 등)를 누르면 우리 가족에 맞는 곳부터 보여 주고 바로 담을 수 있어요. 홍콩은 장소마다 가까운 지하철역도 나와요.', to:'themes' },
     { t:'아이와 갈 만한 식당이 궁금할 때', d:'동네별로 출처를 확인한 가족 식당을 골라 뒀어요. 여행 중엔 점심·저녁 자리 근처로 다시 보여 드려요.', to:'eats', only:'hksz' },
     { t:'그 주에 열리는 행사가 궁금할 때', d:'여행 날짜에 열리는 크리스마스 행사·쇼를 날짜·시간과 함께 모아 뒀어요.', to:'evbox', only:'hksz' },
     { t:'숙소를 사이트별로 비교하고 싶을 때', d:'본 숙소를 담으면 담은 장소와의 거리, 사이트별 1박 가격을 나란히 비교해요.', to:'hotels' },
