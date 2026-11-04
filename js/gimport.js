@@ -157,17 +157,39 @@ export function rowToPlace(r, id, n){
 
 // 구글 지도 앱 '공유' → 트립노선(manifest share_target, 설치한 앱만): ?st=제목&sx=글&su=주소
 //   구글 지도는 보통 글에 '장소 이름(·주소) + maps.app.goo.gl 짧은 주소'를 실어 보냄(짧은 주소엔 좌표가 없음)
-//   → { q: 구글에서 찾을 말(이름 + 주소 줄), name, url } | null(공유로 열린 게 아님)
+//   → { q: 구글에서 찾을 말(이름 + 주소 줄), name, url } | null(공유로 열린 게 아님·쓸 게 없음)
+//   q·name이 비어 있으면 링크만 받은 것(짧은 주소는 열어 볼 수 없어서 이름을 모름)
+export const SHARE_KEYS = ['st', 'sx', 'su'];
+const URL_RE = /https?:\/\/[^\s"'<>]+/, URL_G = new RegExp(URL_RE.source, 'g');
+// 글 끝에 붙은 문장부호·짝 없는 닫는 괄호는 주소가 아님 ('센소지 (https://…)')
+function trimUrl(u){
+  u = u.replace(/[.,;:!?」』）]+$/, '');
+  while(u.endsWith(')') && u.split(')').length > u.split('(').length) u = u.slice(0, -1).replace(/[.,;:!?]+$/, '');
+  return u;
+}
+// 이름이 아닌 줄: 앱 이름 머리말('Google 지도'·'구글 지도에서 보기'), 드롭한 핀, 좌표만 있는 줄
+const HEAD = /^(구글|google)\s*(지도|maps)/i;
+const NOT_NAME = /^(dropped pin|드롭(한|된) 핀|표시된 위치|-?\d{1,3}\.\d+\s*,\s*-?\d{1,3}\.\d+)$/i;
+function shareLine(l){
+  l = l.replace(URL_G, u => ' ' + u.slice(trimUrl(u).length)).trim();   // 주소는 빼고 뒤에 붙은 ')' 등은 남김
+  const h = l.match(HEAD);
+  if(h){ const m = l.slice(h[0].length).match(/^\s*[:：]\s*(.+)$/); l = m ? m[1] : ''; }   // 'Google 지도: 센소지'만 뒤를 씀
+  l = l.replace(/\(\s*\)|\[\s*\]|（\s*）/g, ' ').replace(/^[\s\-–—:：|·,]+|[\s\-–—:：|·,(（\[]+$/g, '').replace(/\s+/g, ' ');
+  return NOT_NAME.test(l) || !/[\p{L}\p{N}]/u.test(l) ? '' : l;   // 문장부호만 남은 줄도 버림
+}
 export function sharedPlace(params){
-  const g = k => String((params && params.get && params.get(k)) || '').trim();
+  const g = k => String((params && params.get && params.get(k)) || '').trim().slice(0, 2000);
   const st = g('st'), sx = g('sx'), su = g('su');
   if(!st && !sx && !su) return null;
-  const all = [st, sx, su].join('\n');
-  const url = (all.match(/https?:\/\/\S+/) || [''])[0];
-  const lines = [st].concat(sx.split(/\r?\n/)).map(l => l.replace(/https?:\/\/\S+/g, '').trim())
-    .filter(l => l && !/^(구글 ?지도|google ?maps)/i.test(l));
-  const uniq = [...new Set(lines)];
-  const name = (uniq[0] || nameFromUrl(url) || '').slice(0, 60);
-  const q = uniq.slice(0, 2).join(' ').slice(0, 120) || name;
-  return q || url ? { q, name, url:safeMapUrl(url) } : null;
+  const url = ([su, sx, st].join('\n').match(URL_G) || []).map(trimUrl).find(safeMapUrl) || '';   // 주소 칸 먼저, 구글 지도 주소만
+  const lines = [st].concat(sx.split(/\r?\n/)).map(shareLine).filter(Boolean);
+  const uniq = lines.filter((l, i) => lines.findIndex(x => x.toLowerCase() === l.toLowerCase()) === i);
+  const name = (uniq[0] || nameFromUrl(url) || '').slice(0, 60).trim();
+  const q = (uniq.slice(0, 2).join(' ').slice(0, 120).trim() || name);
+  return q || url ? { q, name, url } : null;
+}
+// 공유로 받은 칸만 주소에서 지움(새로 고쳐도 또 열리지 않게, ?dev=1 같은 다른 칸은 남김) → '?…' | ''
+export function stripShare(search){
+  const p = new URLSearchParams(search || ''); SHARE_KEYS.forEach(k => p.delete(k));
+  const t = p.toString(); return t ? '?' + t : '';
 }

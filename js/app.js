@@ -20,7 +20,7 @@ import { catchUp, applyCatchUp } from './catchup.js';
 import { phaseOf, shouldAutoOpen, doneKey, tripClock, entryDate } from './today.js';
 import { suggestPacking, bulkSuggestions, seedItems, customItems, PACK_GO, KEY_ID, tickFrom } from './packing.js';
 import { swapPlan, undoSwap } from './rain.js';
-import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl, sharedPlace, parseLines } from './gimport.js';
+import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl, sharedPlace, stripShare, SHARE_KEYS, parseLines } from './gimport.js';
 import { geocode } from './geocode.js';
 import { openMap, closeMap, nearbyFood, refreshPlaces } from './gmap.js';
 import { mealSlots, foodKey } from './food.js';
@@ -805,6 +805,7 @@ function openLiveMap(query){
       if(!p) return '';
       s.picked[p.id] = true;
       if(day != null){ if(p.full) s.fullDay[p.id] = day; else s.assign[p.id] = day; }
+      else { delete s.assign[p.id]; delete s.fullDay[p.id]; }   // '날짜는 자동으로'를 고르면 정해 둔 날·빼 둠(-1)을 풀고 일정 짜기에 맡김
       save(); render(); return p.name;
     },
     onClose: () => render()
@@ -1516,16 +1517,18 @@ window.addEventListener('online', () => setTimeout(refreshGoogle, 3000));
 if(!(await loadRegion(state.city))){ await loadRegion('tokyo'); state.sh.cityMsg = `${(REGIONS[state.city] || {}).name || '이 지역'} 데이터를 불러오지 못했어요. 인터넷을 확인하고 다시 열어 주세요.`; }
 { const td = tripClock(new Date(), REGION.tz).date; if(shouldAutoOpen(state, td)){ state.mode = 'today'; state.tday = null; state.todayOpened = td; saveLocal(); } }
 // 구글 지도 앱에서 장소를 '공유 → 트립노선'으로 보냈으면(설치한 앱, manifest share_target): 장소 담기에서 구글 지도로 그 장소를 띄움
-const sharedIn = sharedPlace(new URLSearchParams(location.search));
-if(sharedIn){
-  history.replaceState(null, '', location.pathname + location.hash);   // 새로 고쳐도 또 열리지 않게
-  state.mode = null; state.step = STEPS.indexOf('장소 담기'); saveLocal();
-}
+//   쓸 게 없는 공유(이름도 구글 지도 주소도 없음)여도 주소의 st·sx·su는 지움(새로 고쳐도 또 열리지 않게, 다른 칸은 남김)
+const shareQ = new URLSearchParams(location.search);
+const sharedIn = sharedPlace(shareQ);
+if(SHARE_KEYS.some(k => shareQ.has(k))) history.replaceState(null, '', location.pathname + stripShare(location.search) + location.hash);
+if(sharedIn){ state.mode = null; state.step = STEPS.indexOf('장소 담기'); saveLocal(); }
 render();
-if(sharedIn) openLiveMap(sharedIn.q).then(ok => {
-  if(ok) return;   // 지도를 못 열면(키·인터넷) 가져온 곳 목록에 올려 두고 이름으로 위치 찾기
+if(sharedIn) openLiveMap(sharedIn).catch(() => false).then(ok => {
+  if(ok) return;   // 지도를 못 열면(키·인터넷·지도 오류) 가져온 곳 목록에 올려 두고 이름으로 위치 찾기
   closeMap(); const list = parseLines(`${sharedIn.name} ${sharedIn.url}`.trim());
-  if(list.length){ addImports(list); toast(`'${sharedIn.name || '공유한 장소'}'을(를) 가져온 곳 목록에 올렸어요.`); }
+  if(!list.length){ toast('공유한 링크에 장소 이름이 없어요. 장소 담기에서 이름으로 찾아 주세요.'); return; }
+  addImports(list); const r = state.imports[state.imports.length - 1];
+  toast(r.dup ? `'${r.name}'은(는) 이미 장소 목록에 있어요.` : `'${r.name}'을(를) 가져온 곳 목록에 올렸어요.`);
 });
 if(state.step === VAULT_STEP) refreshUsage();
 setTimeout(refreshGoogle, 4000);   // 첫 화면을 먼저 그린 뒤
