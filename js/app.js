@@ -873,6 +873,7 @@ function act(a, v){
     case 'must': if(s.must[v]) delete s.must[v]; else { s.must[v] = true; s.picked[v] = true; } break;
     case 'filter': s.areaFilter = v; break;
     case 'kfilter': s.kindFilter = v; break;
+    case 'theme': s.themeFilter = v === 'all' || s.themeFilter === v ? 'all' : v; break;   // 같은 테마를 다시 누르면 풀림
     case 'akind': s.anchorKind = v; break;
     case 'autopick': autoPickIds(s).forEach(id => { s.picked[id] = true; }); break;
     case 'customdel': s.custom = s.custom.filter(c => c.id !== v); unpick(s, v); break;

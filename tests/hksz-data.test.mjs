@@ -78,7 +78,7 @@ test('장소: 홍콩·선전 수와 꼭 갈 곳 후보', () => {
 });
 
 test('노선: 이름·색·꼭짓점 모양', () => {
-  assert.ok(LINES.length >= 3);
+  assert.ok(LINES.length >= 2);   // 선전 지하철·고속철 (홍콩 MTR은 hktransit.js 역 좌표로)
   LINES.forEach(l => {
     assert.ok(l.name, '노선 이름');
     assert.ok(/^#[0-9A-Fa-f]{6}$/.test(l.color), `${l.name} 색`);

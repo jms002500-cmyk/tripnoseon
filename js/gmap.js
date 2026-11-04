@@ -17,6 +17,7 @@ let G = null, map = null, sheet = null, cb = null, pins = [], temp = null, token
 // want: 마지막으로 띄우려는 장소 카드 차례(늦게 온 옛 응답·닫은 뒤 응답은 버림), sugN: 자동 완성 차례, kp: 지금 카드로 보는 앱 추천 장소
 let want = 0, sugN = 0, kp = null;
 let showRec = true;   // 안 담은 추천 장소도 지도에 (범례의 '추천도 보기')
+let transit = null, showTransit = true;   // 지하철·대중교통 노선 겹쳐 보기 (범례의 '지하철 노선')
 const MAPS_WAIT = 20000;   // 구글 지도 스크립트·라이브러리를 기다리는 시간
 
 // 구글 지도 불러오기 (키가 없거나 틀리면 실패)
@@ -51,12 +52,16 @@ function buildSheet(){
     <div class="mslegend" aria-label="지도 표시">
       <span><i class="lg-must"></i>꼭 갈 곳</span><span><i class="lg-on"></i>담은 곳</span><span><i class="lg-rec"></i>안 담은 추천</span><span><i class="lg-hotel"></i>숙소 후보</span><span><i class="lg-look"></i>지금 보는 곳</span>
       <label><input type="checkbox" data-gmrec checked> 추천도 보기</label>
+      <label><input type="checkbox" data-gmtransit checked> 🚇 지하철 노선</label>
     </div>
     <div class="msmap" id="gmmap"></div>
     <div class="msinfo" aria-live="polite"></div>`;
   document.body.appendChild(sheet);
   sheet.addEventListener('click', onClick);
-  sheet.addEventListener('change', e => { if(e.target.matches('[data-gmrec]')){ showRec = e.target.checked; drawPins(); } });
+  sheet.addEventListener('change', e => {
+    if(e.target.matches('[data-gmrec]')){ showRec = e.target.checked; drawPins(); }
+    if(e.target.matches('[data-gmtransit]')){ showTransit = e.target.checked; if(transit) transit.setMap(showTransit ? map : null); }
+  });
   sheet.addEventListener('input', e => { if(e.target.id === 'gmq'){ clearTimeout(typing); typing = setTimeout(() => suggest(e.target.value.trim()), 300); } });
 }
 
@@ -240,6 +245,7 @@ export async function openMap(callbacks, query){
       map = new G.maps.Map(sheet.querySelector('#gmmap'), { center:REGION.center, zoom:REGION.key === 'hksz' ? 11 : 12, mapId:mapsConfig.mapId || 'DEMO_MAP_ID',
         clickableIcons:true, gestureHandling:'greedy', mapTypeControl:false, streetViewControl:false, fullscreenControl:false });
       map.addListener('click', ev => { if(ev.placeId){ ev.stop(); showPlace(ev.placeId); } });
+      try{ transit = new G.maps.TransitLayer(); if(showTransit) transit.setMap(map); }catch(e){ transit = null; }   // 노선을 못 그려도 지도는 그대로
     }
     drawPins(); defaultInfo();
   }catch(e){ map = null; info('<p class="warnline">구글 지도를 그리지 못했어요. 닫았다가 다시 열어 주세요.</p>'); return false; }
