@@ -1882,17 +1882,30 @@ function borderBox(s, key, info){
 }
 
 // ❓ 도움: 이럴 땐 이렇게 (js/guide.js). 상황별로 기능을 모으고 '바로 가기'로 그 화면·칸에 데려감. 맨 아래 '처음부터'
+// 홍콩 현지 안내: 식당·딤섬·현장 요령·하루 코스 (도움 화면, 홍콩·선전 여행만)
+function hkLocal(){
+  const list = (title, id, x) => `<div class="box"${id ? ` id="${id}"` : ''}><h2>${title}</h2><ul class="soslist">${x.map(i => `<li><div class="sbody"><b>${esc(i.title)}</b><span>${esc(i.text)}</span></div></li>`).join('')}</ul></div>`;
+  const nameOf = id => (PLACES.find(p => p.id === id) || {}).name || '';
+  return `${list('🍽 식당에서', 'help-local', HK.DINING)}
+    ${list('🥟 딤섬 먹는 법', '', HK.DIMSUM)}
+    <div class="box"><h2>🥟 딤섬 이름 보여 주기</h2><ul class="soslist">${HK.DIMSUM_MENU.map(m => `<li><div class="sbody"><b>${esc(m.local)} · ${esc(m.ko)}</b><span>${esc(m.d)}</span></div></li>`).join('')}</ul></div>
+    ${list('💡 현장 요령', '', HK.LOCAL_TIPS)}
+    <div class="box"><h2>🗺 묶어서 다니기 좋은 하루</h2><ul class="soslist">${HK.COURSES.map(c => `<li><div class="sbody"><b>${esc(c.title)}</b><span>${esc(c.stops.map(nameOf).filter(Boolean).join(' → '))}</span><span>${esc(c.text)}</span></div></li>`).join('')}</ul></div>`;
+}
+
 export function vHelp(s){
   const G = guideFor(s);
+  const local = s.city === 'hksz';
   return `<section class="step">
     <p class="eyebrow">도움</p>
     <h1>이럴 땐 이렇게</h1>
     <p class="lead">필요한 때를 고르면 그 기능이 있는 곳으로 바로 데려가 드려요.</p>
-    <nav class="chips" aria-label="상황 고르기">${G.map(g => `<button type="button" class="chip" data-act="helpjump" data-v="${g.key}">${g.icon} ${esc(g.title)}</button>`).join('')}</nav>
+    <nav class="chips" aria-label="상황 고르기">${local ? `<button type="button" class="chip" data-act="helpjump" data-v="local">🍽 홍콩 현지 안내</button>` : ''}${G.map(g => `<button type="button" class="chip" data-act="helpjump" data-v="${g.key}">${g.icon} ${esc(g.title)}</button>`).join('')}</nav>
     ${G.map(g => `<div class="box helpbox" id="help-${g.key}">
       <h2>${g.icon} ${esc(g.title)}</h2>
       <ul class="helplist">${g.items.map(x => `<li><div><b>${esc(x.t)}</b><p>${esc(x.d)}</p></div>${x.to ? `<button type="button" class="ghost small" data-act="helpgo" data-v="${esc(x.to)}">바로 가기</button>` : ''}</li>`).join('')}</ul>
     </div>`).join('')}
+    ${local ? hkLocal() : ''}
     <div class="box">
       <h2>처음부터 다시</h2>
       <p class="fine">이 폰의 일정을 모두 지우고 처음부터 시작해요. 함께 짜기 여행이면 이 폰만 빠지고 공유 여행은 남아요. 보관함은 그대로예요.</p>

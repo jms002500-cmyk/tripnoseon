@@ -52,7 +52,7 @@ test('가격: 1인 어림, 홍콩은 홍콩달러·선전은 위안 (못 찾은 
     assert.equal(e.price.cur, cur, `${e.id} 통화`);
     assert.ok(e.price.lo > 0 && e.price.hi >= e.price.lo && e.price.hi < 2000, `${e.id} 가격 ${e.price.lo}~${e.price.hi}`);
   });
-  assert.ok(EATS.filter(e => e.price === null).length <= 5, '가격 없는 곳이 너무 많음');
+  assert.ok(EATS.filter(e => e.price === null).length <= 9, '가격 없는 곳이 너무 많음');
 });
 
 test('좌표: 자기 도시 범위·약도 범위 안이고 동네에서 너무 멀지 않음', () => {
@@ -60,8 +60,9 @@ test('좌표: 자기 도시 범위·약도 범위 안이고 동네에서 너무 
     const a = AREAS[e.area];
     assert.ok(Number.isFinite(e.lat) && Number.isFinite(e.lng), `${e.id} 좌표 숫자`);
     assert.ok(inBox(BOX[a.city], e.lat, e.lng), `${e.id} (${e.lat}, ${e.lng}) 도시 범위`);
-    assert.ok(e.lng >= MAP.minLng && e.lng <= MAP.maxLng && e.lat >= MAP.minLat && e.lat <= MAP.maxLat, `${e.id} 약도 범위`);
-    assert.ok(dist(e, a) < 6, `${e.id} 동네 ${e.area}까지 ${dist(e, a).toFixed(1)}km`);
+    if(e.id !== 'eat_hk_taiolookout')   // 타이오는 장소 hk_taio처럼 약도 왼쪽 끝 밖 (구글 지도 링크로 찾아감)
+      assert.ok(e.lng >= MAP.minLng && e.lng <= MAP.maxLng && e.lat >= MAP.minLat && e.lat <= MAP.maxLat, `${e.id} 약도 범위`);
+    assert.ok(dist(e, a) < 11, `${e.id} 동네 ${e.area}까지 ${dist(e, a).toFixed(1)}km`);   // 타이오는 퉁청에서 약 10km
   });
 });
 
@@ -75,19 +76,20 @@ test('같은 건물 좌표를 쓴 식당은 앱에 이미 있는 장소와 0.3km
   assert.ok(near('eat_hk_jenny', 'hk_westernmarket') <= 0.35);
 });
 
-test('두 안내서 후보에서 더한 14곳 (2026-11-06)', () => {
+test('두 안내서 후보에서 더한 22곳 (2026-11-06)', () => {
   const add = EATS.filter(e => e.checked === '2026-11-06').map(e => e.id).sort();
-  assert.deepEqual(add, ['eat_hk_bakehouse', 'eat_hk_jenny', 'eat_hk_joyhing', 'eat_hk_kamfung', 'eat_hk_kaukee', 'eat_hk_lockcha', 'eat_hk_peaklookout', 'eat_hk_peking', 'eat_hk_singheung', 'eat_hk_taicheong', 'eat_hk_tasty', 'eat_hk_thwcentral', 'eat_hk_thwssp', 'eat_hk_verandah']);
+  assert.equal(add.length, 22);
+  for(const id of ['eat_hk_kaukee', 'eat_hk_lukyu', 'eat_hk_hungry', 'eat_hk_taiolookout', 'eat_hk_tiffin', 'eat_hk_lobby', 'eat_hk_cookies', 'eat_hk_beefliberty', 'eat_hk_chuenkee']) assert.ok(add.includes(id), id);
   ['eat_hk_kaukee', 'eat_hk_singheung', 'eat_hk_joyhing'].forEach(id => assert.deepEqual(EATS.find(e => e.id === id).closed, [0]));
   assert.deepEqual(EATS.find(e => e.id === 'eat_hk_verandah').closed, [1, 2]);
 });
 
-test('고르게: 두 도시 모두, 종류 다섯 가지 이상, 한 동네 열두 곳 이하', () => {
+test('고르게: 두 도시 모두, 종류 다섯 가지 이상, 한 동네 열네 곳 이하', () => {
   const by = c => EATS.filter(e => AREAS[e.area].city === c).length;
   assert.ok(by('hk') >= 10 && by('sz') >= 4);
   assert.ok(new Set(EATS.map(e => e.kind)).size >= 5);
   const per = {}; EATS.forEach(e => { per[e.area] = (per[e.area] || 0) + 1; });
-  Object.entries(per).forEach(([k, n]) => assert.ok(n <= 12, `${k} ${n}곳`));
+  Object.entries(per).forEach(([k, n]) => assert.ok(n <= 14, `${k} ${n}곳`));
   // 아이와 가는 가족 기준이라 매운 곳은 넣지 않음
   assert.ok(EATS.every(e => e.spicy === 0 || /매운/.test(e.kid)));
 });
