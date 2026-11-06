@@ -55,6 +55,18 @@
 //   그대로 둔 곳(그 주에 바뀐 소식 못 찾음): LCSD 박물관 휴관 요일, M+·고궁(12/7 월 M+ 휴관, 12/8 화 우주·역사·고궁 휴관, 12/10 목 과학·예술 휴관),
 //     피크 트램(2026년 점검은 3/9~12·9/8, 12월 공지 없음), 옹핑 360(2026년 점검은 1·3·5·6·9월과 11/10, 12월 공지 없음), 선전 박물관들(월 휴관),
 //     평안금융센터 전망대·선전 환러구(12월 휴업 공지 없음)
+// - 장소 9곳 더함 (2026-11-06). 사용자가 산 가이드북 두 권에서 후보만 얻고, 문장·사진은 쓰지 않았어요. 사실은 아래 자료로 다시 확인했어요.
+//   좌표는 두 곳 이상을 대조해 0.5km 안(위키백과·Sygic·aroundus·OSM). 공식 누리집은 직접 못 열어 검색 도구로 골라 확인했어요.
+//     hk_10kbuddhas 위키백과(계단 431개, 큰비에 닫을 수 있음)·디스커버홍콩(주소), 시간 9~17시는 Mapcarta 한 곳이라 '보통'으로 적음
+//     hk_wishingtree 좌표 Sygic·OSM 정류장(0.1km 안), 교통 e-cgo.org.hk·위키백과
+//     hk_pingshan 좌표 위키백과·Sygic(취성루), 취성루 시간은 Frommer's·Lonely Planet(화요일 휴무, 자료 일부가 달라 note로만 안내, closed 넣지 않음)
+//     hk_hopewell 좌표 위키백과·aroundus, 17층 환승·56층은 위키백과, 무료는 Mapnook·Wanderlog. 시간표를 못 찾아 note로 안내
+//     hk_bauhinia 좌표 위키백과·latitude.to(0.2km), 게양식 Lonely Planet·info.gov.hk(취소된 날 사례)
+//     hk_bluehouse 좌표 위키백과·aroundus, 시간 Viva Blue House(공식). 수요일 휴무는 여행 안내만 있어 closed 넣지 않음
+//     hk_shekobeach 좌표 위키백과·aroundus·Swimpass, 겨울 안전요원 중단 LCSD, 교통 위키백과
+//     hk_cheungchau 좌표 위키백과(공공 부두·페리 부두, 60m 안), 요금 2026-04-01부터 TVB(교통부 공지)
+//     hk_saikung 좌표 위키백과·travelprofy(0.1km 안), 교통 Hong Kong Cheapo
+//   새 동네 3곳은 숙소 후보가 아니라 장소를 묶는 칸이에요(hotel:false). 좌표는 hktransit.js 타이와이·틴수이와이역, 청차우 부두.
 //   확인 못 함: 디즈니 12월 날짜별 운영 시간·쉬는 날, 오션파크 2026 크리스마스 행사, 하버시티 등 쇼핑몰 장식,
 //     세계의 창·환러구 겨울 행사(지난해 세계의 창 눈 내리기는 12/7부터), 윈터페스트 정확한 날짜·시간·요금(EVENTS의 tbc)
 
@@ -83,6 +95,12 @@ export const AREAS = {
     note:'공항과 가깝고 옹핑 360 케이블카가 바로 앞이에요. 시내 관광지까지는 30분 넘게 걸려요.'},
   south:{name:'홍콩섬 남쪽', city:'hk', station:'MTR 오션파크역', q:'海洋公園站', lat:22.2486, lng:114.1745, hotel:false,
     lx:0, ly:40, anchor:'middle', note:''},
+  ntcentral:{name:'사틴·타이포·사이쿵', city:'hk', station:'MTR 타이와이역', q:'大圍站', lat:22.3728, lng:114.1787, hotel:false,
+    lx:20, ly:-10, anchor:'start', note:''},
+  ntwest:{name:'틴수이와이(핑산)', city:'hk', station:'MTR 틴수이와이역', q:'天水圍站', lat:22.4479, lng:114.0045, hotel:false,
+    lx:-20, ly:-10, anchor:'end', note:''},
+  islands:{name:'청차우섬', city:'hk', station:'센트럴 5번 부두에서 배', q:'長洲碼頭', lat:22.2081, lng:114.0283, hotel:false,
+    lx:0, ly:24, anchor:'middle', note:''},
   // 선전
   futian:{name:'푸톈 CBD', city:'sz', station:'푸톈역(고속철·지하철)', q:'福田站', lat:22.5383, lng:114.0567, hotel:true, disneyMin:100,
     disneyText:'고속철로 서구룡 뒤 MTR, 출입국 포함 약 1시간 30분~2시간', price:'보통', lx:-20, ly:28, anchor:'end',
@@ -153,6 +171,17 @@ export const PLACES = [
   // 홍콩 · 남쪽
   {id:'hk_oceanpark', kind:'테마파크', indoor:false, name:'오션파크', ja:'香港海洋公園', area:'south', lat:22.2467, lng:114.1757, hours:0, full:true, anchor:true, tags:['테마파크','체험'], kid:'all', note:'판다·수족관과 놀이기구가 함께 있어요. 산 위·아래 구역은 케이블카나 열차로 오가요. 북극 동물 전시관(North Pole Encounter)은 고쳐 짓느라 닫았고 2027년 1~3월에 다시 열 예정이에요.'},
   {id:'hk_repulse', kind:'공원·정원', indoor:false, name:'리펄스베이', ja:'淺水灣', area:'south', lat:22.2368, lng:114.1962, hours:1, tags:['자연·산책'], kid:'all', note:'초승달 모양 모래 해변이에요. 센트럴에서 버스로 30분쯤 걸려요.'},
+  {id:'hk_shekobeach', kind:'공원·정원', indoor:false, name:'섹오 해변·마을', ja:'石澳', area:'south', lat:22.2290, lng:114.2510, hours:2, tags:['자연·산책'], kid:'all', note:'홍콩섬 동쪽 끝의 작은 바닷가 마을이에요. 11~3월엔 해변 안전요원이 없어서 물에 들어가지 말고 산책만 하세요. MTR 사우케이완역 앞에서 9번 버스를 타요.'},
+  // 홍콩 · 완차이 더 보기
+  {id:'hk_hopewell', kind:'전망대', indoor:true, name:'호프웰 센터 전망 엘리베이터', ja:'合和中心', area:'cwb', lat:22.2745, lng:114.1716, hours:0.5, tags:['관광명소','체험'], kid:'all', note:'17층에서 유리 엘리베이터로 갈아타고 56층까지 오르며 완차이 풍경을 봐요. 돈을 내지 않고 탈 수 있어요. 위층 식당 영업 시간에 맞춰 움직인다고 하니 가기 전에 확인하세요.'},
+  {id:'hk_bauhinia', kind:'공원·정원', indoor:false, name:'골든 바우히니아 광장', ja:'金紫荊廣場', area:'cwb', lat:22.2843, lng:114.1737, hours:0.5, tags:['관광명소','문화·역사'], kid:'all', note:'1997년 홍콩 반환을 기념하는 금빛 꽃 조형물이 있는 바닷가 광장이에요. 매일 아침 8시쯤 국기 게양식을 해요(행사가 있으면 취소될 수 있어요).'},
+  {id:'hk_bluehouse', kind:'박물관·미술관', indoor:'part', name:'블루하우스', ja:'藍屋', area:'cwb', lat:22.2739, lng:114.1741, hours:1, tags:['문화·역사'], kid:'all', note:'파란 외벽이 눈에 띄는 완차이의 옛 4층 건물이에요. 안내 시간은 아침 10시~오후 6시인데 1층 전시는 수요일에 쉰다는 안내가 있어 가기 전에 확인하세요. MTR 완차이역 A3 출구에서 걸어가요.'},
+  // 홍콩 · 신계와 섬
+  {id:'hk_10kbuddhas', kind:'신사·절', indoor:false, name:'만불사', ja:'萬佛寺', area:'ntcentral', lat:22.3875, lng:114.1847, hours:2, tags:['문화·역사','관광명소'], kid:'all', note:'금빛 불상이 양옆에 늘어선 계단을 올라가는 산 중턱 절이에요. 계단이 431개나 돼서 편한 신발이 좋아요. 보통 아침 9시~오후 5시에 열고, 큰비가 오면 닫기도 해요. MTR 사틴역 쪽에서 걸어가요.'},
+  {id:'hk_wishingtree', kind:'공원·정원', indoor:false, name:'람췬 소원나무', ja:'林村許願樹', area:'ntcentral', lat:22.4560, lng:114.1425, hours:1, tags:['문화·역사','체험'], kid:'all', note:'소원을 적어 거는 마을 명소이고 틴하우 사원이 가까워요. MTR 타이포마켓역 A3 출구에서 64K 버스를 타고 팡마포에서 내려요.'},
+  {id:'hk_saikung', kind:'거리·시장', indoor:false, name:'사이쿵 타운', ja:'西貢', area:'ntcentral', lat:22.3814, lng:114.2733, hours:3, tags:['맛집','자연·산책'], kid:'all', note:'항구 앞에 해산물 식당이 모인 바닷가 마을이에요. MTR이 닿지 않아요. 초이홍역 C2 출구 쪽에서 1A 미니버스를 타요.'},
+  {id:'hk_pingshan', kind:'신사·절', indoor:false, name:'핑산 헤리티지 트레일', ja:'屏山文物徑', area:'ntwest', lat:22.4488, lng:114.0062, hours:2, tags:['문화·역사','자연·산책'], kid:'all', note:'옛 탑과 사당, 마을을 따라 걷는 평지 산책길이에요. MTR 틴수이와이역 E3 출구 가까이에서 시작해요. 취성루 탑은 낮 1~2시와 화요일에 닫는다는 안내가 있어 그 시간은 피하세요.'},
+  {id:'hk_cheungchau', kind:'거리·시장', indoor:false, name:'청차우섬', ja:'長洲', area:'islands', lat:22.2081, lng:114.0283, hours:4, tags:['자연·산책','맛집'], kid:'all', note:'골목을 걸으며 해산물을 먹기 좋은 작은 섬이에요. 센트럴 5번 부두에서 Sun Ferry 배로 가요. 2026년 4월 기준 어른 편도 일반선 HK$16.7, 고속선 HK$32.9예요. 시간표는 가기 전에 확인하세요.'},
   {id:'hk_stanley', kind:'거리·시장', indoor:'part', name:'스탠리 마켓', ja:'赤柱市集', area:'south', lat:22.2183, lng:114.2125, hours:1.5, tags:['쇼핑','자연·산책'], kid:'all', note:'바닷가 마을 시장이에요. 기념품 가게와 바닷가 산책로가 있어요.'},
   {id:'hk_aberdeen', kind:'체험·캐릭터', indoor:false, name:'애버딘 삼판선', ja:'香港仔海濱公園', area:'south', lat:22.2473, lng:114.1543, hours:1, tags:['체험','문화·역사'], kid:'all', note:'작은 배(삼판선)를 타고 수상 마을이 있던 항구를 한 바퀴 돌아요.'},
 
