@@ -5,7 +5,7 @@ import { dist } from './logic.js';
 import { walkMin } from './food.js';
 
 // 식당 종류 → 아이콘 (자료의 kind는 이 중 하나)
-export const EAT_KINDS = { '딤섬':'🥟', '차찬텡':'☕', '완탕면':'🍜', '로스트':'🍗', '디저트':'🍮', '광둥요리':'🥢', '중국요리':'🥢', '채식':'🥬', '훠궈':'🍲' };
+export const EAT_KINDS = { '딤섬':'🥟', '차찬텡':'☕', '완탕면':'🍜', '국수':'🍜', '로스트':'🍗', '디저트':'🍮', '광둥요리':'🥢', '중국요리':'🥢', '채식':'🥬', '훠궈':'🍲', '양식':'🍽️' };
 export const eatIcon = e => EAT_KINDS[e.kind] || '🍽️';
 export const NEAR_KM = 1.5;   // 끼니 자리에서 이만큼 안에 있는 곳만 (지하철 한두 정거장)
 
