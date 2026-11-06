@@ -1588,7 +1588,7 @@ function eatRow(e){
       <span class="lacts">${link(eatMapUrl(e), '구글 지도 ↗')}${sz ? link(eatAmapUrl(e), '가오더 지도 ↗') : ''}</span>
       <details class="more"><summary>줄·영업시간·출처</summary>
         <p class="fine">⏳ ${esc(e.queue)}<br>🕘 ${esc(e.hours)}${e.closed && e.closed.length ? ` · ${esc(closedText(e))}` : ''}${e.note ? `<br>${esc(e.note)}` : ''}</p>
-        <p class="fine">출처 ${e.src.map(u => link(u, esc(srcName(u)) + ' ↗')).join(' · ')} (${esc(e.checked)} 확인)</p>
+        <p class="fine">${e.book ? '출처 안내서 값이에요(공식 확인 전). 가기 전에 확인하세요.' : `출처 ${e.src.map(u => link(u, esc(srcName(u)) + ' ↗')).join(' · ')} (${esc(e.checked)} 확인)`}</p>
       </details></div></li>`;
 }
 function eatsBox(s, cities){

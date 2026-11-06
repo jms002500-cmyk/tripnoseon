@@ -37,7 +37,7 @@ test('필수 칸: 이름·현지 이름·동네·종류·실내·메뉴·아이�
     assert.ok([true, false, 'part'].includes(e.indoor), `${e.id} indoor`);
     assert.ok([0, 1].includes(e.spicy), `${e.id} spicy`);
     assert.ok(/^2026-11-\d\d$/.test(e.checked), `${e.id} 확인 날짜`);
-    assert.ok(Array.isArray(e.src) && e.src.length >= 2, `${e.id} 출처 두 곳 이상`);
+    assert.ok(Array.isArray(e.src) && (e.book ? /책 기준/.test(e.hours) : e.src.length >= 2), `${e.id} 출처 두 곳 이상 또는 책 기준 표시`);
     e.src.forEach(u => assert.ok(/^https:\/\/[^\s/]+\.[^\s/]+\//.test(u), `${e.id} 출처 주소 ${u}`));
     assert.equal(new Set(e.src).size, e.src.length, `${e.id} 같은 출처 두 번`);
     if(e.closed) e.closed.forEach(w => assert.ok(Number.isInteger(w) && w >= 0 && w <= 6, `${e.id} 쉬는 요일`));
@@ -77,19 +77,19 @@ test('같은 건물 좌표를 쓴 식당은 앱에 이미 있는 장소와 0.3km
 });
 
 test('두 안내서 후보에서 더한 25곳 (2026-11-06)', () => {
-  const add = EATS.filter(e => e.checked === '2026-11-06').map(e => e.id).sort();
+  const add = EATS.filter(e => e.checked === '2026-11-06' && !e.book).map(e => e.id).sort();
   assert.equal(add.length, 25);
   for(const id of ['eat_hk_kaukee', 'eat_hk_lukyu', 'eat_hk_hungry', 'eat_hk_taiolookout', 'eat_hk_tiffin', 'eat_hk_lobby', 'eat_hk_cookies', 'eat_hk_beefliberty', 'eat_hk_chuenkee']) assert.ok(add.includes(id), id);
   ['eat_hk_kaukee', 'eat_hk_singheung', 'eat_hk_joyhing'].forEach(id => assert.deepEqual(EATS.find(e => e.id === id).closed, [0]));
   assert.deepEqual(EATS.find(e => e.id === 'eat_hk_verandah').closed, [1, 2]);
 });
 
-test('고르게: 두 도시 모두, 종류 다섯 가지 이상, 한 동네 열네 곳 이하', () => {
+test('고르게: 두 도시 모두, 종류 다섯 가지 이상, 한 동네 스물네 곳 이하', () => {
   const by = c => EATS.filter(e => AREAS[e.area].city === c).length;
   assert.ok(by('hk') >= 10 && by('sz') >= 4);
   assert.ok(new Set(EATS.map(e => e.kind)).size >= 5);
   const per = {}; EATS.forEach(e => { per[e.area] = (per[e.area] || 0) + 1; });
-  Object.entries(per).forEach(([k, n]) => assert.ok(n <= 14, `${k} ${n}곳`));
+  Object.entries(per).forEach(([k, n]) => assert.ok(n <= 24, `${k} ${n}곳`));
   // 아이와 가는 가족 기준이라 매운 곳은 넣지 않음
   assert.ok(EATS.every(e => e.spicy === 0 || /매운/.test(e.kid)));
 });

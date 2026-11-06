@@ -5,7 +5,7 @@ import { dist } from './logic.js';
 import { walkMin } from './food.js';
 
 // 식당 종류 → 아이콘 (자료의 kind는 이 중 하나)
-export const EAT_KINDS = { '딤섬':'🥟', '차찬텡':'☕', '완탕면':'🍜', '국수':'🍜', '로스트':'🍗', '디저트':'🍮', '광둥요리':'🥢', '중국요리':'🥢', '채식':'🥬', '훠궈':'🍲', '양식':'🍽️', '한식':'🍚' };
+export const EAT_KINDS = { '딤섬':'🥟', '차찬텡':'☕', '완탕면':'🍜', '국수':'🍜', '로스트':'🍗', '디저트':'🍮', '광둥요리':'🥢', '중국요리':'🥢', '채식':'🥬', '훠궈':'🍲', '양식':'🍽️', '한식':'🍚', '카페':'☕' };
 export const eatIcon = e => EAT_KINDS[e.kind] || '🍽️';
 export const NEAR_KM = 1.5;   // 끼니 자리에서 이만큼 안에 있는 곳만 (지하철 한두 정거장)
 
@@ -15,7 +15,7 @@ export function priceText(p){
   const r = p.hi > p.lo ? `${p.lo}~${p.hi}` : `${p.lo}`;
   return p.cur === 'HKD' ? `HK$${r}` : p.cur === 'CNY' ? `${r}위안` : p.cur === 'JPY' ? `${r}엔` : `${r} ${p.cur}`;
 }
-const snack = e => e.kind === '디저트' ? 1 : 0;
+const snack = e => e.kind === '디저트' || e.kind === '카페' ? 1 : 0;
 export const isClosedOn = (e, wd) => wd != null && Array.isArray(e.closed) && e.closed.includes(wd);
 
 // 한 지점 근처 식당: km 안에 있는 곳을 가까운 순으로, 그날 쉬는 곳은 맨 뒤
