@@ -45,6 +45,7 @@ test('장소: id 중복 없음, 동네·종류·취향 값이 목록 안에 있�
     assert.ok(['all', 'kids', 'teen', 'adult'].includes(p.kid), `${p.id} kid`);
     assert.ok([true, false, 'part'].includes(p.indoor), `${p.id} indoor`);
     assert.ok(p.name && p.ja, `${p.id} 이름·현지 이름`);
+    assert.ok(typeof p.addr === 'string' && p.addr.trim(), `${p.id} 주소`);
     if(p.closed) p.closed.forEach(w => assert.ok(Number.isInteger(w) && w >= 0 && w <= 6, `${p.id} 휴무 요일`));
   });
 });

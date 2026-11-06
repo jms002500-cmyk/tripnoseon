@@ -415,7 +415,7 @@ function themeBox(s){
 function placeCard(p, s, n){
   const on = !!s.picked[p.id]; const must = !!s.must[p.id]; const f = fitScore(p, s);
   return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
-    <div class="ptop"><div><h3>${n ? `<span class="pnum">${n}</span>` : ''}${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}</div>
+    <div class="ptop"><div><h3>${n ? `<span class="pnum">${n}</span>` : ''}${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}${p.addr ? `<p class="ja">📍 ${esc(p.addr)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
     <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${closedText(p) ? ` · <span class="closed">${esc(closedText(p))}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
     ${stationNear(p) ? `<p class="meta sta">🚇 가까운 역: ${esc(stationNear(p))}</p>` : ''}
@@ -426,7 +426,7 @@ function placeCard(p, s, n){
       <button type="button" class="link" data-act="must" data-v="${esc(p.id)}" aria-pressed="${must}">${must ? '★ 꼭 갈 곳' : '☆ 꼭 갈 곳으로'}</button>
       ${n ? `<button type="button" class="link" data-act="mapback" data-v="${esc(p.id)}">🗺 약도에서 ${n}번 보기</button>` : ''}
       ${safeMapUrl(p.url) ? `<a class="link" href="${esc(safeMapUrl(p.url))}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}
-      ${p.custom ? `<button type="button" class="link" data-act="customdel" data-v="${esc(p.id)}">목록에서 지우기</button>` : `<a class="link" href="${gmap(p.ja)}" target="_blank" rel="noopener">구글 지도 ↗</a>`}
+      ${p.custom ? `<button type="button" class="link" data-act="customdel" data-v="${esc(p.id)}">목록에서 지우기</button>` : `<a class="link" href="${gmap(p.addr || p.ja)}" target="_blank" rel="noopener">구글 지도 ↗</a>`}
     </div>
   </article>`;
 }
