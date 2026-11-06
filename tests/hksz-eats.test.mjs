@@ -52,7 +52,7 @@ test('가격: 1인 어림, 홍콩은 홍콩달러·선전은 위안 (못 찾은 
     assert.equal(e.price.cur, cur, `${e.id} 통화`);
     assert.ok(e.price.lo > 0 && e.price.hi >= e.price.lo && e.price.hi < 2000, `${e.id} 가격 ${e.price.lo}~${e.price.hi}`);
   });
-  assert.ok(EATS.filter(e => e.price === null).length <= 9, '가격 없는 곳이 너무 많음');
+  assert.ok(EATS.filter(e => e.price === null).length <= 12, '가격 없는 곳이 너무 많음');
 });
 
 test('좌표: 자기 도시 범위·약도 범위 안이고 동네에서 너무 멀지 않음', () => {
@@ -76,9 +76,9 @@ test('같은 건물 좌표를 쓴 식당은 앱에 이미 있는 장소와 0.3km
   assert.ok(near('eat_hk_jenny', 'hk_westernmarket') <= 0.35);
 });
 
-test('두 안내서 후보에서 더한 22곳 (2026-11-06)', () => {
+test('두 안내서 후보에서 더한 25곳 (2026-11-06)', () => {
   const add = EATS.filter(e => e.checked === '2026-11-06').map(e => e.id).sort();
-  assert.equal(add.length, 22);
+  assert.equal(add.length, 25);
   for(const id of ['eat_hk_kaukee', 'eat_hk_lukyu', 'eat_hk_hungry', 'eat_hk_taiolookout', 'eat_hk_tiffin', 'eat_hk_lobby', 'eat_hk_cookies', 'eat_hk_beefliberty', 'eat_hk_chuenkee']) assert.ok(add.includes(id), id);
   ['eat_hk_kaukee', 'eat_hk_singheung', 'eat_hk_joyhing'].forEach(id => assert.deepEqual(EATS.find(e => e.id === id).closed, [0]));
   assert.deepEqual(EATS.find(e => e.id === 'eat_hk_verandah').closed, [1, 2]);
