@@ -426,7 +426,7 @@ function placeCard(p, s, n){
       <button type="button" class="link" data-act="must" data-v="${esc(p.id)}" aria-pressed="${must}">${must ? '★ 꼭 갈 곳' : '☆ 꼭 갈 곳으로'}</button>
       ${n ? `<button type="button" class="link" data-act="mapback" data-v="${esc(p.id)}">🗺 약도에서 ${n}번 보기</button>` : ''}
       ${safeMapUrl(p.url) ? `<a class="link" href="${esc(safeMapUrl(p.url))}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}
-      ${p.custom ? `<button type="button" class="link" data-act="customdel" data-v="${esc(p.id)}">목록에서 지우기</button>` : `<a class="link" href="${gmap(p.addr || p.ja)}" target="_blank" rel="noopener">구글 지도 ↗</a>`}
+      ${p.custom ? `<button type="button" class="link" data-act="customdel" data-v="${esc(p.id)}">목록에서 지우기</button>` : `<a class="link" href="${gmap(p.mapq || p.addr || p.ja)}" target="_blank" rel="noopener">구글 지도 ↗</a>${AREAS[p.area] && cityOfArea(p.area) === 'sz' ? ` <a class="link" href="${esc(eatAmapUrl({ local:p.ja }))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}`}
     </div>
   </article>`;
 }
@@ -1628,7 +1628,7 @@ function foodBox(s, d, hotel){
   const slots = mealSlots(d, hotel, d.to); if(!slots.length) return '';
   return `<div class="box" id="foodbox"><h2>이날 식당<small>${slots.map(m => m.meal === 'lunch' ? '점심' : '저녁').join('·')}</small></h2>
     ${slots.map((m, k) => foodSlot(s.sh || {}, d, m, k)).join('')}
-    <p class="fine">버튼을 누르면 그 장소 좌표를 구글로 보내 근처 식당을 찾아요.${EATS.length ? ' 앱이 고른 식당의 지도 링크는 누르면 식당 이름이 구글(선전은 가오더)로 가요.' : ''} ${REGION.key === 'tokyo' ? '일본은 정기휴무·예약제·현금만 받는 곳이 많으니' : '선전(중국 본토)은 알리페이·위챗페이로 내는 곳이 많고 구글 지도 정보가 늦을 수 있으니'} 가기 전에 한 번 더 확인하세요.</p>
+    <p class="fine">버튼을 누르면 그 장소 좌표를 구글로 보내 근처 식당을 찾아요.${EATS.length ? ' 앱이 고른 식당의 지도 링크는 누르면 식당 이름과 주소가 구글(선전은 가오더)로 가요.' : ''} ${REGION.key === 'tokyo' ? '일본은 정기휴무·예약제·현금만 받는 곳이 많으니' : '선전(중국 본토)은 알리페이·위챗페이로 내는 곳이 많고 구글 지도 정보가 늦을 수 있으니'} 가기 전에 한 번 더 확인하세요.</p>
   </div>`;
 }
 

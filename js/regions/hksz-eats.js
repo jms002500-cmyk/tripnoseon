@@ -6,6 +6,7 @@
 //   id      eat_hk_… · eat_sz_… (장소 id와 겹치지 않게)
 //   name    한국어 이름 / local: 현지 이름(홍콩 번체, 선전 간체)
 //   addr    영어·현지 주소. 구글·가오더 지도는 이 주소로 찾아요(책과 지도의 이름이 달라도 찾게, 2026-11-06)
+//   mapq    주소로 찾으면 구글이 목록만 보여 줄 때 쓰는 검색어(선택). 구글 지도에서 한 곳으로 열리는지 확인한 값(2026-11-06)
 //   area    AREAS 키 (hksz-data.js)
 //   lat,lng 좌표(WGS-84). pos에 어디를 기준으로 맞췄는지
 //   kind    EAT_KINDS(js/eats.js) 중 하나
@@ -67,8 +68,8 @@ export const EATS = [
     kid:'맵지 않고 아이 입맛에 맞아요. 합석이 기본이고 빨리 먹고 나가는 분위기예요.', queue:'아침·점심에 줄이 길지만 빨리 줄어요.',
     hours:'아침 7시 반쯤~밤 (출처마다 달라요)', note:'목요일에 쉰다는 안내가 있어요. 가기 전에 확인하세요.',
     src:['https://en.wikipedia.org/wiki/Australia_Dairy_Company', 'https://www.discoverhongkong.com/in/interactive-map/australia-dairy-company.html', 'https://dairynews.today/news/australia-dairy-company-closes-for-black-rainstorm-prioritizing-employee-safety.html'], checked:C},
-  {id:'eat_hk_mammy', name:'마미 팬케이크 (에그와플)', local:'媽咪雞蛋仔', addr:'Mammy Pancake, 8-12 Carnarvon Road, Tsim Sha Tsui, Hong Kong', area:'tst', lat:22.2982, lng:114.1734,
-    pos:'OpenStreetMap 주소 좌표(카나번로드 8-12)', kind:'디저트', indoor:'part',
+  {id:'eat_hk_mammy', name:'마미 팬케이크 (스타페리점)', local:'媽咪雞蛋仔', addr:'Mammy Pancake, Star Ferry Pier, Salisbury Road, Tsim Sha Tsui, Hong Kong', mapq:'Mammy Pancake, Star Ferry', area:'tst', lat:22.2938, lng:114.1687,
+    pos:'Google 지도 가게 좌표·주소(스타페리 부두 KP-13)', kind:'디저트', indoor:'part',
     menu:'홍콩식 에그와플(雞蛋仔) — 기본·초콜릿·참깨 맛', price:{cur:'HKD', lo:30, hi:45}, spicy:0,
     kid:'들고 다니며 먹는 간식이라 아이가 좋아해요. 앉을 자리는 거의 없어요.', queue:'저녁에 잠깐 줄 서요.',
     hours:'오전 11시~밤 11시쯤', note:'미슐랭 길거리 음식으로 여러 해 뽑힌 가게예요.',
@@ -139,7 +140,7 @@ export const EATS = [
     kid:'항구 전망이 좋아요. 매운 메뉴가 많으니 고를 때 물어보세요.', queue:'창가 자리는 예약하세요.',
     hours:'낮 12시~오후 3시, 저녁 5시 반~자정 (책 기준)', note:'저녁 야경 자리로 좋아요.',
     src:[], book:true, checked:B},
-  {id:'eat_hk_wooloomooloo', name:'울루물루 프라임', local:'Wooloomooloo Prime The One', addr:'Wooloomooloo Prime, 21/F The One, 100 Nathan Road, Tsim Sha Tsui, Hong Kong', area:'tst', lat:22.2999, lng:114.1727,
+  {id:'eat_hk_wooloomooloo', name:'울루물루 프라임', local:'Wooloomooloo Prime The One', addr:'Wooloomooloo Prime, 21/F The One, 100 Nathan Road, Tsim Sha Tsui, Hong Kong', mapq:'Wooloomooloo Prime, Hong Kong', area:'tst', lat:22.2999, lng:114.1727,
     pos:'OpenStreetMap 더 원 좌표(21층)', kind:'양식', indoor:true,
     menu:'호주산 스테이크', price:{cur:'HKD', lo:400, hi:800}, spicy:0,
     kid:'고기 위주라 아이도 먹기 쉬워요. 야외 테라스에서 야경이 보여요.', queue:'저녁은 예약하세요.',
@@ -151,11 +152,11 @@ export const EATS = [
     kid:'맵지 않아요. 평일 오후에 값이 내려요.', queue:'점심에 붐벼요.',
     hours:'딤섬은 낮 시간, 저녁 10시 넘어까지 (책 기준)', note:'평일 오후 2시~3시 반쯤 딤섬을 할인해요.',
     src:[], book:true, checked:B},
-  {id:'eat_hk_fiveguys', name:'파이브 가이즈 (하이퐁로드)', local:'Five Guys 海防道', addr:'Five Guys, 53-55 Haiphong Road, Tsim Sha Tsui, Hong Kong', area:'tst', lat:22.2980, lng:114.1719,
-    pos:'OpenStreetMap 건물 좌표(하이퐁로드 53-55)', kind:'양식', indoor:true,
+  {id:'eat_hk_fiveguys', name:'파이브 가이즈 (K11 뮤지아)', local:'Five Guys K11 MUSEA', addr:'Five Guys, K11 MUSEA, 18 Salisbury Road, Tsim Sha Tsui, Hong Kong', area:'tst', lat:22.2945, lng:114.1742,
+    pos:'Google 지도 가게 좌표·주소(K11 뮤지아)', kind:'양식', indoor:true,
     menu:'햄버거, 감자튀김', price:{cur:'HKD', lo:100, hi:180}, spicy:0,
     kid:'땅콩이 무료로 나와요. 땅콩 알레르기는 조심하세요.', queue:'점심때 붐벼요.',
-    hours:'오전 11시~밤 10시 (책 기준)', note:'감자튀김 양이 많아 작은 것으로 시키세요.',
+    hours:'오전 11시~밤 10시 (책 기준)', note:'감자튀김 양이 많아 작은 것으로 시키세요. 책의 하이퐁로드점은 지도에 없어 K11 뮤지아점으로 바꿨어요.',
     src:[], book:true, checked:B},
   {id:'eat_hk_ladym', name:'레이디 M (오션 터미널)', local:'Lady M 海運大廈', addr:'Lady M, Ocean Terminal, Harbour City, Tsim Sha Tsui, Hong Kong', area:'tst', lat:22.2953, lng:114.1678,
     pos:'OpenStreetMap 가게 좌표(오션 터미널 2층)', kind:'디저트', indoor:true,
@@ -215,7 +216,7 @@ export const EATS = [
     kid:'수레에서 직접 골라 먹는 재미가 있고 넓어요. 창밖으로 항구가 보여요.', queue:'점심은 예약을 안 받아서 문 열기 전부터 번호표를 받아요.',
     hours:'딤섬 오전 11시~오후 3시(일·공휴일 오전 9시부터), 저녁 따로', note:'시청 2층이에요. 홍콩 관람차·해사박물관과 가까워요.',
     src:['https://lcsd.gov.hk/en/hkch/facilities/cateringfacilities/cityhallmaximspalace.html', 'https://www.timeout.com/hong-kong/restaurants/city-hall-maxims-palace', 'https://en.wikipedia.org/wiki/Hong_Kong_City_Hall'], checked:C},
-  {id:'eat_hk_tsimchai', name:'침차이키 (완탕면)', local:'沾仔記', addr:'Tsim Chai Kee Noodle, 98 Wellington Street, Central, Hong Kong', area:'central', lat:22.2832, lng:114.1547,
+  {id:'eat_hk_tsimchai', name:'침차이키 (완탕면)', local:'沾仔記', addr:'Tsim Chai Kee Noodle, 98 Wellington Street, Central, Hong Kong', mapq:'침차이키', area:'central', lat:22.2832, lng:114.1547,
     pos:'주소(웰링턴 거리 98)·센트럴 마켓 기준 0.3km 안', kind:'완탕면', indoor:true,
     menu:'새우 완탕면, 어묵·소고기 국수', price:{cur:'HKD', lo:40, hi:70}, spicy:0,
     kid:'국물이 맑고 맵지 않아요. 작은 가게라 합석해요.', queue:'평일 점심(12~2시)에 직장인 줄, 금방 빠져요.',
@@ -269,7 +270,7 @@ export const EATS = [
     kid:'맵지 않아요. 홍콩역 안이라 공항철도를 타기 전후에 들르기 좋아요.', queue:'일찍 갈수록 덜 기다려요.',
     hours:'매일 오전 9시~밤 9시 (공식 안내)', note:'역 안 가게라 층을 헷갈리기 쉬워요. 간판을 보고 찾아가세요.',
     src:['https://www.timhowan.com/stores/hong-kong', 'https://www.eatandtravelwithus.com/?p=288'], checked:B},
-  {id:'eat_hk_lockcha', name:'록차 티하우스 (홍콩 공원)', local:'樂茶軒 香港公園', addr:'LockCha Tea House, K.S. Lo Gallery, Hong Kong Park, 10 Cotton Tree Drive, Hong Kong', area:'central', lat:22.2779, lng:114.1627,
+  {id:'eat_hk_lockcha', name:'록차 티하우스 (홍콩 공원)', local:'樂茶軒 香港公園', addr:'LockCha Tea House, K.S. Lo Gallery, Hong Kong Park, 10 Cotton Tree Drive, Hong Kong', mapq:'樂茶軒 香港公園', area:'central', lat:22.2779, lng:114.1627,
     pos:'OpenStreetMap K.S. 로 갤러리 좌표·앱의 hk_hkpark 기준 0.3km 안', kind:'채식', indoor:true,
     menu:'중국차, 채식 딤섬', price:{cur:'HKD', lo:60, hi:200}, spicy:0,
     kid:'조용한 찻집이라 공원에서 논 뒤 쉬어 가기 좋아요. 맵지 않아요.', queue:'가기 전에 전화(2801 7177)로 자리를 물어보세요.',
@@ -335,7 +336,7 @@ export const EATS = [
     kid:'에스컬레이터 구경하다 쉬어 가기 좋아요.', queue:'주말 오후에 붐벼요.',
     hours:'오전 8시~오후 7시쯤 (책 기준)', note:'IFC 몰 3층에도 지점이 있어요.',
     src:[], book:true, checked:B},
-  {id:'eat_hk_halfway', name:'하프웨이 커피', local:'Halfway Coffee 摩羅上街', addr:'Halfway Coffee, 26 Upper Lascar Row, Sheung Wan, Hong Kong', area:'central', lat:22.2848, lng:114.1497,
+  {id:'eat_hk_halfway', name:'하프웨이 커피', local:'Halfway Coffee 摩羅上街', addr:'Halfway Coffee, 26 Upper Lascar Row, Sheung Wan, Hong Kong', mapq:'Halfway Coffee 摩羅上街', area:'central', lat:22.2848, lng:114.1497,
     pos:'OpenStreetMap 가게 좌표(어퍼 라스카 로우 26)', kind:'카페', indoor:true,
     menu:'플랫 화이트, 라테', price:{cur:'HKD', lo:60, hi:120}, spicy:0,
     kid:'작은 가게라 자리가 적어요.', queue:'늘 조금 기다려요.',
@@ -403,7 +404,7 @@ export const EATS = [
     kid:'둥근 식탁 큰 식당이라 가족끼리 앉기 좋아요. 맵지 않아요.', queue:'저녁엔 전화(2893 0822)로 예약하세요.',
     hours:'오전 10시쯤~새벽 2시 (출처마다 달라요)', note:'미슐랭에 실린 곳이에요. 해산물은 시세라 값을 먼저 물어보세요.',
     src:['https://guide.michelin.com/gb/en/hong-kong-region/hong-kong/restaurant/tai-woo-causeway-bay', 'https://www.klook.com/en-MY/activity/12358-tai-woo-seafood-restaurant-causeway-bay/'], checked:B},
-  {id:'eat_hk_keewah', name:'키와 베이커리 (완차이)', local:'奇華餅家 皇后大道東', addr:'Kee Wah Bakery, 186-190 Queen\'s Road East, Wan Chai, Hong Kong', area:'cwb', lat:22.2752, lng:114.1727,
+  {id:'eat_hk_keewah', name:'키와 베이커리 (완차이)', local:'奇華餅家 皇后大道東', addr:'Kee Wah Bakery, 186-190 Queen\'s Road East, Wan Chai, Hong Kong', mapq:'奇華餅家 (皇后大道東店)', area:'cwb', lat:22.2752, lng:114.1727,
     pos:'주소(퀸스로드 이스트 186)·리퉁 애비뉴 기준 0.3km 안', kind:'디저트', indoor:true,
     menu:'파인애플 케이크, 에그롤, 노파병', price:{cur:'HKD', lo:20, hi:150}, spicy:0,
     kid:'1층 빵집, 2층 카페, 위층 체험 공간이에요. 쿠키 만들기 체험은 아이가 좋아해요(예약제).', queue:'주말 오후에 붐벼요.',
@@ -471,7 +472,7 @@ export const EATS = [
     kid:'고기 없는 사찰 음식이에요. 넓은 식당에서 세트로 나와요.', queue:'주말 점심에 붐벼요.',
     hours:'오전 11시 반~오후 4시 반쯤', note:'톈탄 대불 계단 아래 사원 안이에요. 옹핑 360 케이블카와 같이 가는 날 점심으로 좋아요.',
     src:['https://www.timeout.com/hong-kong/restaurants/po-lin-monastery-vegetarian-kitchen', 'https://www.greenqueen.com.hk/green-queen-guide-hong-kong/6874/po-lin-monastery-vegetarian-restaurant/', 'https://en.wikipedia.org/wiki/Po_Lin_Monastery'], checked:C},
-  {id:'eat_hk_taiolookout', name:'타이오 룩아웃', local:'大澳文物酒店 Tai O Lookout', addr:'Tai O Lookout, Tai O Heritage Hotel, Shek Tsai Po Street, Tai O, Hong Kong', area:'tungchung', lat:22.2533, lng:113.8536,
+  {id:'eat_hk_taiolookout', name:'타이오 룩아웃', local:'大澳文物酒店 Tai O Lookout', addr:'Tai O Lookout, Tai O Heritage Hotel, Shek Tsai Po Street, Tai O, Hong Kong', mapq:'Tai O Lookout, Hong Kong', area:'tungchung', lat:22.2533, lng:113.8536,
     pos:'OpenStreetMap 타이오 헤리티지 호텔 좌표', kind:'양식', indoor:'part',
     menu:'아침·점심 세트, 새우젓 돼지고기 빵, 차', price:null, spicy:0,
     kid:'옛 경찰서를 고친 호텔 식당이라 앉아서 쉬기 좋아요. 타이오 마을 끝이라 조금 걸어요.', queue:'주말 점심은 전화(2985 8383)로 물어보세요.',
@@ -525,7 +526,7 @@ export const EATS = [
     src:['https://guide.michelin.com/tw/zh_TW/hong-kong-region/hong-kong/restaurant/chuen-kee-seafood', 'https://www.littlestepsasia.com/hong-kong/dine/kid-friendly-restaurants/chuen-kee-waterfront-dining-in-sai-kung/'], checked:B},
 
   // ── 선전 · 푸톈 CBD
-  {id:'eat_sz_libaoge', name:'리바오거 (케리 플라자)', local:'利宝阁 嘉里建设广场店', addr:'利宝阁 嘉里建设广场店, 深圳市福田区中心四路', area:'futian', lat:22.5353, lng:114.0569,
+  {id:'eat_sz_libaoge', name:'리바오거 (케리 플라자)', local:'利宝阁 嘉里建设广场店', addr:'利宝阁 嘉里建设广场店, 深圳市福田区中心四路', mapq:'利宝阁 嘉里建设广场店', area:'futian', lat:22.5353, lng:114.0569,
     pos:'케리 플라자 1동 입주사 좌표(22.5353, 114.0569)·주소(중심4로, 3동 2층)', kind:'광둥요리', indoor:true,
     menu:'바삭 오리 구이(白金桂花脆皮鸭), 하가우, 돼지갈비찜', price:null, spicy:0,
     kid:'큰 광둥식 차루라 둥근 식탁·아이 의자가 있어요. 맵지 않아요.', queue:'주말 아침 딤섬 시간에 붐벼요.',
