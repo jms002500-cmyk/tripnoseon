@@ -36,7 +36,7 @@
 //   点都德 海岸城店·大汤家·鼎Dimlar 등 — 출처가 한 곳(hk01)뿐이거나 건물 좌표를 못 찾음
 //   화창베이·룽강(다펀)·디즈니 동네 — 위 기준에 맞는 곳을 못 찾아 비워 둠
 //
-// 안내서 두 권의 후보를 다시 확인해 더한 22곳 (2026-11-06, checked:B)
+// 안내서 두 권의 후보를 다시 확인해 더한 25곳 (2026-11-06, checked:B)
 // - 책은 후보를 찾는 데만 썼고, 영업·주소·시간은 공식 누리집·미슐랭·2024~2026년 글로 다시 확인했어요. 설명은 새로 썼어요.
 // - 좌표는 OpenStreetMap(Nominatim)의 가게·건물 좌표와 대조했어요.
 // - 가격을 찾지 못한 곳은 null로 뒀어요.
@@ -217,6 +217,12 @@ export const EATS = [
     kid:'맵지 않아요. 오래된 찻집 분위기가 볼거리지만 값이 높고 직원이 무뚝뚝하다는 후기가 있어요.', queue:'세 층이 금방 차요. 전화로 묻고 가세요.',
     hours:'매일 오전 7시~밤 10시쯤', note:'미슐랭에 실린 오래된 찻집이에요. 차값이 따로 붙어요.',
     src:['https://guide.michelin.com/us/en/hong-kong-region/hong-kong/restaurant/luk-yu-tea-house', 'https://ca.trip.com/moments/poi-luk-yu-tea-house-10560802', 'https://www.frommers.com/destinations/hong-kong/restaurants/luk-yu-tea-house'], checked:B},
+  {id:'eat_hk_dimsumsquare', name:'딤섬 스퀘어 (성완)', local:'聚點坊 上環', area:'central', lat:22.2855, lng:114.1515,
+    pos:'주소(저보이스 거리, 타이힝 센터)·OpenStreetMap 성완 식당 기준 0.3km 안', kind:'딤섬', indoor:true,
+    menu:'하가우, 시우마이, 구운 차슈 번', price:{cur:'HKD', lo:70, hi:130}, spicy:0,
+    kid:'맵지 않고 값이 무난해요. 작은 가게라 합석할 수 있어요.', queue:'점심때 기다려요.',
+    hours:'월~토 오전 10시~밤 10시, 일 오전 8시쯤부터 (가기 전 확인)', note:'번지수가 출처마다 달라(78·88) 구글 지도에서 현지 이름으로 찾으세요.',
+    src:['https://www.discoverhongkong.com/eng/plan/qts/restaurants-results/restaurants-details.id19044.%E8%81%9A%E9%BB%9E%E5%9D%8A%E5%B0%8F%E5%BB%9A.html', 'https://thehoneycombers.com/hong-kong/best-dim-sum-in-hong-kong-where-to-eat/'], checked:B},
 
   // ── 홍콩 · 코즈웨이베이·완차이
   {id:'eat_hk_hohungkee', name:'호홍키 (완탕면·죽)', local:'何洪記', area:'cwb', lat:22.2798, lng:114.1836,
@@ -267,6 +273,12 @@ export const EATS = [
     kid:'느끼한 음식이 물릴 때 좋아요. 떡볶이는 매운 메뉴라 아이는 비빔밥·김밥이 나아요.', queue:'점심 혼잡 시간은 피하세요.',
     hours:'오전 11시~밤 11시쯤 (지점마다 달라요)', note:'몽콕·침사추이 등에도 지점이 있어요.',
     src:['https://thehoneycombers.com/hong-kong/?p=154473', 'https://openrice.com/en/hongkong/r-hungry-korean-causeway-bay-korean-korean-fried-chicken-r139823'], checked:B},
+  {id:'eat_hk_taiwoo', name:'타이우 해산물 (코즈웨이베이)', local:'太湖海鮮城 銅鑼灣', area:'cwb', lat:22.2795, lng:114.1860,
+    pos:'코즈웨이베이 플라자 2(9층)·코즈웨이베이역 기준 0.3km 안', kind:'광둥요리', indoor:true,
+    menu:'생선 달걀흰자 찜, 전복, 광둥식 해산물', price:null, spicy:0,
+    kid:'둥근 식탁 큰 식당이라 가족끼리 앉기 좋아요. 맵지 않아요.', queue:'저녁엔 전화(2893 0822)로 예약하세요.',
+    hours:'오전 10시쯤~새벽 2시 (출처마다 달라요)', note:'미슐랭에 실린 곳이에요. 해산물은 시세라 값을 먼저 물어보세요.',
+    src:['https://guide.michelin.com/gb/en/hong-kong-region/hong-kong/restaurant/tai-woo-causeway-bay', 'https://www.klook.com/en-MY/activity/12358-tai-woo-seafood-restaurant-causeway-bay/'], checked:B},
 
   // ── 홍콩 · 퉁청·공항 (옹핑)
   {id:'eat_hk_polin', name:'포린 사원 채식 식당', local:'寶蓮禪寺齋堂', area:'tungchung', lat:22.2555, lng:113.9079,
@@ -301,6 +313,12 @@ export const EATS = [
     kid:'버거라 아이가 먹기 쉬워요. 스탠리 바닷가 구경 뒤 앉기 좋아요.', queue:'주말 점심은 예약하세요. 전화 2563 2085.',
     hours:'가기 전 확인 (출처에 없음)', note:'홍콩에 하나 남은 지점이라고 해요. 쇼핑몰 스탠리 플라자 1층이에요.',
     src:['https://www.afoodieworld.com/blog/2026/05/20/best-restaurants-stanley-hk/', 'https://www.opentable.com/r/beef-and-liberty-stanley'], checked:B},
+  {id:'eat_hk_spices', name:'스파이시즈 (리펄스베이)', local:'Spices 影灣園', area:'south', lat:22.2386, lng:114.1960,
+    pos:'더 리펄스베이 아케이드(리펄스베이로드 109)·앱의 hk_repulse 좌표 기준 0.3km 안', kind:'양식', indoor:'part',
+    menu:'아시아 여러 나라 요리, 카레, 사테', price:null, spicy:1,
+    kid:'해변 옆 야외 자리가 좋아요. 매운 메뉴가 있으니 주문할 때 물어보세요.', queue:'주말은 예약하세요.',
+    hours:'평일 낮 12시~2시 반, 저녁 6시 반~10시 반, 주말 11시 반~밤 10시 반', note:'더 베란다와 같은 건물이에요.',
+    src:['https://www.opentable.com/r/spices-the-repulse-bay', 'https://www.timeout.com/hong-kong/restaurants/spices'], checked:B},
 
   // ── 홍콩 · 사틴·사이쿵
   {id:'eat_hk_chuenkee', name:'천키 해산물 (사이쿵)', local:'全記海鮮菜館 海傍街', area:'ntcentral', lat:22.3805, lng:114.2735,
