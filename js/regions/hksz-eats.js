@@ -31,22 +31,22 @@
 //   디즈니 익스플로러스 로지·할리우드 호텔 식당 — 2026 운영 시간·좌표를 두 곳에서 못 찾음 (디즈니 날은 파크 안에서 먹는 일이 많음)
 //   스위트 다이너스티(糖朝, 침사추이) — 한커우로드 지점은 닫았고 캔턴로드 지점 주소가 출처마다 다름
 //   카이카이 디저트(佳佳甜品) — 닝포 거리 본점을 닫고 옮김, 새 주소를 두 곳에서 못 찾음
-//   타이오 룩아웃(타이오 헤리티지 호텔) — 영업은 확인했지만 건물 좌표를 못 찾음(마을 좌표와 0.8km 차이)
 //   선전 미슐랭 빕구르망(2026 첫 발표 21곳: 卖鱼佬砂锅粥·小龙牛肉面·九九面馆 등) — 대부분 관광지에서 먼 동네 가게라 WGS-84 좌표를 확인할 길이 없음
 //   润园四季椰子鸡(코코넛 닭 훠궈) — 브랜드는 여러 출처에 있지만 지점 주소·좌표를 두 곳에서 맞춰 보지 못함
 //   点都德 海岸城店·大汤家·鼎Dimlar 등 — 출처가 한 곳(hk01)뿐이거나 건물 좌표를 못 찾음
 //   화창베이·룽강(다펀)·디즈니 동네 — 위 기준에 맞는 곳을 못 찾아 비워 둠
 //
-// 안내서 두 권의 후보를 다시 확인해 더한 14곳 (2026-11-06, checked:B)
+// 안내서 두 권의 후보를 다시 확인해 더한 22곳 (2026-11-06, checked:B)
 // - 책은 후보를 찾는 데만 썼고, 영업·주소·시간은 공식 누리집·미슐랭·2024~2026년 글로 다시 확인했어요. 설명은 새로 썼어요.
-// - 가격을 찾지 못한 곳은 null로 뒀어요(베이징 가든·제니 베이커리·피크 룩아웃).
+// - 좌표는 OpenStreetMap(Nominatim)의 가게·건물 좌표와 대조했어요.
+// - 가격을 찾지 못한 곳은 null로 뒀어요.
 //
 // 책에 있지만 넣지 않은 곳 (2026-11-06)
 //   헥사(오션 터미널) — 예약 사이트·옛 글뿐이라 2026년 영업을 확인하지 못함
 //   룽 딤섬(완차이) — 주소는 맞지만 영업시간과 최근 글을 찾지 못함
 //   베리 굿 시푸드(침사추이) — 영업시간이 2016년 자료뿐
 //   버바 검프(피크 타워) — 문을 닫았다는 글이 있고 공식 확인이 안 됨
-//   비프 앤 리버티·청스 하우스(스탠리) — 예약 사이트 밖의 확인이 안 됨
+//   청스 하우스(스탠리) — 영업을 확인하지 못함
 //   타이오 베이커리 — 주소가 출처마다 다름(캇힝 거리 6 / 66)
 //   매운 게 집(코즈웨이베이) — 가족 기준(맵지 않은 곳)에 맞지 않아 뺌
 //   그 밖의 책 후보(루육·타이우·체인 카페·호텔 식당 등) — 이번에 확인하지 않음
@@ -93,6 +93,18 @@ export const EATS = [
     kid:'포장만 되는 작은 가게라 사서 걸으며 먹어요. 아이 간식으로 좋아요.', queue:'줄이 길어 보여도 포장이라 빨리 빠져요. 저녁 7시쯤이면 타르트가 떨어질 수 있어요.',
     hours:'매일 오전 8시~밤 9시쯤', note:'앉을 자리가 없어요. 완차이점이 덜 붐빈다는 안내가 있고, 소호·코즈웨이베이·피크 타워에도 지점이 있어요.',
     src:['https://hongkongcheapo.com/restaurant/bakehouse', 'https://www.tatlerasia.com/dining/food/bakehouse-hankow-road-tsim-sha-tsui', 'https://www.trvlogue.com/en/bakehouse-hong-kong-egg-tarts', 'https://en.wikipedia.org/wiki/Bakehouse_(bakery)'], checked:B},
+  {id:'eat_hk_lobby', name:'더 로비 (페닌슐라 호텔)', local:'半島酒店大堂茶座 The Lobby', area:'tst', lat:22.2951, lng:114.1718,
+    pos:'OpenStreetMap 호텔 좌표·앱의 hk_peninsula 좌표', kind:'디저트', indoor:true,
+    menu:'애프터눈 티', price:{cur:'HKD', lo:460, hi:530}, spicy:0,
+    kid:'호텔 로비에서 라이브 음악을 들으며 먹어요. 12살도 함께 즐기기 좋지만 값이 높아요.', queue:'예약을 받지 않는다는 안내가 있어 일찍 가서 줄을 서요.',
+    hours:'애프터눈 티 오후 2시~6시쯤 (가기 전 확인)', note:'2인 세트가 1인 값보다 쌀 때가 있어요(2024년 기준 1인 HK$528·2인 HK$918).',
+    src:['https://opentable.co.uk/r/the-lobby-the-peninsula-hong-kong', 'https://ordinarypatrons.com/2024/03/23/peninsula-hotel-afternoon-tea-hong-kong/'], checked:B},
+  {id:'eat_hk_cookies', name:'쿠키스 쿼텟 (카나번로드)', local:'曲奇四重奏 加拿分道', area:'tst', lat:22.2972, lng:114.1730,
+    pos:'주소(카나번로드 16)·마미 팬케이크 기준 0.3km 안', kind:'디저트', indoor:true,
+    menu:'버터 쿠키 선물 상자', price:null, spicy:0,
+    kid:'먹고 가는 곳이 아니라 선물용 쿠키를 사는 가게예요.', queue:'제니 베이커리보다 덜 기다려요.',
+    hours:'가기 전 확인 (출처에 없음)', note:'코즈웨이베이(헤네시로드 432-436)와 홍콩 공항에도 가게가 있어요. 공항 가게는 마지막에 사기 좋아요.',
+    src:['https://www.discoverhongkong.com/uk/plan/qts/shops-results/shops-details.id19036.cookies-quartet.html', 'https://hongkongairport.com/en/shop-dine/shopping/cookies-quartet'], checked:B},
 
   // ── 홍콩 · 몽콕·야우마테이 (프린스에드워드·삼수이포 포함)
   {id:'eat_hk_mido', name:'미도 카페', local:'美都餐室', area:'mongkok', lat:22.3101, lng:114.1705,
@@ -119,8 +131,8 @@ export const EATS = [
     kid:'부드럽고 달아서 아이가 잘 먹어요. 오래된 가게라 자리가 좁아요.', queue:'주말 오후에 잠깐 기다려요.',
     hours:'매일 오전 7시~밤 9시', note:'미슐랭 빕구르망을 받은 곳이에요. 압리우 거리와 가까워요.',
     src:['https://guide.michelin.com/en/hong-kong-region/hong-kong/restaurant/kung-wo-tofu', 'https://eatbook.sg/hong-kong-food-michelin-budget/', 'https://sethlui.com/street-food-guide-hong-kong/'], checked:C},
-  {id:'eat_hk_thwssp', name:'팀호완 (삼수이포)', local:'添好運 深水埗', area:'mongkok', lat:22.3303, lng:114.1647,
-    pos:'주소(푹윙 거리 9-11)·삼수이포역 기준 0.3km 안', kind:'딤섬', indoor:true,
+  {id:'eat_hk_thwssp', name:'팀호완 (삼수이포)', local:'添好運 深水埗', area:'mongkok', lat:22.3290, lng:114.1663,
+    pos:'OpenStreetMap 가게 좌표·주소(푹윙 거리 9-11)', kind:'딤섬', indoor:true,
     menu:'구운 차슈 번(酥皮焗叉燒包), 하가우, 창펀', price:{cur:'HKD', lo:60, hi:120}, spicy:0,
     kid:'맵지 않고 값이 싼 딤섬집이에요. 가게가 붐벼서 합석할 수 있어요.', queue:'미슐랭도 줄 설 만하다고 적을 만큼 기다리는 곳이에요.',
     hours:'매일 오전 8시~밤 10시 (공식 안내)', note:'미슐랭 빕구르망이에요. 장난감 거리로 알려진 푹윙 거리에 있어요. 서구룡역·K11·퉁청 시티게이트에도 지점이 있어요.',
@@ -157,14 +169,14 @@ export const EATS = [
     kid:'맑은 국물은 아이도 먹기 좋고, 카레 국수는 매운맛이 날 수 있어요. 합석이 기본이에요.', queue:'문 열기 전부터 줄 서요. 일찍 가세요.',
     hours:'월~토 낮 12시 반~밤 10시 반', closed:[0], note:'일요일에 쉬어요. 1인 최소 주문(HK$70)이 있다는 안내가 있고 현금을 챙기는 게 좋아요.',
     src:['https://guide.michelin.com/en/hong-kong-region/hong-kong/restaurant/kau-kee', 'https://www.trvlogue.com/en/kau-kee-hong-kong-noodles', 'https://ordinarypatrons.com/2024/04/04/kau-kee-beef-noodles-hk-review/', 'https://aroundus.com/p/172109798-kau-kee'], checked:B},
-  {id:'eat_hk_singheung', name:'싱흥윤 (토마토 국수)', local:'勝香園', area:'central', lat:22.2838, lng:114.1530,
-    pos:'주소(미룬 거리 2)·카우키 좌표 기준 0.3km 안', kind:'국수', indoor:false,
+  {id:'eat_hk_singheung', name:'싱흥윤 (토마토 국수)', local:'勝香園', area:'central', lat:22.2841, lng:114.1525,
+    pos:'OpenStreetMap 가게 좌표·주소(미룬 거리 2)', kind:'국수', indoor:false,
     menu:'토마토 국물 라면, 연유 토스트', price:{cur:'HKD', lo:40, hi:70}, spicy:0,
     kid:'토마토 국물이라 맵지 않아요. 길가 간이 식탁이라 비 오면 불편해요.', queue:'점심때 줄이 길어요.',
     hours:'월~토 오전 8시~오후 3시 반쯤', closed:[0], note:'일요일·공휴일에 쉬어요. 일찍 닫으니 점심 전에 가세요.',
     src:['https://www.sassyhongkong.com/tag/best-restaurants-sheung-wan/', 'https://www.trvlogue.com/en/sing-heung-yuen-oi-man-sang', 'https://discoverhongkong.com/us/interactive-map/sing-heung-yuen.html'], checked:B},
-  {id:'eat_hk_taicheong', name:'타이청 베이커리 (에그타르트)', local:'泰昌餅家 擺花街', area:'central', lat:22.2829, lng:114.1532,
-    pos:'주소(린드허스트 테라스 35)·미드레벨 에스컬레이터 기준 0.3km 안', kind:'디저트', indoor:false,
+  {id:'eat_hk_taicheong', name:'타이청 베이커리 (에그타르트)', local:'泰昌餅家 擺花街', area:'central', lat:22.2826, lng:114.1536,
+    pos:'OpenStreetMap 가게 좌표·주소(린드허스트 테라스 35)', kind:'디저트', indoor:false,
     menu:'에그타르트', price:{cur:'HKD', lo:11, hi:40}, spicy:0,
     kid:'포장해서 들고 먹는 간식이에요.', queue:'아침에 줄이 있어요.',
     hours:'오전 8시쯤~밤 (출처마다 달라요)', note:'미드레벨 에스컬레이터 근처라 소호 구경과 묶기 좋아요. 현금만 받는 지점이 있어요.',
@@ -187,18 +199,24 @@ export const EATS = [
     kid:'맵지 않아요. 홍콩역 안이라 공항철도를 타기 전후에 들르기 좋아요.', queue:'일찍 갈수록 덜 기다려요.',
     hours:'매일 오전 9시~밤 9시 (공식 안내)', note:'역 안 가게라 층을 헷갈리기 쉬워요. 간판을 보고 찾아가세요.',
     src:['https://www.timhowan.com/stores/hong-kong', 'https://www.eatandtravelwithus.com/?p=288'], checked:B},
-  {id:'eat_hk_lockcha', name:'록차 티하우스 (홍콩 공원)', local:'樂茶軒 香港公園', area:'central', lat:22.2783, lng:114.1617,
-    pos:'홍콩 공원 K.S. 로 갤러리 1층·앱의 hk_hkpark 좌표 기준 0.3km 안', kind:'채식', indoor:true,
+  {id:'eat_hk_lockcha', name:'록차 티하우스 (홍콩 공원)', local:'樂茶軒 香港公園', area:'central', lat:22.2779, lng:114.1627,
+    pos:'OpenStreetMap K.S. 로 갤러리 좌표·앱의 hk_hkpark 기준 0.3km 안', kind:'채식', indoor:true,
     menu:'중국차, 채식 딤섬', price:{cur:'HKD', lo:60, hi:200}, spicy:0,
     kid:'조용한 찻집이라 공원에서 논 뒤 쉬어 가기 좋아요. 맵지 않아요.', queue:'가기 전에 전화(2801 7177)로 자리를 물어보세요.',
     hours:'매일 오전 10시~오후 8시', note:'매달 둘째 화요일에 쉰다는 안내가 있지만 책은 화요일 휴무로 적었어요. 화요일이라면 꼭 확인하세요. 우유·버터를 쓴다는 후기가 있어요.',
     src:['https://www.lockcha.com/locations/hong-kong-park/', 'https://www.happycow.net/reviews/lock-cha-hong-kong-island-11069'], checked:B},
   {id:'eat_hk_peaklookout', name:'피크 룩아웃', local:'太平山餐廳 The Peak Lookout', area:'central', lat:22.2711, lng:114.1494,
-    pos:'위키백과 좌표(22°16′16″N 114°08′58″E)·주소(피크로드 121)', kind:'양식', indoor:'part',
+    pos:'OpenStreetMap·위키백과 좌표 일치·주소(피크로드 121)', kind:'양식', indoor:'part',
     menu:'서양식·아시아 요리', price:null, spicy:0,
     kid:'아이 메뉴가 있다는 안내가 있어요. 피크 전망을 본 뒤 앉아서 쉬기 좋아요.', queue:'저녁·주말은 전화(2849 1000)로 예약하세요.',
     hours:'평일 낮 12시~밤 10시, 주말·공휴일 오전 8시~밤 10시 (공식 안내)', note:'피크 트램 종점 근처예요. 맵지 않은 메뉴를 고르기 쉬워요.',
     src:['https://www.peaklookout.com.hk/', 'https://en.wikipedia.org/wiki/The_Peak_Lookout', 'https://littlestepsasia.com/hong-kong/dine/kid-friendly-restaurants/the-peak-lookout-reopens'], checked:B},
+  {id:'eat_hk_lukyu', name:'룩유 티하우스', local:'陸羽茶室', area:'central', lat:22.2823, lng:114.1556,
+    pos:'OpenStreetMap 가게 좌표·주소(스탠리 거리 24-26)', kind:'딤섬', indoor:true,
+    menu:'옛날식 딤섬, 중국차', price:{cur:'HKD', lo:150, hi:300}, spicy:0,
+    kid:'맵지 않아요. 오래된 찻집 분위기가 볼거리지만 값이 높고 직원이 무뚝뚝하다는 후기가 있어요.', queue:'세 층이 금방 차요. 전화로 묻고 가세요.',
+    hours:'매일 오전 7시~밤 10시쯤', note:'미슐랭에 실린 오래된 찻집이에요. 차값이 따로 붙어요.',
+    src:['https://guide.michelin.com/us/en/hong-kong-region/hong-kong/restaurant/luk-yu-tea-house', 'https://ca.trip.com/moments/poi-luk-yu-tea-house-10560802', 'https://www.frommers.com/destinations/hong-kong/restaurants/luk-yu-tea-house'], checked:B},
 
   // ── 홍콩 · 코즈웨이베이·완차이
   {id:'eat_hk_hohungkee', name:'호홍키 (완탕면·죽)', local:'何洪記', area:'cwb', lat:22.2798, lng:114.1836,
@@ -231,12 +249,24 @@ export const EATS = [
     kid:'맵지 않아요. 줄이 길면 치킨 파이를 포장해도 좋아요.', queue:'아침에도 줄이 있지만 금방 빠져요.',
     hours:'매일 오전 7시~저녁 6시 45분쯤 (가기 전 확인)', note:'파인애플 번은 오후에 떨어질 수 있어 아침이 안전해요. 저녁엔 닫아요.',
     src:['https://www.afoodieworld.com/blog/2025/02/14/best-pineapple-buns-hk', 'https://www.timeout.com/hong-kong/restaurants/kam-fung-cafe', 'https://wanderlog.com/place/details/171444/金凤茶餐厅'], checked:B},
-  {id:'eat_hk_joyhing', name:'조이힝 (거위·돼지 구이)', local:'再興燒臘飯店', area:'cwb', lat:22.2777, lng:114.1732,
-    pos:'주소(완차이 헤네시로드 265-267)·깜스 로스트 구스 기준 0.3km 안', kind:'로스트', indoor:true,
+  {id:'eat_hk_joyhing', name:'조이힝 (거위·돼지 구이)', local:'再興燒臘飯店', area:'cwb', lat:22.2783, lng:114.1767,
+    pos:'OpenStreetMap 가게 좌표(스튜어트로드 쪽 입구)·주소(헤네시로드 265-267)', kind:'로스트', indoor:true,
     menu:'차슈 덮밥, 세 가지 고기 덮밥(三寶飯), 거위 구이', price:{cur:'HKD', lo:42, hi:90}, spicy:0,
     kid:'맵지 않아요. 합석이 기본이에요.', queue:'온종일 줄이 있어요.',
     hours:'월~토 오전 9시 반쯤~밤 10시', closed:[0], note:'일요일에 쉰다는 곳이 많지만 매일 연다는 출처도 있어요. 일요일이라면 가기 전에 확인하세요.',
     src:['https://joinpearl.co/restaurants/hong-kong/joy-hing-roast-meat', 'https://en.wikipedia.org/wiki/Joy_Hing%27s_Roasted_Meat', 'https://danielfooddiary.com/2018/03/27/joyhing/', 'https://www.wongnai.com/restaurants/135504ft-joy-hing'], checked:B},
+  {id:'eat_hk_tiffin', name:'티핀 (그랜드 하얏트)', local:'茶園 Tiffin 君悅酒店', area:'cwb', lat:22.2813, lng:114.1720,
+    pos:'OpenStreetMap 호텔 좌표(하버로드 1)', kind:'디저트', indoor:true,
+    menu:'애프터눈 티 + 디저트 뷔페', price:null, spicy:0,
+    kid:'디저트 뷔페가 함께 나와 아이가 좋아해요. 호텔 식당이라 옷차림은 깔끔하게 입어요.', queue:'전화(2584 7722)로 예약하세요.',
+    hours:'애프터눈 티 매일 오후 3시 반~5시 반', note:'골든 바우히니아 광장·컨벤션 센터와 가까워요. 값은 예약할 때 확인하세요.',
+    src:['https://www.opentable.com/r/tiffin-grand-hyatt-hong-kong-wan-chai', 'https://www.hongkong.grand.hyattrestaurants.com/wp-content/uploads/2024/06/Tiffin-Afternoon-Tea-Menu-Jan-2026.pdf'], checked:B},
+  {id:'eat_hk_hungry', name:'헝그리 코리안 (코즈웨이베이)', local:'Hungry Korean 銅鑼灣', area:'cwb', lat:22.2793, lng:114.1857,
+    pos:'OpenStreetMap 가게 좌표·주소(자딘스 바자 46-52)', kind:'한식', indoor:true,
+    menu:'돌솥비빔밥, 김밥, 떡볶이', price:{cur:'HKD', lo:40, hi:100}, spicy:1,
+    kid:'느끼한 음식이 물릴 때 좋아요. 떡볶이는 매운 메뉴라 아이는 비빔밥·김밥이 나아요.', queue:'점심 혼잡 시간은 피하세요.',
+    hours:'오전 11시~밤 11시쯤 (지점마다 달라요)', note:'몽콕·침사추이 등에도 지점이 있어요.',
+    src:['https://thehoneycombers.com/hong-kong/?p=154473', 'https://openrice.com/en/hongkong/r-hungry-korean-causeway-bay-korean-korean-fried-chicken-r139823'], checked:B},
 
   // ── 홍콩 · 퉁청·공항 (옹핑)
   {id:'eat_hk_polin', name:'포린 사원 채식 식당', local:'寶蓮禪寺齋堂', area:'tungchung', lat:22.2555, lng:113.9079,
@@ -245,6 +275,12 @@ export const EATS = [
     kid:'고기 없는 사찰 음식이에요. 넓은 식당에서 세트로 나와요.', queue:'주말 점심에 붐벼요.',
     hours:'오전 11시 반~오후 4시 반쯤', note:'톈탄 대불 계단 아래 사원 안이에요. 옹핑 360 케이블카와 같이 가는 날 점심으로 좋아요.',
     src:['https://www.timeout.com/hong-kong/restaurants/po-lin-monastery-vegetarian-kitchen', 'https://www.greenqueen.com.hk/green-queen-guide-hong-kong/6874/po-lin-monastery-vegetarian-restaurant/', 'https://en.wikipedia.org/wiki/Po_Lin_Monastery'], checked:C},
+  {id:'eat_hk_taiolookout', name:'타이오 룩아웃', local:'大澳文物酒店 Tai O Lookout', area:'tungchung', lat:22.2533, lng:113.8536,
+    pos:'OpenStreetMap 타이오 헤리티지 호텔 좌표', kind:'양식', indoor:'part',
+    menu:'아침·점심 세트, 새우젓 돼지고기 빵, 차', price:null, spicy:0,
+    kid:'옛 경찰서를 고친 호텔 식당이라 앉아서 쉬기 좋아요. 타이오 마을 끝이라 조금 걸어요.', queue:'주말 점심은 전화(2985 8383)로 물어보세요.',
+    hours:'점심 오전 11시~오후 2시 반, 애프터눈 티 오후 2시 반~5시, 저녁 오후 6시~10시 (호텔 안내)', note:'타이오 마을에서 식당을 찾기 어려울 때 들르기 좋아요.',
+    src:['https://www.taioheritagehotel.com/en/dining/tai-o-lookout/', 'https://timeout.com/hong-kong/restaurants/tai-o-lookout'], checked:B},
 
   // ── 홍콩 · 남쪽 (오션파크)
   {id:'eat_hk_neptune', name:'넵튠스 레스토랑 (오션파크 수족관)', local:"海龍王餐廳 Neptune's Restaurant", area:'south', lat:22.2474, lng:114.1750,
@@ -259,6 +295,20 @@ export const EATS = [
     kid:'조용한 호텔식 식당이에요. 옷차림은 스마트 캐주얼이에요.', queue:'미리 예약하세요. 전화 2292 2822.',
     hours:'애프터눈 티 수~토 오후 3시~5시 반, 일 오후 3시 반~5시 반', closed:[1, 2], note:'월·화요일에 쉬어요(공휴일 제외). 값은 시기별 메뉴에 따라 달라요.',
     src:['https://www.opentable.com/r/the-verandah-the-repulse-bay', 'https://www.therepulsebay.com/en/special-offers/dining/the-verandah-classic-afternoon-tea', 'https://expatliving.net/hong-kong/high-tea-hong-kong/'], checked:B},
+  {id:'eat_hk_beefliberty', name:'비프 앤 리버티 (스탠리)', local:'Beef & Liberty 赤柱廣場', area:'south', lat:22.2192, lng:114.2098,
+    pos:'OpenStreetMap 가게 좌표·주소(스탠리 플라자 G04)', kind:'양식', indoor:true,
+    menu:'소고기·닭고기 버거, 피시 앤 칩스', price:{cur:'HKD', lo:150, hi:240}, spicy:0,
+    kid:'버거라 아이가 먹기 쉬워요. 스탠리 바닷가 구경 뒤 앉기 좋아요.', queue:'주말 점심은 예약하세요. 전화 2563 2085.',
+    hours:'가기 전 확인 (출처에 없음)', note:'홍콩에 하나 남은 지점이라고 해요. 쇼핑몰 스탠리 플라자 1층이에요.',
+    src:['https://www.afoodieworld.com/blog/2026/05/20/best-restaurants-stanley-hk/', 'https://www.opentable.com/r/beef-and-liberty-stanley'], checked:B},
+
+  // ── 홍콩 · 사틴·사이쿵
+  {id:'eat_hk_chuenkee', name:'천키 해산물 (사이쿵)', local:'全記海鮮菜館 海傍街', area:'ntcentral', lat:22.3805, lng:114.2735,
+    pos:'주소(사이쿵 호이퐁 거리 53)·OpenStreetMap 같은 식당 지점 기준 0.3km 안', kind:'광둥요리', indoor:true,
+    menu:'해산물 볶음, 생선찜', price:null, spicy:0,
+    kid:'미슐랭이 가족 친화로 표시한 곳이에요. 바닷가 자리가 있어요.', queue:'주말 저녁은 예약하세요.',
+    hours:'낮 11시쯤~밤 (출처마다 달라요)', note:'해산물은 시세라 주문 전에 값을 물어보세요.',
+    src:['https://guide.michelin.com/tw/zh_TW/hong-kong-region/hong-kong/restaurant/chuen-kee-seafood', 'https://www.littlestepsasia.com/hong-kong/dine/kid-friendly-restaurants/chuen-kee-waterfront-dining-in-sai-kung/'], checked:B},
 
   // ── 선전 · 푸톈 CBD
   {id:'eat_sz_libaoge', name:'리바오거 (케리 플라자)', local:'利宝阁 嘉里建设广场店', area:'futian', lat:22.5353, lng:114.0569,

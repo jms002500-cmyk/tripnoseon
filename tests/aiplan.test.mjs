@@ -81,7 +81,7 @@ test('우리 목록과 맞추기: 같은 이름 · 현지 이름 · 한쪽이 �
     assert.equal(m('웡타이신', '黃大仙祠'), 'hk_wongtaisin');
     assert.equal(m('Wong Tai Sin Temple', '黄大仙祠'), '');            // 간체는 다른 글자라 못 맞춤 → 가져오기로
     assert.equal(m('오션파크 홍콩'), 'hk_oceanpark');
-    assert.equal(m('침사추이 시계탑', 'Clock Tower'), '');
+    assert.equal(m('침사추이 시계탑', 'Clock Tower'), 'hk_clocktower');
     assert.equal(m('홍콩 공원'), 'hk_hkpark');                          // 같은 이름인 곳으로, '홍콩 동식물공원'과 헷갈리지 않음
     assert.equal(m('피크'), '');                                       // 너무 짧으면 품는 이름으로 안 봄
   } finally { D.useRegion('tokyo'); }

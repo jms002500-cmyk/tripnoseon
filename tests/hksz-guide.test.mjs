@@ -1,10 +1,11 @@
 // 실행: npm test
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CHECKED, CALLS, CONSULATES, PHRASES, LOST, WEATHER, ENTRY, TRANSPORT, MONEY, PACKING,
+import { CHECKED, CALLS, CONSULATES, PHRASES, LOST, WEATHER, ENTRY, TRANSPORT, MONEY, PACKING, DINING, DIMSUM, DIMSUM_MENU, LOCAL_TIPS, COURSES,
   callsFor, consulateFor, phrasesFor, forCity, packingFor, guideFor } from '../js/regions/hksz-guide.js';
 import { PACK_CATS } from '../js/packing.js';
 import { telHref } from '../js/safety.js';
+import { PLACES } from '../js/regions/hksz-data.js';
 
 const CITIES = ['hk', 'sz'];
 const filled = (o, keys, name) => keys.forEach(k => assert.ok(typeof o[k] === 'string' && o[k].trim(), `${name}: ${k} 비어 있음`));
@@ -94,4 +95,29 @@ test('guideFor: 한 도시 묶음', () => {
   assert.ok(g.calls.length && g.phrases.length && g.entry.length && g.transport.length && g.packing.length);
   assert.equal(g.money.cur, 'CNY'); assert.equal(g.consulate.city, 'sz'); assert.deepEqual(g.weather, []);
   assert.ok(guideFor('hk').weather.length);
+});
+
+test('안내서 내용: 식당·딤섬·현장 요령이 비어 있지 않고 key가 겹치지 않음', () => {
+  for(const [name, list] of [['DINING', DINING], ['DIMSUM', DIMSUM], ['LOCAL_TIPS', LOCAL_TIPS]]){
+    assert.ok(list.length >= 5, name);
+    uniq(list, name);
+    list.forEach((x, i) => filled(x, ['key', 'title', 'text'], `${name}#${i}`));
+  }
+  DIMSUM_MENU.forEach((m, i) => filled(m, ['local', 'ko', 'd'], `메뉴#${i}`));
+  assert.ok(DIMSUM_MENU.length >= 8);
+});
+
+test('하루 코스: 장소 id가 모두 있고 같은 코스에 두 번 나오지 않음', () => {
+  const ids = new Set(PLACES.map(p => p.id));
+  uniq(COURSES, 'COURSES');
+  COURSES.forEach(c => {
+    filled(c, ['key', 'title', 'text'], c.key);
+    assert.ok(c.stops.length >= 1, c.key);
+    assert.equal(new Set(c.stops).size, c.stops.length, c.key);
+    c.stops.forEach(id => assert.ok(ids.has(id), `${c.key}: ${id}`));
+  });
+});
+
+test('12살 동반 주의: 경마장은 18세 미만 경주 날 입장 불가를 알림', () => {
+  assert.match(PLACES.find(p => p.id === 'hk_racecourse').note, /18세 미만/);
 });
