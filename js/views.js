@@ -1584,6 +1584,7 @@ function eatRow(e){
   return `<li class="imp eat"><div class="sbody"><b>${eatIcon(e)} ${esc(e.name)}</b>
       <span>${esc(e.local)} · ${esc(e.kind)} · ${pr ? `1인 약 ${esc(pr)}` : '가격 정보 없음'}${away}${e.off ? ' · <span class="closed">이날 쉬어요</span>' : ''}</span>
       <span>${esc(e.menu)}</span>
+      ${e.addr ? `<span>📍 ${esc(e.addr)}</span>` : ''}
       <span>👨‍👩‍👧 ${esc(e.kid)}${e.spicy ? ' 매운 메뉴도 있어요.' : ''}</span>
       <span class="lacts">${link(eatMapUrl(e), '구글 지도 ↗')}${sz ? link(eatAmapUrl(e), '가오더 지도 ↗') : ''}</span>
       <details class="more"><summary>줄·영업시간·출처</summary>

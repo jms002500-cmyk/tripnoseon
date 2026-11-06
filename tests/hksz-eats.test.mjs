@@ -29,7 +29,7 @@ test('id: 모양이 맞고 겹치지 않으며 장소 id와도 안 겹침', () =
 
 test('필수 칸: 이름·현지 이름·동네·종류·실내·메뉴·아이·줄·시간·출처·확인 날짜', () => {
   EATS.forEach(e => {
-    for(const f of ['name', 'local', 'menu', 'kid', 'queue', 'hours', 'pos']) assert.ok(typeof e[f] === 'string' && e[f].trim(), `${e.id} ${f}`);
+    for(const f of ['name', 'local', 'addr', 'menu', 'kid', 'queue', 'hours', 'pos']) assert.ok(typeof e[f] === 'string' && e[f].trim(), `${e.id} ${f}`);
     const a = AREAS[e.area];
     assert.ok(a, `${e.id} 동네 ${e.area}`);
     assert.equal(e.id.slice(4, 6), a.city, `${e.id} 도시와 동네가 맞음`);
