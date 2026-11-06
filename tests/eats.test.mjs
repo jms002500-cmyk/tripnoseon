@@ -56,6 +56,7 @@ test('isClosedOn: 쉬는 요일만 true', () => {
 });
 
 test('지도 링크: 현지 이름을 인코딩해서 그 좌표 근처로, 가오더는 선전 도시 코드', () => {
+  assert.ok(eatMapUrl({ addr:'긴 주소', mapq:'짧은 이름' }).endsWith(encodeURIComponent('짧은 이름')), '검색어가 있으면 주소 대신 씀');
   const g = eatMapUrl(LIST[0]);
   assert.ok(g.startsWith('https://www.google.com/maps/search/'));
   assert.ok(g.includes(encodeURIComponent('甲記')) && g.endsWith('/@22.30000,114.17000,17z'));

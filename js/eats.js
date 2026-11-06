@@ -40,7 +40,7 @@ export function eatsByArea(list, areas, opt = {}){
 }
 
 // 지도 링크: 구글은 현지 이름으로 그 좌표 근처를 찾고, 선전은 가오더(본토에서 구글이 막힘)도 같이
-export const eatMapUrl = e => e.addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.addr)}`
+export const eatMapUrl = e => e.addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.mapq || e.addr)}`
   : `https://www.google.com/maps/search/${encodeURIComponent(e.local)}/@${(+e.lat).toFixed(5)},${(+e.lng).toFixed(5)},17z`;
 export const eatAmapUrl = e => `https://uri.amap.com/search?keyword=${encodeURIComponent(e.addr || e.local)}&city=440300&view=map&src=tripnoseon`;
 // 출처 주소 → 보여 줄 짧은 이름 (도메인)
