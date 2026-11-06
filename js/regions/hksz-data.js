@@ -67,6 +67,14 @@
 //     hk_cheungchau 좌표 위키백과(공공 부두·페리 부두, 60m 안), 요금 2026-04-01부터 TVB(교통부 공지)
 //     hk_saikung 좌표 위키백과·travelprofy(0.1km 안), 교통 Hong Kong Cheapo
 //   새 동네 3곳은 숙소 후보가 아니라 장소를 묶는 칸이에요(hotel:false). 좌표는 hktransit.js 타이와이·틴수이와이역, 청차우 부두.
+// - 장소 6곳 더 넣음 (2026-11-06). 가이드북 두 권은 후보를 찾는 데만 썼어요. 좌표는 두 곳 이상 대조(위키백과·Sygic·aroundus·latitude.to).
+//     hk_hkpark 공원 6~23시·무료 hkp.lcsd.gov.hk, 조류관 시간은 자료가 달라 note로 안내
+//     hk_noonday 매일 12시·무료 discoverhongkong·Hong Kong Cheapo. 2026년 일정표는 못 찾음
+//     hk_tram 요금 hktramways.com(어른 HK$3.3, 12세 미만 HK$1.6), 좌표는 웨스턴 마켓 종점(위키백과)
+//     hk_westernmarket·hk_1881 건물 좌표만 확인, 상점 시간은 가게마다 달라요
+//     hk_chekung 시간 위키백과·Sygic 7~18시, 다른 안내 8~18시
+//   hk_peak note에 루가드 로드: 둘레 약 3.5km·약 1시간·전망대까지 약 20분·길에 물 살 곳 없음(LCSD 안내·Hello Hong Kong·discoverhongkong)
+//   못 넣은 곳: 루가드 전망대·타이윤 시장·시노 센터(좌표 두 곳을 못 찾음), 창타이욱(좌표가 위키백과 하나뿐), 아쿠아루나(저녁 요금을 공식으로 못 찾음).
 //   확인 못 함: 디즈니 12월 날짜별 운영 시간·쉬는 날, 오션파크 2026 크리스마스 행사, 하버시티 등 쇼핑몰 장식,
 //     세계의 창·환러구 겨울 행사(지난해 세계의 창 눈 내리기는 12/7부터), 윈터페스트 정확한 날짜·시간·요금(EVENTS의 tbc)
 
@@ -145,7 +153,7 @@ export const PLACES = [
   {id:'hk_walledcity', kind:'공원·정원', indoor:false, name:'구룡성채 공원', ja:'九龍寨城公園', area:'mongkok', lat:22.3319, lng:114.1900, hours:1, tags:['문화·역사','자연·산책'], kid:'all', note:'빌딩이 빽빽했던 옛 구룡성채 자리를 정원으로 바꾼 곳이에요. 남아 있는 옛 관청 건물에서 성채 시절 모습을 보여 줘요. 공원은 매일 아침 6시 반~밤 11시, 전시실은 수요일에 쉬어요. 무료예요.'},
   {id:'hk_chilin', kind:'공원·정원', indoor:false, name:'치린 수도원·난롄 정원', ja:'志蓮淨苑', area:'mongkok', lat:22.3407, lng:114.2052, hours:1.5, tags:['문화·역사','자연·산책'], kid:'all', note:'못을 쓰지 않고 나무로 지은 당나라 양식 절과 길 건너 정원이에요. 무료예요. 절은 오전 9시~오후 4시 반, 정원은 아침 7시~밤 9시에 열어요.'},
   // 홍콩 · 센트럴·성완
-  {id:'hk_peak', kind:'전망대', indoor:false, name:'빅토리아 피크 (피크 트램)', ja:'凌霄閣', area:'central', lat:22.2712, lng:114.1500, hours:2.5, anchor:true, tags:['관광명소','자연·산책'], kid:'all', note:'피크 트램을 타고 올라가 홍콩 전체를 내려다봐요. 트램은 매일 아침 7시 반~밤 11시에 다니고, 해 질 녘엔 줄이 길어요. 피크 타워에서 매일 저녁 7시 반·8시 반·9시 반에 10분쯤 빛 영상 쇼를 해요(2026년 6월부터 1년, 날씨에 따라 바뀔 수 있어요).'},
+  {id:'hk_peak', kind:'전망대', indoor:false, name:'빅토리아 피크 (피크 트램)', ja:'凌霄閣', area:'central', lat:22.2712, lng:114.1500, hours:2.5, anchor:true, tags:['관광명소','자연·산책'], kid:'all', note:'피크 트램을 타고 올라가 홍콩 전체를 내려다봐요. 트램은 매일 아침 7시 반~밤 11시에 다니고, 해 질 녘엔 줄이 길어요. 무료로 보고 싶다면 피크 타워에서 루가드 로드를 따라 20분쯤 걸어 전망대까지 가요. 둘레길은 약 3.5km, 1시간쯤 걸리고 길에서 물을 살 수 없어요. 피크 타워에서 매일 저녁 7시 반·8시 반·9시 반에 10분쯤 빛 영상 쇼를 해요(2026년 6월부터 1년, 날씨에 따라 바뀔 수 있어요).'},
   {id:'hk_escalator', kind:'거리·시장', indoor:'part', name:'미드레벨 에스컬레이터', ja:'中環至半山自動扶梯', area:'central', lat:22.2836, lng:114.1547, hours:0.5, tags:['관광명소'], kid:'all', note:'언덕을 오르는 800m 길이 야외 에스컬레이터예요. 아침에는 내려가는 방향으로만 움직여요.'},
   {id:'hk_pmq', kind:'쇼핑', indoor:'part', name:'PMQ', ja:'元創方', area:'central', lat:22.2834, lng:114.1519, hours:1, tags:['쇼핑','문화·역사'], kid:'all', note:'옛 경찰 기숙사를 고친 디자인 소품 가게 모음이에요.'},
   {id:'hk_taikwun', kind:'박물관·미술관', indoor:'part', name:'대관 (타이쿤)', ja:'大館', area:'central', lat:22.2817, lng:114.1543, hours:1, tags:['문화·역사'], kid:'all', note:'옛 경찰서·감옥을 고친 문화 공간이에요. 무료 전시가 많아요. 마당은 매일 열고, 현대미술 전시관은 월요일에 쉬어요.'},
@@ -173,10 +181,17 @@ export const PLACES = [
   {id:'hk_repulse', kind:'공원·정원', indoor:false, name:'리펄스베이', ja:'淺水灣', area:'south', lat:22.2368, lng:114.1962, hours:1, tags:['자연·산책'], kid:'all', note:'초승달 모양 모래 해변이에요. 센트럴에서 버스로 30분쯤 걸려요.'},
   {id:'hk_shekobeach', kind:'공원·정원', indoor:false, name:'섹오 해변·마을', ja:'石澳', area:'south', lat:22.2290, lng:114.2510, hours:2, tags:['자연·산책'], kid:'all', note:'홍콩섬 동쪽 끝의 작은 바닷가 마을이에요. 11~3월엔 해변 안전요원이 없어서 물에 들어가지 말고 산책만 하세요. MTR 사우케이완역 앞에서 9번 버스를 타요.'},
   // 홍콩 · 완차이 더 보기
+  {id:'hk_noonday', kind:'체험·캐릭터', indoor:false, name:'눈 데이 건 (정오의 대포)', ja:'怡和午炮', area:'cwb', lat:22.2826, lng:114.1838, hours:0.5, tags:['문화·역사','체험'], kid:'all', note:'매일 낮 12시에 바닷가에서 대포를 쏘는 오랜 전통이에요. 무료로 볼 수 있고 20분쯤 일찍 가면 자리 잡기 좋아요. 끝나고 잠깐 가까이서 사진을 찍을 수 있어요. 큰길 건너로 가는 지하도 입구를 찾기 어려우니 지도를 보며 가세요.'},
   {id:'hk_hopewell', kind:'전망대', indoor:true, name:'호프웰 센터 전망 엘리베이터', ja:'合和中心', area:'cwb', lat:22.2745, lng:114.1716, hours:0.5, tags:['관광명소','체험'], kid:'all', note:'17층에서 유리 엘리베이터로 갈아타고 56층까지 오르며 완차이 풍경을 봐요. 돈을 내지 않고 탈 수 있어요. 위층 식당 영업 시간에 맞춰 움직인다고 하니 가기 전에 확인하세요.'},
   {id:'hk_bauhinia', kind:'공원·정원', indoor:false, name:'골든 바우히니아 광장', ja:'金紫荊廣場', area:'cwb', lat:22.2843, lng:114.1737, hours:0.5, tags:['관광명소','문화·역사'], kid:'all', note:'1997년 홍콩 반환을 기념하는 금빛 꽃 조형물이 있는 바닷가 광장이에요. 매일 아침 8시쯤 국기 게양식을 해요(행사가 있으면 취소될 수 있어요).'},
   {id:'hk_bluehouse', kind:'박물관·미술관', indoor:'part', name:'블루하우스', ja:'藍屋', area:'cwb', lat:22.2739, lng:114.1741, hours:1, tags:['문화·역사'], kid:'all', note:'파란 외벽이 눈에 띄는 완차이의 옛 4층 건물이에요. 안내 시간은 아침 10시~오후 6시인데 1층 전시는 수요일에 쉰다는 안내가 있어 가기 전에 확인하세요. MTR 완차이역 A3 출구에서 걸어가요.'},
+  // 홍콩 · 센트럴·성완·침사추이 더 보기
+  {id:'hk_hkpark', kind:'공원·정원', indoor:false, name:'홍콩 공원', ja:'香港公園', area:'central', lat:22.2775, lng:114.1617, hours:1.5, tags:['자연·산책'], kid:'kids', note:'빌딩 사이에 있는 무료 공원이에요. 아침 6시~밤 11시에 열어요. 새장 안을 걸어 다니는 조류관과 다기 박물관이 있는데, 시설 시간은 따로라 가기 전에 확인하세요. MTR 애드미럴티역이 가까워요.'},
+  {id:'hk_tram', kind:'체험·캐릭터', indoor:'part', name:'2층 트램 타기', ja:'香港電車 上環街市總站', area:'central', lat:22.2869, lng:114.1507, hours:1, tags:['체험','관광명소'], kid:'all', note:'홍콩섬 북쪽을 천천히 달리는 2층 전차예요. 2층 앞자리에서 거리를 구경하기 좋아요. 어른 HK$3.3, 12세 미만 HK$1.6이라 12세는 어른 요금이에요. 옥토퍼스와 현금, 카드, QR로 낼 수 있어요.'},
+  {id:'hk_westernmarket', kind:'거리·시장', indoor:true, name:'웨스턴 마켓', ja:'西港城', area:'central', lat:22.2872, lng:114.1504, hours:0.5, tags:['쇼핑','문화·역사'], kid:'all', note:'성완의 붉은 벽돌 옛 시장 건물이에요. 지금은 상점과 식당이 들어서 있고 트램 종점이 바로 옆이에요. 가게 시간은 곳마다 달라요.'},
+  {id:'hk_1881', kind:'쇼핑', indoor:'part', name:'1881 헤리티지', ja:'1881 Heritage', area:'tst', lat:22.2955, lng:114.1700, hours:0.5, tags:['쇼핑','문화·역사'], kid:'all', note:'옛 해경 본부 건물을 쇼핑몰로 바꾼 곳이에요. 건물과 안뜰을 구경하기 좋아요. 침사추이 스타페리 선착장 가까이에 있어요.'},
   // 홍콩 · 신계와 섬
+  {id:'hk_chekung', kind:'신사·절', indoor:false, name:'체쿵 사원', ja:'沙田車公廟', area:'ntcentral', lat:22.3734, lng:114.1829, hours:1, tags:['문화·역사','체험'], kid:'all', note:'바람개비를 돌려 운을 비는 사원이에요. 보통 아침부터 오후 6시까지 열어요. MTR 체쿵템플역이 가까워요. 걸어서 15분쯤 가면 주민이 사는 옛 객가 마을 창타이욱도 볼 수 있어요.'},
   {id:'hk_10kbuddhas', kind:'신사·절', indoor:false, name:'만불사', ja:'萬佛寺', area:'ntcentral', lat:22.3875, lng:114.1847, hours:2, tags:['문화·역사','관광명소'], kid:'all', note:'금빛 불상이 양옆에 늘어선 계단을 올라가는 산 중턱 절이에요. 계단이 431개나 돼서 편한 신발이 좋아요. 보통 아침 9시~오후 5시에 열고, 큰비가 오면 닫기도 해요. MTR 사틴역 쪽에서 걸어가요.'},
   {id:'hk_wishingtree', kind:'공원·정원', indoor:false, name:'람췬 소원나무', ja:'林村許願樹', area:'ntcentral', lat:22.4560, lng:114.1425, hours:1, tags:['문화·역사','체험'], kid:'all', note:'소원을 적어 거는 마을 명소이고 틴하우 사원이 가까워요. MTR 타이포마켓역 A3 출구에서 64K 버스를 타고 팡마포에서 내려요.'},
   {id:'hk_saikung', kind:'거리·시장', indoor:false, name:'사이쿵 타운', ja:'西貢', area:'ntcentral', lat:22.3814, lng:114.2733, hours:3, tags:['맛집','자연·산책'], kid:'all', note:'항구 앞에 해산물 식당이 모인 바닷가 마을이에요. MTR이 닿지 않아요. 초이홍역 C2 출구 쪽에서 1A 미니버스를 타요.'},

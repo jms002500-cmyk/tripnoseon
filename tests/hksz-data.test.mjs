@@ -73,7 +73,7 @@ test('장소: 홍콩·선전 수와 꼭 갈 곳 후보', () => {
   assert.ok(anchors.length >= 15);
   assert.ok(new Set(anchors.map(p => p.kind)).size >= 6);
   // 신계·섬까지 넓힌 곳 (2026-11-06)
-  for(const id of ['hk_10kbuddhas', 'hk_wishingtree', 'hk_pingshan', 'hk_hopewell', 'hk_bauhinia', 'hk_bluehouse', 'hk_shekobeach', 'hk_cheungchau', 'hk_saikung'])
+  for(const id of ['hk_10kbuddhas', 'hk_wishingtree', 'hk_pingshan', 'hk_hopewell', 'hk_bauhinia', 'hk_bluehouse', 'hk_shekobeach', 'hk_cheungchau', 'hk_saikung', 'hk_hkpark', 'hk_tram', 'hk_noonday', 'hk_westernmarket', 'hk_1881', 'hk_chekung'])
     assert.ok(PLACES.find(p => p.id === id), id);
   // 선전의 새로운 기술·도시 모습이 보이는 곳
   for(const id of ['sz_huaqiangbei', 'sz_dji', 'sz_pingan', 'sz_window', 'sz_octharbour', 'sz_baypark', 'sz_dafen', 'sz_seaworld'])
