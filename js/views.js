@@ -18,14 +18,14 @@ import { partyNote, RK_RADIUS } from './rakuten.js';
 import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
 import { mergeHko, hkDates, freshWarns, freshNow, hkTime, HKO_LINK } from './hko.js';
-import { SITES, siteUrl, priceOptions, sitesFor } from './prices.js';
+import { SITES, siteUrl, priceOptions, sitesFor, addKrw } from './prices.js';
 import { voteSummary, inviteLink, defaultTitle } from './sharecore.js';
 import { VAULT_KINDS, kindOf, groupVault, missingBookings, placeName, sizeText, bookings, receiptOf, idCopies, idWipeDue } from './vault.js';
 import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDates, ledgerSummary, ledgerHint, money as lmoney, personUsed, mainCur, ratesOf, rateOf, CUR_NAME } from './ledger.js';
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
-import { ASK_KINDS, askKindOf, askPrompt, AI_SITES, ASK_KEY, ASK_KEY_PAGE, QUICK_TRANSLATE, planPrompt, aiToPick } from './askai.js';
+import { ASK_KINDS, askKindOf, askPrompt, receiptLine, AI_SITES, ASK_KEY, ASK_KEY_PAGE, QUICK_TRANSLATE, planPrompt, aiToPick } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
@@ -129,11 +129,41 @@ export function SHEET(s){
 }
 
 /* AI 도우미 창: 사진 + 상황에 맞는 부탁 문장을 내 AI 앱으로 (js/askai.js). photo: { url } 고른 사진(app.js가 들고 있음) */
+// AI 답 카드: 칸으로 받은 답을 종류별 화면으로 (js/askai.js ASK_SCHEMA). 금액은 숫자로 받아 앱 환율로 원화를 붙임
+const askMoney = (s, cur, n) => n > 0 ? addKrw(cur === 'HKD' ? `HK$${n}` : cur === 'CNY' ? `${n}위안` : `${n}엔`, ratesOf(s), 'CNY') : '';
+const askList = a => (Array.isArray(a) ? a : []).filter(Boolean).map(x => `<li>${esc(String(x))}</li>`).join('');
+const askLine = (title, l) => l && l.local ? `<div class="askorder"><b>${title}</b><p class="askloc">${esc(l.local)}</p><p>${esc(l.ko || '')}</p>
+    <button type="button" class="ghost small" data-act="askline">이 문장 복사</button></div>` : '';
+const askNote = d => `${d.more ? `<p class="fine">${esc(String(d.more))}</p>` : ''}${d.unclear ? `<p class="fine">잘 안 보인 곳: ${esc(String(d.unclear))}</p>` : ''}`;
+const hot = n => n > 0 ? `<span>${'🌶'.repeat(Math.min(3, Math.max(1, Math.round(+n) || 0)))}</span>` : '<span>안 매움</span>';
+function askCard(s, r){
+  const d = r.data, k = r.kind;
+  if(k === 'menu') return `${(d.recommend || []).length ? `<h3>👍 우리 가족 추천</h3><ol class="askrec">${d.recommend.map(x => `<li><b>${esc(x.name)}</b><span>${esc(x.why)}</span></li>`).join('')}</ol>` : ''}
+    ${askLine('🗣 직원에게 보여 주세요', d.order)}
+    <h3>메뉴 ${(d.items || []).length}개</h3>
+    ${(d.items || []).map(x => `<div class="askitem${x.alert ? ' warned' : ''}"><div class="asktop"><b>${esc(x.ko)}</b><span class="askwon">${esc(askMoney(s, d.currency, x.price))}</span></div>
+      <p class="fine">${esc(x.local || '')}</p><p>${esc(x.desc || '')}</p>
+      ${x.alert ? `<p class="warnline">⚠️ ${esc(x.alert)}</p>` : ''}
+      <p class="asktags">${hot(x.spicy)}<span class="kid-${esc(x.kid)}">아이 ${esc(x.kid)}</span>${(x.contains || []).map(c => `<span>${esc(c)}</span>`).join('')}</p></div>`).join('')}
+    ${askNote(d)}`;
+  if(k === 'receipt'){ const line = receiptLine(d); return `<h3>🧾 ${esc(d.store || '영수증')}</h3>${d.date ? `<p class="fine">${esc(d.date)}${d.pay ? ` · ${esc(d.pay)}` : ''}</p>` : ''}
+    ${(d.items || []).map(x => `<div class="askitem"><div class="asktop"><b>${esc(x.ko)}</b><span class="askwon">${esc(askMoney(s, d.currency, x.price))}</span></div><p class="fine">${esc(x.local || '')}</p></div>`).join('')}
+    ${d.service > 0 ? `<p>봉사료 ${esc(askMoney(s, d.currency, d.service))}</p>` : ''}${d.tax > 0 ? `<p>세금 ${esc(askMoney(s, d.currency, d.tax))}</p>` : ''}
+    <p class="asktotal">합계 ${esc(askMoney(s, d.currency, d.total)) || '잘 안 보임'}</p>
+    ${line ? `<button type="button" class="primary small" data-act="askledger"${r.saved ? ' disabled' : ''}>${r.saved ? '가계부에 적었어요 ✓' : `가계부에 넣기 · ${esc(line)}`}</button>` : ''}${askNote(d)}`; }
+  if(k === 'sign') return `<p class="askmain">${esc(d.meaning)}</p>${(d.todo || []).length ? `<h3>✅ 지금 할 일·조심할 점</h3><ul>${askList(d.todo)}</ul>` : ''}${(d.facts || []).length ? `<h3>🔢 숫자 정보</h3><ul>${askList(d.facts)}</ul>` : ''}${askNote(d)}`;
+  if(k === 'medicine') return `<h3>💊 ${esc(d.name)}</h3><p class="askmain">${esc(d.use)}</p>${(d.warn || []).length ? `<h3>⚠️ 주의</h3><ul>${askList(d.warn)}</ul>` : ''}
+    <h3>먹는 법</h3><p>${esc(d.dose)}</p>${d.kid ? `<p>👧 ${esc(d.kid)}</p>` : ''}${d.similar ? `<p>비슷한 한국 제품: ${esc(d.similar)}</p>` : ''}
+    ${askLine('🗣 약사에게 보여 주세요', d.pharmacist)}${askNote(d)}`;
+  return `<h3>🍽️ ${esc(d.name)}</h3><p class="fine">${esc(d.local || '')}</p><p class="asktags">${hot(d.spicy)}${d.kid ? `<span>아이: ${esc(d.kid)}</span>` : ''}</p><p class="askmain">${esc(d.how)}</p>${(d.warn || []).length ? `<h3>⚠️ 주의</h3><ul>${askList(d.warn)}</ul>` : ''}${askNote(d)}`;
+}
 // 앱 안에서 바로 받은 답 (js/askai.js, 키가 있을 때만)
 function askAnswer(s, hasKey, k){
   if(!hasKey) return '';
   const r = (s.sh.ask || {}).res;
   if(r && r.busy) return '<p class="pnote" role="status">✨ 사진을 읽고 있어요… (10~20초쯤)</p>';
+  if(r && r.data) return `<div class="askcard" id="askres">${askCard(s, r)}</div>
+    <p class="fine">AI 답은 틀릴 수 있어요. 알레르기·약은 직원·약사에게 한 번 더 확인하세요.</p>`;
   if(r && r.text) return `<div class="askres" id="askres">${esc(r.text)}</div>
     <button type="button" class="ghost small" data-act="askresult">답 복사</button>
     <p class="fine">AI 답은 틀릴 수 있어요. 알레르기·약은 직원·약사에게 한 번 더 확인하세요.</p>`;
@@ -165,7 +195,7 @@ export function ASKSHEET(s, photo){
       ${photo ? `<figure class="askphoto"><img src="${photo.url}" alt="고른 사진"><figcaption><button type="button" class="link" data-act="askclear">다른 사진 고르기</button></figcaption></figure>
       ${askAnswer(s, !!hasKey, k)}
       <button type="button" class="${hasKey ? 'ghost' : 'primary'}" data-act="asksend">${k.icon} AI 앱으로 보내기</button>
-      <p class="fine">보낼 앱 목록이 뜨면 쓰는 AI 앱을 고르세요. 부탁 문장도 같이 복사해 둬요. AI 입력칸에 글이 안 보이면 입력칸을 꾹 눌러 붙여 넣으세요.</p>`
+      <p class="fine">사진 위에 부탁 문장을 넣은 그림 한 장으로 보내요. 앱 목록에서 쓰는 AI를 고르고 전송만 누르세요. 답이 엉뚱하면 입력칸을 꾹 눌러 붙여 넣으세요(문장은 복사돼 있어요).</p>`
       : `<div class="askpick">
         <label class="primary filebtn">📷 사진 찍기<input type="file" accept="image/*" capture="environment" data-askphoto hidden></label>
         <label class="ghost filebtn">🖼️ 앨범에서 고르기<input type="file" accept="image/*" data-askphoto hidden></label>

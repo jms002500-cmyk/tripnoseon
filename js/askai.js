@@ -99,12 +99,64 @@ export function askPrompt(s, kind, note){
 export const ASK_KEY = 'tripnoseon-askkey';
 export const ASK_KEY_PAGE = 'https://aistudio.google.com/apikey';
 export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
-export const geminiBody = (prompt, mime, data) => ({ contents:[{ parts:[{ text:prompt }, { inline_data:{ mime_type:mime, data } }] }] });
+export const geminiBody = (prompt, mime, data, schema) => ({ contents:[{ role:'user', parts:[{ text:prompt }, { inline_data:{ mime_type:mime, data } }] }],
+  ...(schema ? { generationConfig:{ responseMimeType:'application/json', responseSchema:schema } } : {}) });
+
+// 앱 안 답은 정해진 칸으로 받아서 앱이 화면을 꾸밈 (ASK_VIEW는 views.js askCard). 금액은 숫자로 받아 앱이 환율로 원화를 붙임
+const STR = { type:'STRING' }, LIST = { type:'ARRAY', items:STR };
+const obj = (properties, required) => ({ type:'OBJECT', properties, required });
+const CUR = { type:'STRING', enum:['HKD', 'CNY', 'JPY'] };
+const LINE = obj({ ko:STR, local:STR }, ['ko', 'local']);
+const ASK_SCHEMA = {
+  menu:obj({ currency:CUR, recommend:{ type:'ARRAY', items:obj({ name:STR, why:STR }, ['name', 'why']) },
+    items:{ type:'ARRAY', items:obj({ ko:STR, local:STR, desc:STR, price:{ type:'NUMBER', nullable:true }, spicy:{ type:'INTEGER' }, kid:{ type:'STRING', enum:['좋음', '주의', '비추천'] }, contains:LIST, alert:STR }, ['ko', 'local', 'desc', 'spicy', 'kid', 'contains']) },
+    order:LINE, more:STR, unclear:STR }, ['currency', 'recommend', 'items', 'order']),
+  sign:obj({ meaning:STR, todo:LIST, facts:LIST, unclear:STR }, ['meaning', 'todo', 'facts']),
+  receipt:obj({ store:STR, date:STR, currency:CUR, items:{ type:'ARRAY', items:obj({ ko:STR, local:STR, price:{ type:'NUMBER', nullable:true } }, ['ko', 'local']) },
+    service:{ type:'NUMBER', nullable:true }, tax:{ type:'NUMBER', nullable:true }, total:{ type:'NUMBER', nullable:true }, pay:STR, what:STR, unclear:STR }, ['store', 'currency', 'items', 'total', 'what']),
+  medicine:obj({ name:STR, use:STR, warn:LIST, dose:STR, kid:STR, similar:STR, pharmacist:LINE, unclear:STR }, ['name', 'use', 'warn', 'dose', 'pharmacist']),
+  food:obj({ name:STR, local:STR, how:STR, spicy:{ type:'INTEGER' }, kid:STR, warn:LIST, unclear:STR }, ['name', 'local', 'how', 'spicy', 'warn'])
+};
+const ASK_RULES = {
+  menu:w => ['이 사진은 식당 메뉴판이야. 위에서부터 메뉴를 최대 30개까지 items에 넣어 줘. 더 있으면 줄였다고 more에 적어 줘.',
+    'ko는 뜻이 통하는 한국어 음식 이름, local은 메뉴판에 적힌 그대로, desc는 실제로 어떤 음식인지 25자 안쪽 설명이야.',
+    'price는 숫자만 적고, 안 보이면 null로 해 줘. 메뉴판에 맞는 통화를 currency에 적어 줘.',
+    'spicy는 0(안 매움)~3(아주 매움)이야. kid는 함께 온 아이가 먹기에 어떤지야.',
+    'contains는 돼지고기·소고기·닭고기·해산물·견과류·달걀·유제품·밀 중 들어갔을 만한 것이야.',
+    'alert는 참고에 적은 내용(알레르기 등)에 걸리면 그 이유를 짧게, 아니면 빈 글자로 둬.',
+    'recommend는 우리 일행에게 맞는 3개, why는 고른 이유 한 줄이야.',
+    `order.local은 추천 1번을 달라고 직원에게 보여 줄 ${w.lang} 한 문장(참고에 주의할 것이 있으면 그 말도 함께), order.ko는 그 뜻이야.`],
+  sign:() => ['이 사진은 표지판이나 안내문이야.', 'meaning은 무슨 뜻인지 한국어로 짧게, todo는 우리가 지금 해야 할 일이나 조심할 점이야.', 'facts는 시간·요금·날짜·출구 번호 같은 숫자 정보를 한 줄씩 적어 줘.'],
+  receipt:() => ['이 사진은 영수증이야.', 'store는 가게 이름, date는 날짜, items는 항목마다 한국어 이름(ko), 적힌 그대로(local), 금액(price)이야.',
+    'service는 봉사료, tax는 세금, total은 실제 낸 합계, pay는 결제 수단이야. 없으면 null이나 빈 글자로 둬.', 'what은 가계부에 적을 짧은 이름이야. (예: 점심, 간식, 약)'],
+  medicine:w => ['이 사진은 약이나 편의점 상품 포장이야.', 'name은 제품 이름, use는 어디에 쓰는지, warn은 주의할 성분(졸음·카페인·알레르기 등)이야.', 'dose는 나이별 먹는 양과 방법, kid는 함께 온 아이가 먹어도 되는지, similar는 비슷한 한국 제품이야.',
+    `pharmacist.local은 약사에게 보여 줄 ${w.lang} 한 문장, pharmacist.ko는 그 뜻이야. 건강 문제는 약사·의사 확인이 먼저라는 점을 warn 끝에 넣어 줘.`],
+  food:() => ['이 사진은 음식이야.', 'name은 한국어 이름, local은 현지에서 부르는 이름, how는 어떻게 먹는지(소스·먹는 순서)야.', 'spicy는 0~3, kid는 함께 온 아이가 먹기에 어떤지, warn은 들어갔을 만한 재료 중 주의할 것이야.', '확실하지 않으면 how 앞에 추측이라고 적어 줘.']
+};
+export const askSchema = kind => ASK_SCHEMA[askKindOf(kind).key];
+export function askJsonPrompt(s, kind, note){
+  const w = where(s); const extra = String(note || '').trim().slice(0, 200);
+  return [`${w.place} 여행 중이야. 일행은 한국인 ${partyLine(s)}.`, ...ASK_RULES[askKindOf(kind).key](w),
+    ...(extra ? [`참고: ${extra}`] : []),
+    '글자가 잘 안 보이거나 확실하지 않은 것은 지어내지 말고 빼거나 unclear에 적어 줘.', '값은 모두 한국어로 쓰되, local만 사진·현지 글자 그대로 써 줘.'].join('\n');
+}
+// 받은 글 → 칸 자료. 모양이 어긋나면 null(그때는 글 그대로 보여 줌)
+export function askParse(kind, t){
+  try{
+    const j = JSON.parse(String(t || '').trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, ''));
+    return j && typeof j === 'object' && !Array.isArray(j) && (ASK_SCHEMA[askKindOf(kind).key].required || []).every(k => k in j) ? j : null;
+  }catch(e){ return null; }
+}
+// 영수증 → 가계부 한 줄: '점심 267.3홍콩달러' (js/ledger.js parseLine이 읽는 모양)
+const CUR_WORD = { HKD:'홍콩달러', CNY:'위안', JPY:'엔' };
+export const receiptLine = d => d && d.total > 0 && CUR_WORD[d.currency] ? `${String(d.what || d.store || '지출').trim().slice(0, 30)} ${d.total}${CUR_WORD[d.currency]}` : '';
 // 답 글만 꺼내고, 화면에 그대로 보이는 마크다운 기호를 지움
-export function geminiText(j){
+export function geminiRaw(j){
   const parts = (((j && j.candidates) || [])[0] || {}).content;
-  const t = ((parts && parts.parts) || []).map(p => p.text || '').join('').trim();
-  return t.replace(/\*\*/g, '').replace(/^#{1,6}\s+/gm, '').replace(/^\s*\*\s+/gm, '• ');
+  return ((parts && parts.parts) || []).map(p => p.text || '').join('').trim();
+}
+export function geminiText(j){
+  return geminiRaw(j).replace(/\*\*/g, '').replace(/^#{1,6}\s+/gm, '').replace(/^\s*\*\s+/gm, '• ');
 }
 export function geminiError(status, j){
   const m = String((j && j.error && j.error.message) || '');
@@ -113,6 +165,22 @@ export function geminiError(status, j){
   if(status === 400) return '이 사진을 읽지 못했어요. 다시 찍어 주세요.';
   if(status >= 500) return '구글 쪽이 잠시 바빠요. 조금 뒤 다시 해 주세요.';
   return '답을 받지 못했어요. 아래 AI 앱으로 보내기를 써 주세요.';
+}
+
+// 사진 위에 얹을 부탁 문장 (AI 앱이 공유 글을 빠뜨려도 그림 속 글자를 읽고 답하게)
+export const composedPrompt = (s, kind, note) => `[이 글 아래 사진을 보고 다음 부탁대로 답해 줘]\n${askPrompt(s, kind, note)}`;
+// 글자를 그림 폭에 맞춰 줄바꿈. width(글) → 픽셀 폭. 한글은 띄어쓰기가 없어도 글자 단위로 끊음
+export function wrapText(text, maxW, width){
+  const out = [];
+  String(text).split('\n').forEach(par => {
+    let line = '';
+    for(const ch of par){
+      if(line && width(line + ch) > maxW){ out.push(line); line = ch.trim() ? ch : ''; }
+      else line += ch;
+    }
+    out.push(line);
+  });
+  return out;
 }
 
 export const QUICK_TRANSLATE = [
