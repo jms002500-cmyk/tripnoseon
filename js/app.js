@@ -1348,8 +1348,8 @@ async function askNow(){
     const body = JSON.stringify(geminiBody(askJsonPrompt(s, ask.kind, s.askNote), img.mime, img.data, askSchema(ask.kind)));
     const headers = Object.assign({ 'Content-Type':'application/json' }, token ? { Authorization:`Bearer ${token}` } : { 'x-goog-api-key':info.key });
     let r;
-    for(const u of askTargets(info)){ r = await fetchTimed(u, { method:'POST', headers, body }, 60000); if(r.status !== 404) break; }
-    const j = await r.json().catch(() => null); const data = r.ok ? askParse(ask.kind, geminiRaw(j)) : null; const text = r.ok && !data ? geminiText(j) : '';
+    for(const u of askTargets(info)){ r = await fetchTimed(u, { method:'POST', headers, body }, 90000); if(r.status !== 404) break; }
+    const j = await r.json().catch(() => null); const data = r.ok ? askParse(ask.kind, geminiRaw(j)) : null; const raw = r.ok && !data ? geminiText(j) : '', text = raw[0] === '{' ? '' : raw;   // 칸이 깨진 답을 그대로 보이지 않음
     res = data ? { data, kind:ask.kind } : text ? { text } : { err:r.ok ? '답을 받지 못했어요. 사진을 다시 찍어 주세요.' : `${geminiError(r.status, j)} (구글 응답 ${askErrTag(r.status, j)})` };
   }catch(e){ res = { err:'답이 늦어요. 다시 누르거나 아래 AI 앱으로 보내기를 써 주세요.' }; }
   if(askPhoto !== photo || s.sh.ask !== ask) return;   // 기다리는 동안 사진을 바꿨거나 창을 닫음

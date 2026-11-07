@@ -398,7 +398,11 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .askitem{display:grid; gap:3px; padding:10px 0; border-top:1px solid var(--rule)}
 .askitem.warned{border-left:3px solid var(--warn); padding-left:10px}
 .asktop{display:flex; justify-content:space-between; gap:10px; align-items:baseline}
-.askwon{flex:none; max-width:58%; text-align:right; font-weight:600; font-size:var(--fs-sm)}
+.askwon{display:grid; flex:none; max-width:62%; text-align:right; font-style:normal; font-weight:600; font-size:var(--fs-sm)}
+.askwon span{display:block; color:inherit; font-size:inherit}
+.askrec .askwon{max-width:none; text-align:left}
+.askrules{display:grid; gap:4px; padding:10px 12px; border-radius:10px; background:var(--paper); border:1px solid var(--rule)}
+.askgroup summary{font-weight:600}
 .asktags{display:flex; flex-wrap:wrap; gap:4px}
 .asktags span{padding:1px 7px; border-radius:999px; background:var(--paper); font-size:12px}
 .asktags .kid-비추천,.asktags .kid-주의{color:var(--warn)}

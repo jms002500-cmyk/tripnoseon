@@ -172,7 +172,7 @@ export const PLACES = [
   // 홍콩 · 코즈웨이베이·완차이
   {id:'hk_timessquare', kind:'쇼핑', indoor:true, name:'타임스스퀘어', ja:'時代廣場', addr:'Times Square, 1 Matheson Street, Causeway Bay, Hong Kong', mapq:'Times Square, Hong Kong', area:'cwb', lat:22.2783, lng:114.1821, hours:1.5, tags:['쇼핑'], kid:'all', note:'코즈웨이베이 대표 쇼핑몰이에요. 주변에 백화점과 식당이 많아요.'},
   {id:'hk_victoriapark', kind:'공원·정원', indoor:false, name:'빅토리아 공원', ja:'維多利亞公園', addr:'Victoria Park, 1 Hing Fat Street, Causeway Bay, Hong Kong', area:'cwb', lat:22.2822, lng:114.1885, hours:1, tags:['자연·산책'], kid:'all', note:'도심의 큰 공원이에요. 놀이터와 산책길이 있어요.'},
-  {id:'hk_racecourse', kind:'체험·캐릭터', indoor:false, name:'해피밸리 경마장', ja:'跑馬地馬場', addr:'Happy Valley Racecourse, 2 Sports Road, Happy Valley, Hong Kong', area:'cwb', lat:22.2722, lng:114.1810, hours:2, tags:['체험'], kid:'adult', note:'경마 시즌(대략 9월~7월) 수요일 밤 경주가 유명해요. 2026년 12월 9일(수) 밤엔 국제 기수 대회 경주가 있어요. 다른 날짜는 홍콩자키클럽 누리집에서 확인하세요. 주의: 홍콩 규정상 18세 미만은 경주가 열리는 날 경마장에 들어갈 수 없어요. 12살 아이와 함께라면 경주 날 입장은 어려우니 바깥에서 분위기만 보거나 일정에서 빼세요.'},
+  {id:'hk_racecourse', kind:'체험·캐릭터', indoor:false, name:'해피밸리 경마장', ja:'跑馬地馬場', addr:'Happy Valley Racecourse, 2 Sports Road, Happy Valley, Hong Kong', area:'cwb', lat:22.2722, lng:114.1810, hours:2, tags:['체험'], kid:'adult', note:'경마 시즌(대략 9월~7월) 수요일 밤 경주가 유명해요. 2026년 12월 9일(수) 밤엔 국제 기수 대회 경주가 있어요. 다른 날짜는 홍콩자키클럽 누리집에서 확인하세요. 주의: 홍콩 규정상 18세 미만은 경주가 열리는 날 경마장에 들어갈 수 없어요. 아이와 함께라면 경주 날 입장은 어려우니 바깥에서 분위기만 보거나 일정에서 빼세요.'},
   {id:'hk_leetung', kind:'쇼핑', indoor:false, name:'리퉁 애비뉴', ja:'利東街', addr:'Lee Tung Avenue, 200 Queen\'s Road East, Wan Chai, Hong Kong', area:'cwb', lat:22.2755, lng:114.1716, hours:0.5, tags:['쇼핑','관광명소'], kid:'all', note:'유럽풍 보행자 거리예요. 완차이역 D출구와 이어져요.'},
   // 홍콩 · 디즈니
   {id:'hk_disney', kind:'테마파크', indoor:false, name:'홍콩 디즈니랜드', ja:'香港迪士尼樂園', addr:'Hong Kong Disneyland, Lantau Island, Hong Kong', area:'disney', lat:22.3130, lng:114.0413, hours:0, full:true, anchor:true, tags:['테마파크'], kid:'kids', book:true, note:'날짜마다 값이 다른 날짜 지정 입장권이에요. 겨울왕국 구역이 인기예요. 11월 20일~1월 3일은 크리스마스 행사 기간이라 저녁마다 메인 스트리트 트리 점등(드론·눈 효과)이 있고, 겨울왕국 구역에 겨울 마켓이 처음 열려요. 여는 시간은 날마다 달라 공식 달력에서 확인하세요. 공식 앱으로 지도와 대기 시간을 보고 음식도 주문할 수 있어요. 폐장 직전엔 상점이 붐비니 기념품은 일찍 사세요. 12살이 좋아할 곳은 하이퍼스페이스 마운틴, 아이언맨 익스피리언스, 빅 그리즐리 마운틴, 미스틱 매너예요. 키 제한은 앱에서 확인하세요.'},
@@ -321,5 +321,5 @@ export const EVENTS = [
     note:'어른 위주 야외 공연 축제예요. 이 주말엔 센트럴 바닷가와 MTR 센트럴·홍콩역이 붐벼요.' },
   { id:'ev_ijc', name:'국제 기수 대회 (해피밸리 수요일 밤 경마)', city:'hk', from:'2026-12-09', to:'2026-12-09', place:'hk_racecourse',
     time:'저녁 경주', fee:'입장료가 있어요(홍콩자키클럽 누리집)',
-    note:'세계 기수들이 겨루는 밤 경주예요. 홍콩 규정상 18세 미만은 경주 날 입장할 수 없어서 12살 아이와는 들어가기 어려워요. 규정이 바뀌었는지 자키클럽 누리집에서 확인하세요.' }
+    note:'세계 기수들이 겨루는 밤 경주예요. 홍콩 규정상 18세 미만은 경주 날 입장할 수 없어서 아이와는 들어가기 어려워요. 규정이 바뀌었는지 자키클럽 누리집에서 확인하세요.' }
 ];
