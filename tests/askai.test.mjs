@@ -4,18 +4,36 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as D from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askKeyInfo, askModels, askUrl, b64url, pemToDer, jwtClaims } from '../js/askai.js';
+import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askKeyInfo, askKeys, askKeyNow, askTargets, askErrTag, ASK_KEY, ASK_VKEY, ASK_USE, b64url, pemToDer, jwtClaims } from '../js/askai.js';
 
 test('키 칸: 구글 키·버텍스 키·서비스 계정 JSON을 구분', () => {
   const sa = { private_key:'-----BEGIN PRIVATE KEY-----\nQUJD\nREVG\n-----END PRIVATE KEY-----\n', client_email:'a@b.iam.gserviceaccount.com', project_id:'p1' };
+  // 칸이 곧 경로: 같은 AQ. 키라도 넣은 칸에 따라 감
   assert.equal(askKeyInfo(' AIzaXYZ ').kind, 'gemini');
-  assert.equal(askKeyInfo('AQ.abc').kind, 'express');
-  assert.equal(askKeyInfo(JSON.stringify(sa)).kind, 'sa');
-  assert.equal(askKeyInfo('{"a":1}'), null); assert.equal(askKeyInfo('{ 깨진'), null); assert.equal(askKeyInfo('두 낱말'), null); assert.equal(askKeyInfo(''), null);
-  assert.match(askUrl(askKeyInfo('AIzaXYZ'), ''), /generativelanguage.*gemini-3\.5-flash-lite:generateContent/);
-  assert.equal(askUrl({ kind:'sa', sa }, 'm1'), 'https://aiplatform.googleapis.com/v1/projects/p1/locations/global/publishers/google/models/m1:generateContent');
-  assert.equal(askUrl(askKeyInfo('AQ.abc'), 'm1'), 'https://aiplatform.googleapis.com/v1/publishers/google/models/m1:generateContent');
-  assert.equal(askModels(askKeyInfo('AIzaXYZ')).length, 1); assert.ok(askModels({ kind:'sa' }).length > 1);
+  assert.equal(askKeyInfo('AQ.abc').kind, 'gemini');
+  assert.equal(askKeyInfo('AQ.abc', true).kind, 'express');
+  assert.equal(askKeyInfo(JSON.stringify(sa), true).kind, 'sa');
+  assert.equal(askKeyInfo(JSON.stringify(sa)), null);
+  assert.equal(askKeyInfo('{"a":1}', true), null); assert.equal(askKeyInfo('{ 깨진', true), null); assert.equal(askKeyInfo('두 낱말'), null); assert.equal(askKeyInfo('두 낱말', true), null); assert.equal(askKeyInfo(''), null);
+  assert.deepEqual(askTargets(askKeyInfo('AQ.abc')).length, 1);
+  assert.match(askTargets(askKeyInfo('AQ.abc'))[0], /generativelanguage.*gemini-3\.5-flash-lite:generateContent/);
+  assert.equal(askTargets(askKeyInfo('AQ.abc', true))[0], 'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.5-flash-lite:generateContent');
+  assert.equal(askTargets({ kind:'sa', sa })[0], 'https://aiplatform.googleapis.com/v1/projects/p1/locations/global/publishers/google/models/gemini-3.5-flash-lite:generateContent');
+  assert.ok(askTargets({ kind:'sa', sa }).length > 1 && askTargets({ kind:'sa', sa }).every(u => u.includes('/projects/p1/')));
+  // 저장된 키 읽기: 없음·한쪽·둘 다(기본 구글, 고르면 버텍스)·예전 판의 JSON
+  const box = o => ({ m:new Map(Object.entries(o)), getItem(k){ return this.m.has(k) ? this.m.get(k) : null; }, setItem(k, x){ this.m.set(k, x); }, removeItem(k){ this.m.delete(k); } });
+  assert.equal(askKeyNow(askKeys(box({}))), null);
+  assert.equal(askKeys(box({ [ASK_KEY]:'AQ.g' })).use, 'g');
+  assert.equal(askKeys(box({ [ASK_VKEY]:'AQ.v' })).use, 'v');
+  assert.equal(askKeys(box({ [ASK_VKEY]:'AQ.v', [ASK_USE]:'g' })).use, 'v');
+  assert.equal(askKeyNow(askKeys(box({ [ASK_KEY]:'AQ.g', [ASK_VKEY]:'AQ.v' }))).kind, 'gemini');
+  assert.equal(askKeyNow(askKeys(box({ [ASK_KEY]:'AQ.g', [ASK_VKEY]:'AQ.v', [ASK_USE]:'v' }))).kind, 'express');
+  const old = box({ [ASK_KEY]:JSON.stringify(sa) }), ks = askKeys(old);
+  assert.equal(ks.use, 'v'); assert.equal(askKeyNow(ks).kind, 'sa'); assert.equal(old.getItem(ASK_KEY), null); assert.equal(old.getItem(ASK_VKEY), JSON.stringify(sa));
+  // 실패 문구에 붙는 코드는 대문자 코드만 (구글 문장은 옮기지 않음)
+  assert.equal(askErrTag(401, { error:{ status:'UNAUTHENTICATED', message:'비밀 AQ.x', details:[{ reason:'ACCESS_TOKEN_TYPE_UNSUPPORTED' }] } }), '401 ACCESS_TOKEN_TYPE_UNSUPPORTED');
+  assert.equal(askErrTag(429, { error:{ status:'RESOURCE_EXHAUSTED' } }), '429 RESOURCE_EXHAUSTED');
+  assert.equal(askErrTag(500, null), '500'); assert.equal(askErrTag(400, { error:{ status:'문장 그대로 AQ.x' } }), '400');
   assert.deepEqual([...pemToDer(sa.private_key)], [...Buffer.from('QUJDREVG', 'base64')]);
   assert.equal(b64url('a?>'), Buffer.from('a?>').toString('base64url'));
   const c = jwtClaims(sa, 100); assert.equal(c.iss, sa.client_email); assert.equal(c.exp, 3700);

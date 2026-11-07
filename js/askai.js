@@ -96,25 +96,37 @@ export function askPrompt(s, kind, note){
 // 앱 안에서 바로 답 받기(선택): 사용자가 만든 제미나이 무료 키로 이 폰에서 구글에 직접 물음. 서버·비용 없음.
 // 키는 이 폰 localStorage에만 두고 일정·공유·백업에 넣지 않음. 무료 등급은 보낸 내용이 구글 제품 개선에 쓰일 수 있어서 화면에 알림.
 // 모델은 Flash-Lite(무료 등급·안정판): 같은 메뉴판 시험(2026-11-07)에서 3.5 Flash-Lite 6초, 3.6 Flash 33초, 3.8 Flash는 2분 넘게 걸려 식당에서 쓸 수 있는 것으로 고름
-export const ASK_KEY = 'tripnoseon-askkey';
+export const ASK_KEY = 'tripnoseon-askkey', ASK_VKEY = 'tripnoseon-askkey-vertex', ASK_USE = 'tripnoseon-askuse';
 export const ASK_KEY_PAGE = 'https://aistudio.google.com/apikey';
 export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
-// 개발자 본인용: 키 칸에 버텍스 서비스 계정 JSON이나 버텍스 키(AQ.…)를 넣으면 버텍스로 물음. 화면에는 안내하지 않음(일반 사용자는 구글 무료 키).
-//   값은 그 폰 localStorage에만 두고 코드·저장소·공유·백업에 넣지 않음. 위치는 global이어야 새 Flash 모델이 열림(2026-11-07 직접 확인).
+// 키 칸이 둘이고 칸이 곧 경로: 구글 칸은 구글 일반 주소로만, 버텍스 칸은 버텍스로만 물음. 앞글자로 추측하지 않음(새 AI 스튜디오 키도 AQ.로 시작).
+// 버텍스 칸은 서비스 계정 JSON이나 버텍스 키. 값은 그 폰 localStorage에만 두고 코드·저장소·공유·백업에 넣지 않음. 위치는 global이어야 새 Flash 모델이 열림(2026-11-07 직접 확인).
 //   별칭 gemini-flash-latest는 버텍스에 없어서(404) 차례로 시도
 export const VERTEX_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-flash'];
 const VERTEX_HOST = 'https://aiplatform.googleapis.com';
-export function askKeyInfo(raw){
+export function askKeyInfo(raw, vertex){
   const t = String(raw || '').trim(); if(!t) return null;
-  if(t[0] === '{'){
+  if(vertex && t[0] === '{'){
     try{ const j = JSON.parse(t); return j && j.private_key && j.client_email && j.project_id ? { kind:'sa', sa:j } : null; }catch(e){ return null; }
   }
-  return /\s/.test(t) ? null : { kind:t.startsWith('AQ.') ? 'express' : 'gemini', key:t };
+  return t[0] === '{' || /\s/.test(t) ? null : { kind:vertex ? 'express' : 'gemini', key:t };
 }
-export const askModels = info => info.kind === 'gemini' ? [''] : VERTEX_MODELS;
-export const askUrl = (info, model) => info.kind === 'gemini' ? GEMINI_URL
-  : info.kind === 'sa' ? `${VERTEX_HOST}/v1/projects/${encodeURIComponent(info.sa.project_id)}/locations/global/publishers/google/models/${model}:generateContent`
+// 저장된 두 키와 지금 쓸 쪽. 예전 판은 칸이 하나여서 서비스 계정 JSON이 구글 칸에 있을 수 있어 버텍스 칸으로 옮김. 둘 다 있으면 기본은 구글(버텍스는 요금이 날 수 있어서)
+export function askKeys(store){
+  const get = k => { try{ return store.getItem(k) || ''; }catch(e){ return ''; } };
+  let g = get(ASK_KEY), v = get(ASK_VKEY);
+  if(g.trim()[0] === '{'){
+    try{ if(!v) store.setItem(ASK_VKEY, g); store.removeItem(ASK_KEY); }catch(e){}
+    v = v || g; g = '';
+  }
+  return { g, v, use:g && v ? (get(ASK_USE) === 'v' ? 'v' : 'g') : v ? 'v' : g ? 'g' : '' };
+}
+export const askKeyNow = ks => ks.use === 'v' ? askKeyInfo(ks.v, true) : ks.use === 'g' ? askKeyInfo(ks.g) : null;
+const vertexUrl = (info, model) => info.kind === 'sa'
+  ? `${VERTEX_HOST}/v1/projects/${encodeURIComponent(info.sa.project_id)}/locations/global/publishers/google/models/${model}:generateContent`
   : `${VERTEX_HOST}/v1/publishers/google/models/${model}:generateContent`;
+// 차례로 물을 주소. 버텍스는 없는 모델이면(404) 다음 모델로
+export const askTargets = info => info.kind === 'gemini' ? [GEMINI_URL] : VERTEX_MODELS.map(m => vertexUrl(info, m));
 // 서비스 계정 토큰용 서명 재료 (서명은 app.js가 브라우저 암호 기능으로)
 export const b64url = v => { const b = typeof v === 'string' ? new TextEncoder().encode(v) : new Uint8Array(v); let t = ''; b.forEach(x => { t += String.fromCharCode(x); }); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 export const pemToDer = pem => Uint8Array.from(atob(String(pem).replace(/-----[^-]+-----/g, '').replace(/\s/g, '')), c => c.charCodeAt(0));
@@ -177,6 +189,12 @@ export function geminiRaw(j){
 }
 export function geminiText(j){
   return geminiRaw(j).replace(/\*\*/g, '').replace(/^#{1,6}\s+/gm, '').replace(/^\s*\*\s+/gm, '• ');
+}
+// 안 될 때 원인을 알 수 있게 화면에 함께 보이는 구글 응답 코드 (대문자 코드만 쓰고 구글 문장은 그대로 옮기지 않음)
+export function askErrTag(status, j){
+  const e = (j && j.error) || {}, code = x => /^[A-Z0-9_]{2,60}$/.test(String(x || '')) ? String(x) : '';
+  const why = ((Array.isArray(e.details) ? e.details : []).map(d => code(d && d.reason)).find(Boolean)) || code(e.status);
+  return why ? `${status} ${why}` : String(status);
 }
 export function geminiError(status, j){
   const m = String((j && j.error && j.error.message) || '');
