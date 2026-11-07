@@ -7,9 +7,9 @@ import { budgetOf } from './budget.js';
 
 export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'cityOnly', 'start', 'end', 'flight', 'moves',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
-  'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights', 'prep'];
+  'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights', 'prep', 'by'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
-export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights', 'prep'];
+export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights', 'prep', 'by'];
 // id가 있는 객체 배열(오가는 길·직접 담은 곳·숙소 후보·나누는 사람). 서버에는 배열 대신
 //   p.<칸>Items {id: 항목} + p.<칸>Order [id 순서]로 둬서 항목 하나씩 따로 보냄 → 두 사람이 다른 항목을 동시에 더하고·고치고·지워도 둘 다 남음.
 //   순서는 통째로 보내지만 순서에 없는 항목도 버리지 않고 뒤에 붙여서(id 순), 순서끼리 덮어써도 항목은 안 사라짐.
@@ -167,6 +167,7 @@ export function cleanShared(s){
     if(!(typeof e.cur === 'string' && /^[A-Z]{3}$/.test(e.cur))) e.cur = 'KRW';
     if(e.split != null) e.split = Array.isArray(e.split) ? e.split.filter(x => typeof x === 'string') : null;
   });
+  s.by = mapOfObjs(s.by); Object.values(s.by).forEach(x => { fixStrs(x, ['u', 'm']); fixNums(x, ['at', 'mt'], 0); });
   s.pack = mapOfObjs(s.pack);
   Object.values(s.pack).forEach(x => { fixStrs(x, ['t', 'c', 'who', 'doneBy', 'src']); fixNums(x, ['at'], 0); if(typeof x.t !== 'string') x.t = ''; });
   s.party = listOfObjs(s.party); s.party.forEach(x => { fixStrs(x, ['id', 'name']); if(typeof x.name !== 'string') x.name = ''; });
@@ -247,6 +248,35 @@ function itemsForm(b){
   return o;
 }
 
+// 누가 담았는지·누가 날짜를 바꿨는지 남김. prev = 서버가 가진 일정(기준), 지금 상태와 다른 장소는 이 기기 사람이 바꾼 것
+//   새로 담은 곳 → { u:나, at }, 날짜(assign·fullDay)를 바꾼 곳 → m:나, mt, 뺀 곳 → 지움. 바뀐 게 있으면 true
+const dayOf = (o, id) => { const a = isMap(o.assign) && has(o.assign, id) ? o.assign[id] : undefined; return a !== undefined ? a : isMap(o.fullDay) && has(o.fullDay, id) ? o.fullDay[id] : undefined; };
+export function stampBy(s, prev, uid, now){
+  if(!uid || !prev) return false;
+  const P = isMap(prev.picked) ? prev.picked : {}, picked = isMap(s.picked) ? s.picked : {};
+  const by = s.by = isMap(s.by) ? s.by : {}; let ch = false;
+  Object.keys(picked).forEach(id => {
+    if(!safeId(id) || !picked[id]) return;
+    if(!P[id]){ if(!isMap(by[id]) || by[id].u !== uid){ by[id] = { u:uid, at:now }; ch = true; } return; }
+    if(dayOf(s, id) !== dayOf(prev, id) && !(isMap(by[id]) && by[id].m === uid && by[id].mt === now)){ by[id] = Object.assign({}, isMap(by[id]) ? by[id] : {}, { m:uid, mt:now }); ch = true; }
+  });
+  Object.keys(by).forEach(id => { if(!picked[id]){ delete by[id]; ch = true; } });
+  return ch;
+}
+// 서버 일정을 받기 전·후를 비교해 남이 내 장소를 빼거나 날짜를 옮긴 것 → [{ kind:'gone'|'moved', id, from, to }]
+//   내 장소 = 내가 담은 곳(u), 날짜를 옮긴 건 내가 마지막으로 날짜를 정한 곳(m, 없으면 u). 내가(다른 기기에서) 바꾼 건 빼려고 바꾼 사람의 uid를 받음
+export function othersChanged(before, after, me, changer){
+  if(!me || !changer || changer === me) return [];
+  const bb = isMap(before.by) ? before.by : {}, ab = isMap(after.by) ? after.by : {}, out = [];
+  Object.keys(bb).forEach(id => {
+    const b = bb[id]; if(!isMap(b) || !(before.picked || {})[id]) return;
+    if(b.u === me && !(after.picked || {})[id]){ out.push({ kind:'gone', id, from:dayOf(before, id) }); return; }
+    const a = isMap(ab[id]) ? ab[id] : {};
+    if((b.m || b.u) === me && (after.picked || {})[id] && a.m && a.m !== me && dayOf(before, id) !== dayOf(after, id)) out.push({ kind:'moved', id, from:dayOf(before, id), to:dayOf(after, id) });
+  });
+  return out;
+}
+
 // 초대 링크와 읽기. 여행 번호(Firestore 자동 id, 20자)를 아는 것이 곧 초대
 // 공유 여행 문서 소식을 어떻게 받을지: 'data'(일정) | 'gone'(정말 지워짐) | 'wait'(아직 모름)
 //   끊긴 채로 열면 Firestore가 서버에 묻지 못하고 '이 기기 사본엔 없음'(exists:false, fromCache:true)을 먼저 줌.
@@ -266,6 +296,7 @@ export function voteSummary(votes, placeId, uid){
 export function describeChange(prev, next){
   if(!prev) return '';
   prev = applyRemote({}, prev); next = applyRemote({}, next);   // 서버 모양(Items+Order)도 배열로 펴서 비교
+  delete prev.by; delete next.by;   // 누가 담았는지 표시는 기록 한 줄에 따로 안 씀
   const names = id => { const p = allPlaces(next).concat(allPlaces(prev)).find(x => x.id === id); return p ? p.name : '장소'; };
   const parts = [];
   const added = Object.keys(next.picked || {}).filter(id => !(prev.picked || {})[id]);
