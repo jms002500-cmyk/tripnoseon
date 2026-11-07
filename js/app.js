@@ -1,12 +1,12 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { VIEWS, SHEET, ASKSHEET, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
-import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, ASK_KEY, ASK_VKEY, ASK_USE, askKeys, askKeyNow, askKeyInfo, askTargets, askErrTag, b64url, pemToDer, jwtClaims, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
+import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, askOrder, ASK_KEY, ASK_VKEY, ASK_USE, askKeys, askKeyNow, askKeyInfo, askTargets, askErrTag, b64url, pemToDer, jwtClaims, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
 import { PK_KEY, krAirport, moveKap, parkUrl, parseParking } from './parking.js';
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
@@ -1071,7 +1071,11 @@ function act(a, v){
     case 'askkind': s.sh.ask.kind = v; s.sh.ask.res = null; render(); return;
     case 'askclear': setAskPhoto(null); s.sh.ask.res = null; render(); return;
     case 'asknow': askNow(); return;
-    case 'askline': { const d = (s.sh.ask.res || {}).data || {}; clipText((d.order || d.pharmacist || {}).local || '').then(ok => toast(ok ? '문장을 복사했어요.' : '복사가 안 됐어요.')); return; }
+    case 'askadd': askPick(v, 1); return;
+    case 'askdel': askPick(v, -1); return;
+    case 'askcartclear': askPick(); return;
+    case 'askcartgo': { const b = document.getElementById('askorderbox'); if(b) b.scrollIntoView({ block:'start', behavior:'smooth' }); return; }
+    case 'askline': { const res = s.sh.ask.res || {}, d = res.data || {}, o = res.cart ? askOrder(d, res.cart) : null; clipText(o && o.count ? o.local : (d.order || d.pharmacist || {}).local || '').then(ok => toast(ok ? '문장을 복사했어요.' : '복사가 안 됐어요.')); return; }
     case 'askledger': {
       const res = s.sh.ask.res; const r = res && !res.saved ? parseLine(receiptLine(res.data), s, ledgerCtx()) : null;
       if(!r || !r.ok){ toast('가계부에 넣지 못했어요. 가계부에서 직접 적어 주세요.'); return; }
@@ -1335,6 +1339,16 @@ async function vertexToken(sa){
   return vToken.t;
 }
 // 앱 안에서 바로 답 받기: 이 폰에 넣어 둔 키로 구글에 직접 물음 (키가 없으면 아무것도 안 함)
+// 메뉴 고르기: 화면 전체를 다시 그리면 펼친 분류가 접히고 스크롤이 튀어서 숫자와 주문 칸만 바꿈 (인자 없으면 다 지움)
+function askPick(k, d){
+  const r = state.sh.ask && state.sh.ask.res; if(!r || !r.data) return;
+  if(!k) r.cart = {};
+  else{ const n = Math.max(0, ((r.cart || {})[k] || 0) + d); r.cart = Object.assign({}, r.cart, { [k]:n }); if(!n) delete r.cart[k]; }
+  document.querySelectorAll('.askqty').forEach(q => { const n = r.cart[q.dataset.k] || 0; q.classList.toggle('on', n > 0); q.querySelector('b').textContent = n; });
+  const box = document.getElementById('askorderbox'), bar = document.getElementById('askcartbar');
+  if(box) box.innerHTML = askOrderBox(state, r);
+  if(bar) bar.innerHTML = askCartBar(state, r);
+}
 async function askNow(){
   const s = state, ask = s.sh.ask; let info = null; try{ info = askKeyNow(askKeys(localStorage)); }catch(e){}
   const photo = askPhoto; if(!info || !photo || !ask || (ask.res && ask.res.busy)) return;

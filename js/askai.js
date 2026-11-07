@@ -141,9 +141,9 @@ const obj = (properties, required) => ({ type:'OBJECT', properties, required });
 const CUR = { type:'STRING', enum:['HKD', 'CNY', 'JPY'] };
 const LINE = obj({ ko:STR, local:STR }, ['ko', 'local']);
 const ASK_SCHEMA = {
-  menu:obj({ currency:CUR, rules:LIST, recommend:{ type:'ARRAY', items:obj({ name:STR, why:STR }, ['name', 'why']) },
+  menu:obj({ currency:CUR, rules:LIST, recommend:{ type:'ARRAY', items:obj({ name:STR, local:STR, why:STR }, ['name', 'local', 'why']) },
     items:{ type:'ARRAY', items:obj({ group:STR, ko:STR, local:STR, desc:STR, prices:{ type:'ARRAY', items:obj({ label:STR, price:{ type:'NUMBER', nullable:true } }, ['label', 'price']) }, spicy:{ type:'INTEGER' }, kid:{ type:'STRING', enum:['좋음', '주의', '비추천'] }, contains:LIST, alert:STR }, ['group', 'ko', 'local', 'desc', 'prices', 'spicy', 'kid', 'contains']) },
-    order:LINE, more:STR, unclear:STR }, ['currency', 'rules', 'recommend', 'items', 'order']),
+    order:LINE, request:LINE, more:STR, unclear:STR }, ['currency', 'rules', 'recommend', 'items', 'order']),
   sign:obj({ meaning:STR, todo:LIST, facts:LIST, unclear:STR }, ['meaning', 'todo', 'facts']),
   receipt:obj({ store:STR, date:STR, currency:CUR, items:{ type:'ARRAY', items:obj({ ko:STR, local:STR, price:{ type:'NUMBER', nullable:true } }, ['ko', 'local']) },
     service:{ type:'NUMBER', nullable:true }, tax:{ type:'NUMBER', nullable:true }, total:{ type:'NUMBER', nullable:true }, pay:STR, what:STR, unclear:STR }, ['store', 'currency', 'items', 'total', 'what']),
@@ -155,13 +155,14 @@ const ASK_RULES = {
     '밥·빵·고기 추가 같은 곁들임과 추가 요금, 손글씨나 덧붙인 쪽지의 메뉴도 넣어 줘. 200개가 넘을 때만 줄이고 줄였다고 more에 적어 줘.',
     'group은 메뉴판의 분류 이름을 한국어로 옮긴 거야. 같은 분류는 붙여서 적고, 분류가 없으면 빈 글자로 둬.',
     'ko는 뜻이 통하는 한국어 음식 이름이야. 拉面은 수타면, 刀削面은 도삭면처럼 한국 음식과 헷갈리지 않게 써 줘. local은 메뉴판에 적힌 글자 그대로, desc는 어떤 음식인지 15자 안쪽 설명이야.',
-    'prices는 그 메뉴와 같은 줄에 적힌 가격만 읽어 줘. 윗줄이나 아랫줄 가격을 가져오면 안 돼. 가격이 하나면 label은 빈 글자로 두고, 20元/18元처럼 둘이면 분류 제목의 면/밥이나 소/대 같은 구분을 label에 적어 각각 넣어 줘. 안 보이면 price를 null로 둬. 메뉴판에 맞는 통화를 currency에 적어 줘.',
+    '메뉴판의 한 줄이 메뉴 하나야. 줄을 합치지 말고 大碗이 붙은 줄도 따로 넣어 줘. prices는 그 메뉴와 같은 줄에 적힌 가격만 읽어 줘. 윗줄이나 아랫줄 가격을 가져오면 안 돼. 그 줄에 숫자가 하나면 메뉴 이름에 /가 있어도 prices는 하나이고 label은 빈 글자야. 20元/18元처럼 한 줄에 숫자가 둘일 때만 적힌 차례대로 둘 다 넣고, 면/밥이나 소/대 같은 구분을 label에 한국어로 적어 줘. 안 보이면 price를 null로 둬. 메뉴판에 맞는 통화를 currency에 적어 줘.',
     'spicy는 0(안 매움)~3(아주 매움)이야. kid는 함께 온 아이가 먹기에 어떤지야.',
     'contains는 돼지고기·소고기·양고기·닭고기·해산물·견과류·달걀·유제품·밀 중 들어갔을 만한 것이야. 쌀밥만으로 만든 요리에는 밀을 넣지 마.',
     'alert는 참고에 적은 내용(알레르기 등)에 걸리거나 향이 아주 강할 때 그 이유를 짧게, 아니면 빈 글자로 둬.',
-    'rules는 메뉴판에 적힌 가게 규칙과 주문 안내야. 할랄·돼지고기 없음, 음주 금지, 외부 음식 반입 금지, 고수를 빼려면 미리 말하기, 현금만 받음 같은 것을 한국어로 한 줄씩 적어 줘. 없으면 빈 목록이야.',
-    'recommend는 우리 일행에게 맞는 3개, why는 고른 이유 한 줄이야. 메뉴 전체에서 고르고, name은 items의 ko와 똑같이 적어 줘. 아이가 있으면 아이가 먹기 좋은 메뉴를 먼저 골라 줘.',
-    `order.local은 추천 1번의 local 글자를 그대로 넣어 직원에게 보여 줄 ${w.lang} 한 문장이고, order.ko는 그 뜻이야. 면/밥이나 크기를 골라야 하는 메뉴면 어느 쪽인지 넣어 줘. 요청은 참고에 적힌 것만 넣고, 참고에 없는 요청(고수 빼기 등)은 넣지 마.`],
+    'rules는 메뉴판에 적힌 가게 규칙과 주문 안내를 자연스러운 한국어로 옮긴 거야. 규칙 하나를 한 줄로 나눠 적어 줘. (예: 할랄 식당이에요, 음주 금지, 외부 음식 반입 금지, 고수를 빼려면 미리 말하기, 현금만 받음) 없으면 빈 목록이야.',
+    'recommend는 우리 일행에게 맞는 3개, why는 고른 이유 한 줄이야. 메뉴 전체에서 고르고, name은 items의 ko와, local은 items의 local과 똑같이 적어 줘. 아이가 있으면 아이가 먹기 좋은 메뉴를 먼저 골라 줘.',
+    `order.local은 추천 1번 메뉴 하나만 local 글자를 그대로 넣어 직원에게 보여 줄 ${w.lang} 한 문장이고, order.ko는 그 뜻이야. 면/밥이나 크기를 골라야 하는 메뉴면 어느 쪽인지 넣어 줘. 요청은 참고에 적힌 것만 넣고, 참고에 없는 요청(고수 빼기 등)은 넣지 마.`,
+    `request는 참고에 적힌 요청만 직원에게 보여 줄 ${w.lang} 한 문장(local)과 그 뜻(ko)으로 쓴 거야. 참고가 없으면 두 칸 모두 빈 글자로 둬.`],
   sign:() => ['이 사진은 표지판이나 안내문이야.', 'meaning은 무슨 뜻인지 한국어로 짧게, todo는 우리가 지금 해야 할 일이나 조심할 점이야.', 'facts는 시간·요금·날짜·출구 번호 같은 숫자 정보를 한 줄씩 적어 줘.'],
   receipt:() => ['이 사진은 영수증이야.', 'store는 가게 이름, date는 날짜, items는 항목마다 한국어 이름(ko), 적힌 그대로(local), 금액(price)이야.',
     'service는 봉사료, tax는 세금, total은 실제 낸 합계, pay는 결제 수단이야. 없으면 null이나 빈 글자로 둬.', 'what은 가계부에 적을 짧은 이름이야. (예: 점심, 간식, 약)'],
@@ -170,6 +171,29 @@ const ASK_RULES = {
   food:() => ['이 사진은 음식이야.', 'name은 한국어 이름, local은 현지에서 부르는 이름, how는 어떻게 먹는지(소스·먹는 순서)야.', 'spicy는 0~3, kid는 함께 온 아이가 먹기에 어떤지, warn은 들어갔을 만한 재료 중 주의할 것이야.', '확실하지 않으면 how 앞에 추측이라고 적어 줘.']
 };
 export const askSchema = kind => ASK_SCHEMA[askKindOf(kind).key];
+// 추천과 메뉴 줄을 맞춤: 메뉴판 글자가 같은 줄을 먼저, 없으면 한국어 이름이 같은 줄
+export const askRecItem = (d, x) => { const a = (d && d.items) || []; return a.find(i => x.local && i.local === x.local) || a.find(i => i.ko === x.name) || null; };
+// 고른 메뉴 → 주문 문장. 메뉴 이름은 메뉴판 글자라 번역하지 않고 앞머리만 지역에 맞춤. cart는 { '메뉴 번호:가격 번호': 수량 }
+const ORDER_HEAD = { CNY:'你好，我要这些：', HKD:'唔該，我要呢啲：', JPY:'すみません、これをお願いします。' };
+const SIZE_OF = { 대:'大碗', 소:'小碗', 중:'中碗', 보통:'' };
+function orderName(x, p, cur){
+  const local = String(x.local || x.ko || ''), q = (x.prices || [])[p]; if(!q || !q.label || (x.prices || []).length < 2) return local;
+  const m = local.match(/(.)\/(.)/);   // 盖浇面/饭처럼 메뉴판에 둘이 함께 적혀 있으면 적힌 차례로 고른 쪽만 남김
+  if(m) return local.replace(m[0], p ? m[2] : m[1]);
+  const size = cur === 'JPY' ? q.label : q.label in SIZE_OF ? SIZE_OF[q.label] : q.label;
+  return size ? `${local}（${size}）` : local;
+}
+export function askOrder(d, cart){
+  const lines = Object.entries(cart || {}).map(([k, n]) => {
+    const [i, p] = k.split(':').map(Number), x = ((d && d.items) || [])[i]; if(!x || !(n > 0)) return null;
+    const q = (x.prices || [])[p];
+    return { ko:`${x.ko}${q && q.label && x.prices.length > 1 ? ` (${q.label})` : ''}`, local:orderName(x, p, d.currency), n, price:q && q.price > 0 ? q.price : 0 };
+  }).filter(Boolean);
+  const req = (d && d.request) || {};
+  return { count:lines.reduce((a, l) => a + l.n, 0), total:lines.reduce((a, l) => a + l.n * l.price, 0), unknown:lines.some(l => !l.price), lines,
+    local:[ORDER_HEAD[d && d.currency] || ORDER_HEAD.CNY, ...lines.map(l => `${l.local} × ${l.n}`), req.local].filter(Boolean).join('\n'),
+    ko:[lines.map(l => `${l.ko} ${l.n}개`).join(', '), req.ko].filter(Boolean).join('\n') };
+}
 // 메뉴를 메뉴판의 분류별로 묶음 (나온 차례 유지). 분류 이름이 없으면 그 밖의 메뉴
 export function askGroups(items){
   const out = [];
