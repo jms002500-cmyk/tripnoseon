@@ -175,12 +175,15 @@ export const askSchema = kind => ASK_SCHEMA[askKindOf(kind).key];
 export const askRecItem = (d, x) => { const a = (d && d.items) || []; return a.find(i => x.local && i.local === x.local) || a.find(i => i.ko === x.name) || null; };
 // 고른 메뉴 → 주문 문장. 메뉴 이름은 메뉴판 글자라 번역하지 않고 앞머리만 지역에 맞춤. cart는 { '메뉴 번호:가격 번호': 수량 }
 const ORDER_HEAD = { CNY:'你好，我要这些：', HKD:'唔該，我要呢啲：', JPY:'すみません、これをお願いします。' };
-const SIZE_OF = { 대:'大碗', 소:'小碗', 중:'中碗', 보통:'' };
+// 직원에게 보여 줄 문장이라 한글은 넣지 않음: 크기는 현지 글자로 바꾸고, 그 밖의 한글 구분 이름(일반·보통 등)은 뺌
+const SIZE_OF = { 대:['大碗', '大盛り'], 중:['中碗', '中盛り'], 소:['小碗', '小盛り'] };
+const sizeKey = t => (t.match(/^(대|큰|중|소|작은)(자|형| ?사이즈| ?그릇)?$/) || [])[1];
 function orderName(x, p, cur){
   const local = String(x.local || x.ko || ''), q = (x.prices || [])[p]; if(!q || !q.label || (x.prices || []).length < 2) return local;
   const m = local.match(/(.)\/(.)/);   // 盖浇面/饭처럼 메뉴판에 둘이 함께 적혀 있으면 적힌 차례로 고른 쪽만 남김
   if(m) return local.replace(m[0], p ? m[2] : m[1]);
-  const size = cur === 'JPY' ? q.label : q.label in SIZE_OF ? SIZE_OF[q.label] : q.label;
+  const label = String(q.label).trim(), key = { 큰:'대', 작은:'소' }[sizeKey(label)] || sizeKey(label);
+  const size = key ? SIZE_OF[key][cur === 'JPY' ? 1 : 0] : /[가-힣]/.test(label) ? '' : label;
   return size ? `${local}（${size}）` : local;
 }
 export function askOrder(d, cart){

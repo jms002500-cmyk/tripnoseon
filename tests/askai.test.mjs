@@ -69,6 +69,12 @@ test('메뉴 고르기: 여러 메뉴·수량으로 주문 문장을 만듦', ()
   assert.match(askOrder({ currency:'JPY', items }, { '0:0':1 }).local, /^すみません/);
   assert.equal(askOrder({ currency:'CNY', items }, { '1:0':1 }).lines[0].local, '番茄炒蛋盖浇面');
   assert.equal(askOrder({ currency:'CNY', items }, { '2:0':1 }).lines[0].local, '牛肉拉面');   // 보통은 붙이지 않음
+  // 직원에게 보여 줄 문장에는 한글이 들어가면 안 됨
+  const sized = l => ({ currency:'CNY', items:[{ ko:'면', local:'牛肉面', prices:[{ label:l, price:16 }, { label:'x', price:18 }] }] });
+  [['일반', '牛肉面'], ['보통', '牛肉面'], ['대', '牛肉面（大碗）'], ['큰 그릇', '牛肉面（大碗）'], ['소', '牛肉面（小碗）'], ['작은 사이즈', '牛肉面（小碗）'], ['중', '牛肉面（中碗）'], ['大', '牛肉面（大）'], ['소고기', '牛肉面']]
+    .forEach(([l, want]) => assert.equal(askOrder(sized(l), { '0:0':1 }).lines[0].local, want, l));
+  assert.equal(askOrder({ ...sized('대'), currency:'JPY' }, { '0:0':1 }).lines[0].local, '牛肉面（大盛り）');
+  assert.equal(askOrder(sized('일반'), { '0:0':1 }).lines[0].ko, '면 (일반)');   // 뜻 줄은 한국어 그대로
   const u = askOrder(d, { '0:0':1, '3:0':2 }); assert.equal(u.total, 18); assert.equal(u.unknown, true);
   assert.equal(askOrder(d, {}).count, 0); assert.equal(askOrder(d, undefined).count, 0);
   assert.equal(askOrder(d, { '9:0':1, '0:0':0 }).count, 0);   // 없는 메뉴·0개는 넣지 않음
