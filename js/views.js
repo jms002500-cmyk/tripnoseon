@@ -171,10 +171,10 @@ function askAnswer(s, hasKey, k){
 }
 function askKeyBox(hasKey){
   const vertex = !!hasKey && ['sa', 'express'].includes((askKeyInfo(hasKey) || {}).kind);
-  return `<details class="more"><summary>✨ ${hasKey ? '앱 안에서 바로 받기 켜짐' : '찍으면 앱 안에서 바로 답 받기 (처음 한 번 설정)'}</summary>
+  return `<details class="more"><summary>✨ ${hasKey ? '앱 안에서 바로 받기 켜짐' : '사진만 고르면 앱 안에서 바로 답 받기 (처음 한 번 설정)'}</summary>
     ${hasKey ? `<p class="fine">사진을 고르면 공유 창 없이 이 화면에 바로 답이 나와요.${vertex ? ' 버텍스로 물어요. 쓴 만큼 크레딧이 줄어요.' : ''}</p>
       <div><button type="button" class="ghost small" data-act="askkeydel">이 폰에서 키 지우기</button></div>`
-    : `<p class="fine">구글 계정으로 무료 키를 만들어 한 번만 넣으면, 사진을 찍는 것만으로 이 화면에 답이 나와요. 카드 등록은 하지 마세요. 등록하지 않으면 요금이 나오지 않아요.</p>
+    : `<p class="fine">구글 계정으로 무료 키를 만들어 한 번만 넣으면, 사진을 찍거나 저장된 사진을 고르기만 해도 이 화면에 답이 나와요. 카드 등록은 하지 마세요. 등록하지 않으면 요금이 나오지 않아요.</p>
       <ol class="fine asksteps"><li><a class="link" href="${ASK_KEY_PAGE}" target="_blank" rel="noopener">구글 AI 스튜디오 열기 ↗</a></li><li>Create API key를 눌러 키를 복사</li><li>아래 칸에 붙여 넣고 저장</li></ol>
       <label for="askkey" class="shlabel">무료 키 (이 폰에만 저장)<input id="askkey" type="password" autocomplete="off" spellcheck="false" maxlength="6000"></label>
       <div><button type="button" class="primary small" data-act="askkeysave">저장</button></div>`}
@@ -187,11 +187,11 @@ export function ASKSHEET(s, photo){
   return `<div class="mapsheet sheet" role="dialog" aria-label="AI에게 묻기">
     <div class="mshead"><b>📷 AI에게 묻기</b><button type="button" class="ghost small" data-act="askclose">닫기</button></div>
     <div class="shbody">
-      <p class="pnote">사진을 찍으면 상황에 맞는 부탁 문장을 붙여 <b>내 폰의 AI 앱</b>(제미나이·ChatGPT·Claude 등)으로 넘겨요. 무료 계정이어도 돼요.</p>
+      <p class="pnote">사진을 찍거나 저장된 사진을 고르면 상황에 맞는 부탁 문장을 붙여 <b>내 폰의 AI 앱</b>(제미나이·ChatGPT·Claude 등)으로 넘겨요. 무료 계정이어도 돼요.</p>
       <div class="quicktr"><p class="fine">⚡ <b>간판·표지판처럼 한 단어만 빨리 볼 때</b>는 카메라를 비추면 바로 바뀌는 번역 앱이 더 빨라요. 메뉴판처럼 설명이 필요하면 아래 AI에게 물어보세요.</p>
         <div class="chips">${QUICK_TRANSLATE.map(x => `<a class="chip" href="${x.url}" target="_blank" rel="noopener">${esc(x.label)} ↗</a>`).join('')}</div>
         <p class="fine">${QUICK_TRANSLATE.map(x => esc(x.tip)).join(' ')}</p></div>
-      <h2>무엇을 찍나요?</h2>
+      <h2>무슨 사진인가요?</h2>
       <div class="chips">${ASK_KINDS.map(x => chip('askkind', x.key, `${x.icon} ${x.label}`, x.key === k.key)).join('')}</div>
       ${photo ? `<figure class="askphoto"><img src="${photo.url}" alt="고른 사진"><figcaption><button type="button" class="link" data-act="askclear">다른 사진 고르기</button></figcaption></figure>
       ${askAnswer(s, !!hasKey, k)}
@@ -199,7 +199,7 @@ export function ASKSHEET(s, photo){
       <p class="fine">사진 위에 부탁 문장을 넣은 그림 한 장으로 보내요. 앱 목록에서 쓰는 AI를 고르고 전송만 누르세요. 답이 엉뚱하면 입력칸을 꾹 눌러 붙여 넣으세요(문장은 복사돼 있어요).</p>`
       : `<div class="askpick">
         <label class="primary filebtn">📷 사진 찍기<input type="file" accept="image/*" capture="environment" data-askphoto hidden></label>
-        <label class="ghost filebtn">🖼️ 앨범에서 고르기<input type="file" accept="image/*" data-askphoto hidden></label>
+        <label class="ghost filebtn">🖼️ 저장된 사진 고르기<input type="file" accept="image/*" data-askphoto hidden></label>
       </div>`}
       <label for="asknote" class="shlabel">AI에게 늘 덧붙일 말 (이 폰에만 저장)<input id="asknote" type="text" maxlength="200" value="${esc(s.askNote || '')}" placeholder="예: 땅콩 알레르기 있어요, 매운 건 못 먹어요" data-asknote></label>
       <details class="more"><summary>보낼 부탁 문장 보기</summary><pre class="askprompt">${esc(askPrompt(s, k.key, s.askNote))}</pre>
