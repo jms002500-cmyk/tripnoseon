@@ -93,6 +93,28 @@ export function askPrompt(s, kind, note){
 // 사진 없이 AI 웹에서 열 곳 (공유가 안 되는 브라우저용)
 // 간판·표지판처럼 한 단어만 빨리 볼 때: 카메라를 비추면 바로 바뀌는 번역 앱(무료). 언어는 자동 감지 → 한국어 (주소 확인 2026-11-01)
 //   폰에 앱이 깔려 있으면 앱으로 열리고, 없으면 웹 사진 번역. 우리 앱은 주소만 열고 아무것도 보내지 않음
+// 앱 안에서 바로 답 받기(선택): 사용자가 만든 제미나이 무료 키로 이 폰에서 구글에 직접 물음. 서버·비용 없음.
+// 키는 이 폰 localStorage에만 두고 일정·공유·백업에 넣지 않음. 무료 등급은 보낸 내용이 구글 제품 개선에 쓰일 수 있어서 화면에 알림.
+// 모델은 공식 별칭(gemini-flash-latest): 새 버전으로 알아서 바뀌어서 옛 이름이 없어져도 앱을 안 고쳐도 됨
+export const ASK_KEY = 'tripnoseon-askkey';
+export const ASK_KEY_PAGE = 'https://aistudio.google.com/apikey';
+export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
+export const geminiBody = (prompt, mime, data) => ({ contents:[{ parts:[{ text:prompt }, { inline_data:{ mime_type:mime, data } }] }] });
+// 답 글만 꺼내고, 화면에 그대로 보이는 마크다운 기호를 지움
+export function geminiText(j){
+  const parts = (((j && j.candidates) || [])[0] || {}).content;
+  const t = ((parts && parts.parts) || []).map(p => p.text || '').join('').trim();
+  return t.replace(/\*\*/g, '').replace(/^#{1,6}\s+/gm, '').replace(/^\s*\*\s+/gm, '• ');
+}
+export function geminiError(status, j){
+  const m = String((j && j.error && j.error.message) || '');
+  if(status === 429) return '무료 사용량을 다 썼어요. 잠시 뒤 다시 하거나 아래 AI 앱으로 보내기를 써 주세요.';
+  if(status === 400 && /api key|api_key/i.test(m) || status === 401 || status === 403) return '키가 맞지 않아요. 키를 다시 넣어 주세요.';
+  if(status === 400) return '이 사진을 읽지 못했어요. 다시 찍어 주세요.';
+  if(status >= 500) return '구글 쪽이 잠시 바빠요. 조금 뒤 다시 해 주세요.';
+  return '답을 받지 못했어요. 아래 AI 앱으로 보내기를 써 주세요.';
+}
+
 export const QUICK_TRANSLATE = [
   { key:'google', label:'구글 번역 카메라', url:'https://translate.google.com/?sl=auto&tl=ko&op=images', tip:'구글 번역 앱이 있으면 앱의 카메라 버튼을 누르세요.' },
   { key:'papago', label:'파파고', url:'https://papago.naver.com/?sk=auto&tk=ko', tip:'파파고 앱이 있으면 앱의 이미지(카메라) 버튼을 누르세요.' }

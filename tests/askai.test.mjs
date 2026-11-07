@@ -3,7 +3,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { ASK_KINDS, askPrompt, partyLine, rateLine } from '../js/askai.js';
+import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError } from '../js/askai.js';
+
+test('앱 안에서 바로 받기: 보낼 모양·답 정리·오류 문구', () => {
+  assert.deepEqual(geminiBody('부탁', 'image/jpeg', 'QUJD').contents[0].parts, [{ text:'부탁' }, { inline_data:{ mime_type:'image/jpeg', data:'QUJD' } }]);
+  const j = { candidates:[{ content:{ parts:[{ text:'## 메뉴\n* **완탕면** HK$50' }, { text:'\n끝' }] } }] };
+  assert.equal(geminiText(j), '메뉴\n• 완탕면 HK$50\n끝');
+  assert.equal(geminiText({}), ''); assert.equal(geminiText(null), '');
+  assert.match(geminiError(429, null), /무료 사용량/);
+  assert.match(geminiError(400, { error:{ message:'API key not valid.' } }), /키가 맞지 않아요/);
+  assert.match(geminiError(403, null), /키가 맞지 않아요/);
+  assert.match(geminiError(400, { error:{ message:'Invalid image' } }), /읽지 못했어요/);
+  assert.match(geminiError(503, null), /잠시 바빠요/);
+});
 
 const fam = extra => Object.assign(clone(D.DEFAULT), { who:'family', adults:2, kids:[12] }, extra);
 
