@@ -25,7 +25,8 @@ import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDat
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
-import { ASK_KINDS, askKindOf, askGroups, askOrder, askRecItem, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
+import { REQS, SAYS, ASKS, REPLIES, talkOf, talkWords } from './asktalk.js';
+import { ASK_KINDS, askKindOf, askGroups, askOrder, askRecItem, askTalkCurs, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
@@ -155,14 +156,22 @@ function askMenu(s, r){
 const askSum = (s, d, o) => `${o.total > 0 ? `합계 ${esc(askMoney(s, d.currency, o.total))}` : '합계 모름'}${o.total > 0 && o.unknown ? ' + 가격 안 보이는 메뉴' : ''}`;
 // 주문 문장 칸: 고른 메뉴가 있으면 그 메뉴로, 없으면 추천 1번 문장. 수량이 바뀌면 이 칸만 다시 그림(분류가 접히지 않게)
 export function askOrderBox(s, r){
-  const d = r.data, o = askOrder(d, r.cart);
+  const d = r.data, o = askOrder(d, r.cart, r);
   if(!o.count) return `${askLine('🗣 직원에게 보여 주세요', d.order)}<p class="fine">메뉴의 + 를 눌러 고르면 고른 메뉴로 주문 문장이 바뀌어요. 여러 개 고를 수 있어요.</p>`;
   return `<div class="askorder"><b>🗣 직원에게 보여 주세요 · ${o.count}개</b><p class="askloc">${esc(o.local)}</p><p class="askmeaning">${esc(o.ko)}</p>
     <p class="asksum">${askSum(s, d, o)}</p>
-    <div class="askrow"><button type="button" class="ghost small" data-act="askline">이 문장 복사</button><button type="button" class="ghost small" data-act="askcartclear">다 지우기</button></div></div>`;
+    <div class="askrow"><button type="button" class="primary small" data-act="askbig" data-v="order">크게 보여 주기</button><button type="button" class="ghost small" data-act="askline">복사</button><button type="button" class="ghost small" data-act="askcartclear">다 지우기</button></div></div>
+    ${askReqBox(r, o)}`;
+}
+// 요청 넣기: 전체 또는 메뉴 하나를 고르고 요청을 누름 (문구는 미리 준비해 둬서 인터넷 없이 됨)
+function askReqBox(r, o){
+  const to = o.lines.some(l => l.k === r.reqFor) ? r.reqFor : '*', on = (r.reqs || {})[to] || [];
+  return `<div class="askreqs"><b>🙏 요청 넣기</b>
+    <div class="chips">${chip('askreqfor', '*', '전체 메뉴', to === '*')}${o.lines.map(l => chip('askreqfor', l.k, esc(l.ko), to === l.k)).join('')}</div>
+    <div class="chips">${REQS.map(x => chip('askreq', x.key, x.ko, on.includes(x.key))).join('')}</div></div>`;
 }
 export function askCartBar(s, r){
-  const o = askOrder(r.data, r.cart);
+  const o = askOrder(r.data, r.cart, r);
   return o.count ? `<button type="button" class="primary" data-act="askcartgo">🛒 ${o.count}개 · ${askSum(s, r.data, o).replace('합계 ', '')} ▲</button>` : '';
 }
 function askCard(s, r){
@@ -214,6 +223,37 @@ function askKeyBox(ks){
     <p class="fine">이 기능을 쓰면 사진과 부탁 문장이 이 폰에서 구글로 바로 가요.${ks.use === 'v' ? '' : ' 무료 사용분은 구글이 제품 개선에 쓸 수 있어요.'} 여권·카드·얼굴이 나온 사진은 보내지 마세요.</p>
   </details>`;
 }
+// 말이 안 통할 때: 누르면 크게 뜨고 직원이 답을 눌러 줌. 문구는 인터넷 없이 됨, 직접 쓰기 번역만 키와 인터넷이 필요
+export const askTalkCur = s => { const r = s.sh.ask && s.sh.ask.res, c = askTalkCurs(s); return (r && r.data && r.data.currency) || (s.sh.ask && s.sh.ask.cur) || c[0]; };
+function askTalk(s, hasKey){
+  const cur = askTalkCur(s), curs = askTalkCurs(s), name = { HKD:'홍콩 말', CNY:'선전 말', JPY:'일본어' };
+  return `<details class="more"><summary>💬 말이 안 통할 때 (식당·가게)</summary>
+    <p class="fine">누르면 현지어가 크게 떠요. 직원에게 보여 주면 직원이 답을 눌러 주고, 답이 한국어로 나와요.</p>
+    ${curs.length > 1 ? `<div class="chips">${curs.map(c => chip('asktalkcur', c, name[c], c === cur)).join('')}</div>` : ''}
+    <h3>부탁하기</h3><div class="chips">${SAYS.map(x => chip('askbig', `say:${x.key}`, x.ko)).join('')}</div>
+    <h3>물어보기</h3><div class="chips">${ASKS.map(x => chip('askbig', `ask:${x.key}`, x.ko)).join('')}</div>
+    ${hasKey ? `<label for="asktr" class="shlabel">하고 싶은 말을 직접 쓰기<input id="asktr" type="text" maxlength="300" placeholder="예: 아이 것은 작은 그릇에 담아 주세요"></label>
+    <div><button type="button" class="primary small" data-act="asktrans">현지어로 옮기기</button></div>` : ''}
+  </details>`;
+}
+// 크게 보여 주기 화면. 다시 그려도 사라지지 않게 시트 밖에 띄움 (app.js askBigShow)
+export function askBigHtml(s, v){
+  const r = s.sh.ask && s.sh.ask.res, cur = v.cur || askTalkCur(s), w = talkWords(cur);
+  const answers = `<p class="askbighead">${esc(w.reply)}</p><div class="askans">${REPLIES.map(x => `<button type="button" data-act="askreply" data-v="${x.key}">${esc(talkOf(x, cur))}</button>`).join('')}</div>`;
+  const write = v.hasKey ? `<p class="askbighead">${esc(w.write)}</p><div class="askbigwrite"><input id="askstaff" type="text" maxlength="300"><button type="button" data-act="askstaff">${esc(w.go)}</button></div>` : '';
+  const msg = v.msg ? `<p class="askbigmsg" role="status">${esc(v.msg)}</p>` : '';
+  const close = `<button type="button" class="askbigclose" data-act="askbigclose">닫기</button>`;
+  if(v.type === 'order'){ const o = askOrder(r.data, r.cart, r);
+    return `${close}${msg}<div class="askbigtext">${esc(o.local.split('\n')[0])}</div>
+      <div class="askgone">${o.lines.map(l => `<button type="button" data-act="askgone" data-v="${l.k}">${esc(l.say)}</button>`).join('')}</div>
+      <p class="askbighead">${esc(w.gone)}</p>
+      ${o.local.split('\n').slice(1 + o.lines.length).map(t => `<div class="askbigsub">${esc(t)}</div>`).join('')}
+      <p class="askbigko">${esc(o.ko)}</p>${answers}${write}`; }
+  if(v.type === 'text') return `${close}${msg}<div class="askbigtext">${esc(v.out || '')}</div><p class="askbigko">${esc(v.src || '')}</p>
+    ${v.add ? `<button type="button" class="askbigclose" data-act="askfreeadd">주문 문장에 넣기</button>` : ''}${v.toKo ? '' : answers}${write}`;
+  const x = (v.type === 'say' ? SAYS : ASKS).find(y => y.key === v.key);
+  return `${close}${msg}<div class="askbigtext">${esc(talkOf(x, cur))}</div><p class="askbigko">${esc((x || {}).ko || '')}</p>${answers}${write}`;
+}
 export function ASKSHEET(s, photo){
   let ks = { g:'', v:'', use:'' }; try{ ks = askKeys(localStorage); }catch(e){}
   const hasKey = !!ks.use;
@@ -238,6 +278,7 @@ export function ASKSHEET(s, photo){
       <label for="asknote" class="shlabel">AI에게 늘 덧붙일 말 (이 폰에만 저장)<input id="asknote" type="text" maxlength="200" value="${esc(s.askNote || '')}" placeholder="예: 땅콩 알레르기 있어요, 매운 건 못 먹어요" data-asknote></label>
       <details class="more"><summary>보낼 부탁 문장 보기</summary><pre class="askprompt">${esc(askPrompt(s, k.key, s.askNote))}</pre>
         <div><button type="button" class="ghost small" data-act="askcopy">문장만 복사</button></div></details>
+      ${askTalk(s, hasKey)}
       ${askKeyBox(ks)}
       <details class="more"><summary>보내기가 안 될 때</summary>
         <p class="fine">'문장만 복사'를 누른 뒤 아래에서 AI를 열고, 사진은 AI 화면에서 직접 붙여 주세요.</p>

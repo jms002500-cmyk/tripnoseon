@@ -415,6 +415,21 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .askrow{display:flex; flex-wrap:wrap; gap:8px}
 .askbar{position:sticky; bottom:8px; display:grid}
 .askbar:empty{display:none}
+.askreqs{display:grid; gap:6px; padding:10px 0 0}
+.askbig{position:fixed; inset:0; z-index:80; display:grid; gap:12px; align-content:start; padding:calc(env(safe-area-inset-top) + 14px) 16px 24px; overflow:auto; background:#fff; color:#111; font-size:18px}
+.askbig[hidden]{display:none}
+.askbig button{font:inherit; color:#111; background:#f1f1ee; border:2px solid #111; border-radius:12px; padding:12px; min-height:52px; cursor:pointer}
+.askbig .askbigclose{background:#111; color:#fff; font-weight:700}
+.askbigtext{font-size:32px; line-height:1.35; font-weight:800; white-space:pre-line}
+.askbigsub{font-size:24px; font-weight:700}
+.askbighead{margin:6px 0 0; font-weight:700}
+.askbigko{margin:0; color:#555; white-space:pre-line}
+.askbigmsg{margin:0; padding:12px; border-radius:12px; background:#ffe9a8; font-size:22px; font-weight:800}
+.askgone{display:grid; gap:8px}
+.askgone button{font-size:26px; font-weight:800; text-align:left}
+.askans{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+.askbigwrite{display:grid; grid-template-columns:1fr auto; gap:8px}
+.askbigwrite input{font:inherit; color:#111; background:#fff; border:2px solid #111; border-radius:12px; padding:10px; min-width:0}
 .asktags{display:flex; flex-wrap:wrap; gap:4px}
 .asktags span{padding:1px 7px; border-radius:999px; background:var(--paper); font-size:12px}
 .asktags .kid-비추천,.asktags .kid-주의{color:var(--warn)}

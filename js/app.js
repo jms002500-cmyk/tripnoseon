@@ -1,12 +1,13 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { VIEWS, SHEET, ASKSHEET, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar } from './views.js';
+import { REPLIES } from './asktalk.js';
+import { VIEWS, SHEET, ASKSHEET, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
-import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, askOrder, ASK_KEY, ASK_VKEY, ASK_USE, askKeys, askKeyNow, askKeyInfo, askTargets, askErrTag, b64url, pemToDer, jwtClaims, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
+import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, askOrder, askTransPrompt, hasHangul, ASK_KEY, ASK_VKEY, ASK_USE, askKeys, askKeyNow, askKeyInfo, askTargets, askErrTag, b64url, pemToDer, jwtClaims, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
 import { PK_KEY, krAirport, moveKap, parkUrl, parseParking } from './parking.js';
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
@@ -1072,10 +1073,22 @@ function act(a, v){
     case 'askclear': setAskPhoto(null); s.sh.ask.res = null; render(); return;
     case 'asknow': askNow(); return;
     case 'askadd': askPick(v, 1); return;
+    case 'askreqfor': { const r = s.sh.ask.res; if(r){ r.reqFor = v; askPick('', 0, true); } return; }
+    case 'askreq': { const r = s.sh.ask.res; if(!r) return; const to = r.reqFor && r.cart && r.cart[r.reqFor] ? r.reqFor : '*', a = ((r.reqs || {})[to] || []);
+      r.reqs = Object.assign({}, r.reqs, { [to]:a.includes(v) ? a.filter(x => x !== v) : [...a, v] }); askPick('', 0, true); return; }
+    case 'asktalkcur': s.sh.ask.cur = v; render(); return;
+    case 'askbig': { const [type, key] = v.split(':'); askBigShow({ type, key, hasKey:askHasKey() }); return; }
+    case 'askbigclose': askBigHide(); return;
+    case 'askreply': { const x = REPLIES.find(y => y.key === v); if(x && askBigView){ askBigView.msg = `👉 직원 답: ${x.ko}`; askBigShow(askBigView); } return; }
+    case 'askgone': { const o = askOrder(s.sh.ask.res.data, s.sh.ask.res.cart, s.sh.ask.res), l = o.lines.find(y => y.k === v); askPick(v, -9999);
+      if(l && askBigView){ askBigView.msg = `👉 직원 답: ${l.ko}은(는) 없어요. 주문에서 뺐어요.`; if(o.lines.length > 1) askBigShow(askBigView); else askBigHide(); } if(l) toast(`${l.ko}을(를) 주문에서 뺐어요.`); return; }
+    case 'asktrans': { const t = (document.getElementById('asktr') || {}).value || ''; if(t.trim()) askTrans(t.trim()); else toast('옮길 말을 먼저 써 주세요.'); return; }
+    case 'askstaff': { const t = (document.getElementById('askstaff') || {}).value || ''; if(t.trim()) askTrans(t.trim()); return; }
+    case 'askfreeadd': { const r = s.sh.ask.res, v2 = askBigView; if(r && r.data && v2 && v2.out){ r.free = [...(r.free || []), { ko:v2.src, local:v2.out }]; askPick('', 0, true); toast('주문 문장에 넣었어요.'); } askBigHide(); return; }
     case 'askdel': askPick(v, -1); return;
     case 'askcartclear': askPick(); return;
     case 'askcartgo': { const b = document.getElementById('askorderbox'); if(b) b.scrollIntoView({ block:'start', behavior:'smooth' }); return; }
-    case 'askline': { const res = s.sh.ask.res || {}, d = res.data || {}, o = res.cart ? askOrder(d, res.cart) : null; clipText(o && o.count ? o.local : (d.order || d.pharmacist || {}).local || '').then(ok => toast(ok ? '문장을 복사했어요.' : '복사가 안 됐어요.')); return; }
+    case 'askline': { const res = s.sh.ask.res || {}, d = res.data || {}, o = res.cart ? askOrder(d, res.cart, res) : null; clipText(o && o.count ? o.local : (d.order || d.pharmacist || {}).local || '').then(ok => toast(ok ? '문장을 복사했어요.' : '복사가 안 됐어요.')); return; }
     case 'askledger': {
       const res = s.sh.ask.res; const r = res && !res.saved ? parseLine(receiptLine(res.data), s, ledgerCtx()) : null;
       if(!r || !r.ok){ toast('가계부에 넣지 못했어요. 가계부에서 직접 적어 주세요.'); return; }
@@ -1340,14 +1353,42 @@ async function vertexToken(sa){
 }
 // 앱 안에서 바로 답 받기: 이 폰에 넣어 둔 키로 구글에 직접 물음 (키가 없으면 아무것도 안 함)
 // 메뉴 고르기: 화면 전체를 다시 그리면 펼친 분류가 접히고 스크롤이 튀어서 숫자와 주문 칸만 바꿈 (인자 없으면 다 지움)
-function askPick(k, d){
+function askPick(k, d, same){
   const r = state.sh.ask && state.sh.ask.res; if(!r || !r.data) return;
-  if(!k) r.cart = {};
-  else{ const n = Math.max(0, ((r.cart || {})[k] || 0) + d); r.cart = Object.assign({}, r.cart, { [k]:n }); if(!n) delete r.cart[k]; }
+  if(same) r.cart = r.cart || {};
+  else if(!k){ r.cart = {}; r.reqs = {}; r.free = []; r.reqFor = ''; }
+  else{ const n = Math.max(0, ((r.cart || {})[k] || 0) + d); r.cart = Object.assign({}, r.cart, { [k]:n }); if(!n){ delete r.cart[k]; if(r.reqs) delete r.reqs[k]; } }
   document.querySelectorAll('.askqty').forEach(q => { const n = r.cart[q.dataset.k] || 0; q.classList.toggle('on', n > 0); q.querySelector('b').textContent = n; });
   const box = document.getElementById('askorderbox'), bar = document.getElementById('askcartbar');
   if(box) box.innerHTML = askOrderBox(state, r);
   if(bar) bar.innerHTML = askCartBar(state, r);
+}
+// 크게 보여 주기: 시트 밖에 띄워서 화면을 다시 그려도 사라지지 않음
+let askBigView = null;
+const askHasKey = () => { try{ return !!askKeys(localStorage).use; }catch(e){ return false; } };
+function askBigShow(v){
+  askBigView = v; let el = document.getElementById('askbig');
+  if(!el){ el = document.createElement('div'); el.id = 'askbig'; el.className = 'askbig'; el.setAttribute('role', 'dialog'); document.body.appendChild(el); }
+  el.hidden = false; el.innerHTML = askBigHtml(state, v); el.scrollTop = 0;
+}
+function askBigHide(){ askBigView = null; const el = document.getElementById('askbig'); if(el){ el.hidden = true; el.innerHTML = ''; } }
+// 직접 쓴 말 번역: 한국어면 현지어로(주문에 넣을 수 있음), 직원이 쓴 말이면 한국어로
+async function askTrans(text){
+  const cur = askTalkCur(state), toKo = !hasHangul(text), base = { type:'text', cur, src:text, toKo, hasKey:true };
+  let info = null; try{ info = askKeyNow(askKeys(localStorage)); }catch(e){}
+  if(!info){ toast('키를 넣어야 쓸 수 있어요.'); return; }
+  if(!navigator.onLine){ askBigShow({ ...base, msg:'인터넷이 끊겨 있어요. 위의 준비된 문구를 써 주세요.' }); return; }
+  askBigShow({ ...base, msg:'옮기는 중이에요…' });
+  try{
+    const token = info.kind === 'sa' ? await vertexToken(info.sa) : '';
+    if(info.kind === 'sa' && !token){ askBigShow({ ...base, msg:'키가 맞지 않아요.' }); return; }
+    const headers = Object.assign({ 'Content-Type':'application/json' }, token ? { Authorization:`Bearer ${token}` } : { 'x-goog-api-key':info.key });
+    const body = JSON.stringify({ contents:[{ role:'user', parts:[{ text:askTransPrompt(text, cur) }] }] });
+    let r; for(const u of askTargets(info)){ r = await fetchTimed(u, { method:'POST', headers, body }, 30000); if(r.status !== 404) break; }
+    const j = await r.json().catch(() => null), out = r.ok ? geminiRaw(j) : '';
+    const res = state.sh.ask && state.sh.ask.res;
+    askBigShow(out ? { ...base, out, add:!toKo && !!(res && res.data) } : { ...base, msg:`${r.ok ? '답을 받지 못했어요.' : geminiError(r.status, j)}` });
+  }catch(e){ askBigShow({ ...base, msg:'답이 늦어요. 위의 준비된 문구를 써 주세요.' }); }
 }
 async function askNow(){
   const s = state, ask = s.sh.ask; let info = null; try{ info = askKeyNow(askKeys(localStorage)); }catch(e){}

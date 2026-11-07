@@ -1,6 +1,7 @@
 // AI 도우미: 사진(메뉴판·표지판·영수증·약·음식)에 상황에 맞는 부탁 문장을 붙여 사용자의 AI 앱(제미나이·ChatGPT·Claude 등)으로 넘김.
 // 앱이 AI를 직접 부르지 않음(비용 0, 키 없음). 보내는 것은 사용자가 고른 사진과 아래 문장뿐 — 보관함·영수증 첨부·위치는 넣지 않음.
 // 순수 함수(테스트 대상).
+import { talkWords, talkOf, reqOf } from './asktalk.js';
 import { tripCities, onlyCity, pickedPlaces } from './logic.js';
 import { PACE } from './data.js';
 import { ratesOf } from './ledger.js';
@@ -142,7 +143,7 @@ const CUR = { type:'STRING', enum:['HKD', 'CNY', 'JPY'] };
 const LINE = obj({ ko:STR, local:STR }, ['ko', 'local']);
 const ASK_SCHEMA = {
   menu:obj({ currency:CUR, rules:LIST, recommend:{ type:'ARRAY', items:obj({ name:STR, local:STR, why:STR }, ['name', 'local', 'why']) },
-    items:{ type:'ARRAY', items:obj({ group:STR, ko:STR, local:STR, desc:STR, prices:{ type:'ARRAY', items:obj({ label:STR, price:{ type:'NUMBER', nullable:true } }, ['label', 'price']) }, spicy:{ type:'INTEGER' }, kid:{ type:'STRING', enum:['좋음', '주의', '비추천'] }, contains:LIST, alert:STR }, ['group', 'ko', 'local', 'desc', 'prices', 'spicy', 'kid', 'contains']) },
+    items:{ type:'ARRAY', items:obj({ group:STR, ko:STR, local:STR, desc:STR, prices:{ type:'ARRAY', items:obj({ label:STR, local:STR, price:{ type:'NUMBER', nullable:true } }, ['label', 'price']) }, spicy:{ type:'INTEGER' }, kid:{ type:'STRING', enum:['좋음', '주의', '비추천'] }, contains:LIST, alert:STR }, ['group', 'ko', 'local', 'desc', 'prices', 'spicy', 'kid', 'contains']) },
     order:LINE, request:LINE, more:STR, unclear:STR }, ['currency', 'rules', 'recommend', 'items', 'order']),
   sign:obj({ meaning:STR, todo:LIST, facts:LIST, unclear:STR }, ['meaning', 'todo', 'facts']),
   receipt:obj({ store:STR, date:STR, currency:CUR, items:{ type:'ARRAY', items:obj({ ko:STR, local:STR, price:{ type:'NUMBER', nullable:true } }, ['ko', 'local']) },
@@ -155,7 +156,7 @@ const ASK_RULES = {
     '밥·빵·고기 추가 같은 곁들임과 추가 요금, 손글씨나 덧붙인 쪽지의 메뉴도 넣어 줘. 200개가 넘을 때만 줄이고 줄였다고 more에 적어 줘.',
     'group은 메뉴판의 분류 이름을 한국어로 옮긴 거야. 같은 분류는 붙여서 적고, 분류가 없으면 빈 글자로 둬.',
     'ko는 뜻이 통하는 한국어 음식 이름이야. 拉面은 수타면, 刀削面은 도삭면처럼 한국 음식과 헷갈리지 않게 써 줘. local은 메뉴판에 적힌 글자 그대로, desc는 어떤 음식인지 15자 안쪽 설명이야.',
-    '메뉴판의 한 줄이 메뉴 하나야. 줄을 합치지 말고 大碗이 붙은 줄도 따로 넣어 줘. prices는 그 메뉴와 같은 줄에 적힌 가격만 읽어 줘. 윗줄이나 아랫줄 가격을 가져오면 안 돼. 그 줄에 숫자가 하나면 메뉴 이름에 /가 있어도 prices는 하나이고 label은 빈 글자야. 20元/18元처럼 한 줄에 숫자가 둘일 때만 적힌 차례대로 둘 다 넣고, 면/밥이나 소/대 같은 구분을 label에 한국어로 적어 줘. 안 보이면 price를 null로 둬. 메뉴판에 맞는 통화를 currency에 적어 줘.',
+    '메뉴판의 한 줄이 메뉴 하나야. 줄을 합치지 말고 大碗이 붙은 줄도 따로 넣어 줘. prices는 그 메뉴와 같은 줄에 적힌 가격만 읽어 줘. 윗줄이나 아랫줄 가격을 가져오면 안 돼. 그 줄에 숫자가 하나면 메뉴 이름에 /가 있어도 prices는 하나이고 label은 빈 글자야. 20元/18元처럼 한 줄에 숫자가 둘일 때만 적힌 차례대로 둘 다 넣고, 면/밥이나 소/대 같은 구분을 label에 한국어로, 그 가격을 주문할 때 쓸 메뉴판 글자 이름을 local에 적어 줘(예: 番茄炒蛋盖浇饭). 숫자가 셋 이상이어도 같아. 안 보이면 price를 null로 둬. 메뉴판에 맞는 통화를 currency에 적어 줘.',
     'spicy는 0(안 매움)~3(아주 매움)이야. kid는 함께 온 아이가 먹기에 어떤지야.',
     'contains는 돼지고기·소고기·양고기·닭고기·해산물·견과류·달걀·유제품·밀 중 들어갔을 만한 것이야. 쌀밥만으로 만든 요리에는 밀을 넣지 마.',
     'alert는 참고에 적은 내용(알레르기 등)에 걸리거나 향이 아주 강할 때 그 이유를 짧게, 아니면 빈 글자로 둬.',
@@ -176,28 +177,37 @@ export const askRecItem = (d, x) => { const a = (d && d.items) || []; return a.f
 // 고른 메뉴 → 주문 문장. 메뉴 이름은 메뉴판 글자라 번역하지 않고 앞머리만 지역에 맞춤. cart는 { '메뉴 번호:가격 번호': 수량 }
 const ORDER_HEAD = { CNY:'你好，我要这些：', HKD:'唔該，我要呢啲：', JPY:'すみません、これをお願いします。' };
 // 직원에게 보여 줄 문장이라 한글은 넣지 않음: 크기는 현지 글자로 바꾸고, 그 밖의 한글 구분 이름(일반·보통 등)은 뺌
+// 직원에게 보여 줄 문장이라 한글은 넣지 않음. 옵션은 ① 메뉴판의 A/B 글자 ② AI가 준 메뉴판 글자 이름(가격이나 한글이 섞이면 안 씀) ③ 크기 ④ 가격 차례로 구분해서, 어떤 옵션이든 직원이 알아볼 수 있게 함
 const SIZE_OF = { 대:['大碗', '大盛り'], 중:['中碗', '中盛り'], 소:['小碗', '小盛り'] };
 const sizeKey = t => (t.match(/^(대|큰|중|소|작은)(자|형| ?사이즈| ?그릇)?$/) || [])[1];
 function orderName(x, p, cur){
-  const local = String(x.local || x.ko || ''), q = (x.prices || [])[p]; if(!q || !q.label || (x.prices || []).length < 2) return local;
-  const m = local.match(/(.)\/(.)/);   // 盖浇面/饭처럼 메뉴판에 둘이 함께 적혀 있으면 적힌 차례로 고른 쪽만 남김
+  const local = String(x.local || x.ko || ''), all = x.prices || [], q = all[p]; if(!q || all.length < 2) return local;
+  const m = all.length === 2 && local.match(/(.)\/(.)/);   // 盖浇面/饭처럼 메뉴판에 둘이 함께 적혀 있으면 적힌 차례로 고른 쪽만 남김
   if(m) return local.replace(m[0], p ? m[2] : m[1]);
-  const label = String(q.label).trim(), key = { 큰:'대', 작은:'소' }[sizeKey(label)] || sizeKey(label);
-  const size = key ? SIZE_OF[key][cur === 'JPY' ? 1 : 0] : /[가-힣]/.test(label) ? '' : label;
-  return size ? `${local}（${size}）` : local;
+  const own = String(q.local || '').trim(); if(own && !/[가-힣0-9/]/.test(own)) return own;
+  const label = String(q.label || '').trim(), key = { 큰:'대', 작은:'소' }[sizeKey(label)] || sizeKey(label);
+  if(key) return `${local}（${SIZE_OF[key][cur === 'JPY' ? 1 : 0]}）`;
+  if(label && !hasHangul(label)) return `${local}（${label}）`;
+  return q.price > 0 ? `${local}（${talkWords(cur).unit(q.price)}）` : `${local}（${p + 1}）`;
 }
-export function askOrder(d, cart){
+// 요청 글자: 쓰는 말에 맞게 한 줄로
+const reqLocal = (keys, cur) => (keys || []).map(k => talkOf(reqOf(k), cur)).filter(Boolean).join(talkWords(cur).dot);
+const reqKo = keys => (keys || []).map(k => (reqOf(k) || {}).ko).filter(Boolean).join(', ');
+export function askOrder(d, cart, more){
+  const cur = d && d.currency, reqs = (more && more.reqs) || {}, free = (more && more.free) || [];
   const lines = Object.entries(cart || {}).map(([k, n]) => {
     const [i, p] = k.split(':').map(Number), x = ((d && d.items) || [])[i]; if(!x || !(n > 0)) return null;
     const q = (x.prices || [])[p];
-    return { ko:`${x.ko}${q && q.label && x.prices.length > 1 ? ` (${q.label})` : ''}`, local:orderName(x, p, d.currency), n, price:q && q.price > 0 ? q.price : 0 };
+    return { k, ko:`${x.ko}${q && q.label && x.prices.length > 1 ? ` (${q.label})` : ''}`, local:orderName(x, p, cur), n, price:q && q.price > 0 ? q.price : 0, req:reqs[k] || [] };
   }).filter(Boolean);
-  const req = (d && d.request) || {};
+  const req = (d && d.request) || {}, all = reqs['*'] || [], w = talkWords(cur);
+  lines.forEach(l => { const t = reqLocal(l.req, cur); l.say = `${l.local} × ${l.n}${t ? `（${t}）` : ''}`; });
   return { count:lines.reduce((a, l) => a + l.n, 0), total:lines.reduce((a, l) => a + l.n * l.price, 0), unknown:lines.some(l => !l.price), lines,
-    local:[ORDER_HEAD[d && d.currency] || ORDER_HEAD.CNY, ...lines.map(l => `${l.local} × ${l.n}`), req.local].filter(Boolean).join('\n'),
-    ko:[lines.map(l => `${l.ko} ${l.n}개`).join(', '), req.ko].filter(Boolean).join('\n') };
+    local:[ORDER_HEAD[cur] || ORDER_HEAD.CNY, ...lines.map(l => l.say), all.length ? `${w.all}${reqLocal(all, cur)}` : '', req.local, ...free.map(f => f.local)].filter(Boolean).join('\n'),
+    ko:[lines.map(l => `${l.ko} ${l.n}개${l.req.length ? `(${reqKo(l.req)})` : ''}`).join(', '), all.length ? `전체: ${reqKo(all)}` : '', req.ko, ...free.map(f => f.ko)].filter(Boolean).join('\n') };
 }
 // 메뉴를 메뉴판의 분류별로 묶음 (나온 차례 유지). 분류 이름이 없으면 그 밖의 메뉴
+export const askTalkCurs = s => where(s).curs;
 export function askGroups(items){
   const out = [];
   (Array.isArray(items) ? items : []).forEach(x => {
@@ -211,7 +221,7 @@ export function askJsonPrompt(s, kind, note){
   const w = where(s); const extra = String(note || '').trim().slice(0, 200);
   return [`${w.place} 여행 중이야. 일행은 한국인 ${partyLine(s)}.`, ...ASK_RULES[askKindOf(kind).key](w),
     ...(extra ? [`참고: ${extra}`] : []),
-    '글자가 잘 안 보이거나 확실하지 않은 것은 지어내지 말고 빼거나 unclear에 적어 줘.', '값은 모두 한국어로 쓰되, local만 사진·현지 글자 그대로 써 줘.'].join('\n');
+    '글자가 잘 안 보이거나 확실하지 않은 것은 지어내지 말고 빼거나 unclear에 적어 줘.', '값은 모두 한국어로 쓰되, 이름이 local인 칸만 사진·현지 글자 그대로 써 줘.'].join('\n');
 }
 // 받은 글 → 칸 자료. 모양이 어긋나면 null(그때는 글 그대로 보여 줌)
 export function askParse(kind, t){
@@ -271,6 +281,10 @@ export const QUICK_TRANSLATE = [
 // 웹 번역 화면에는 카메라가 없어 안드로이드에서는 앱을 부름. 카메라를 바로 여는 공개 주소는 없어서 앱 첫 화면까지만 감
 export const quickHref = (x, ua) => /Android/i.test(ua || '') ? x.android : x.url;
 export const quickNote = ua => /Android/i.test(ua || '') ? '앱 대신 플레이 스토어가 열리면 거기서 받거나 열기를 누르세요.' : '웹 화면에는 카메라가 없어요. 폰에 있는 앱을 직접 여세요.';
+
+// 직접 쓴 글 번역: 한국어면 현지어로, 그 밖의 말이면 한국어로 (사진 없이 묻는 글)
+export const askTransPrompt = (text, cur) => `식당이나 가게에서 나누는 말이야. 아래 글이 한국어면 ${talkWords(cur).lang}로, 그 밖의 말이면 자연스러운 한국어로 옮겨 줘. 옮긴 문장만 답해 줘.\n\n글: ${String(text).slice(0, 300)}`;
+export const hasHangul = t => /[가-힣]/.test(String(t || ''));
 
 export const AI_SITES = [
   { key:'gemini', label:'제미나이', url:'https://gemini.google.com/app' },
