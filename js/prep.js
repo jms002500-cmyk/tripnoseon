@@ -6,6 +6,7 @@ import { idCopies } from './vault.js';
 import { isEmptyMove } from './moves.js';
 
 const addDay = (key, n) => { const [y, m, d] = key.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+const addrOk = a => !!(a || '').trim() && !/[가-힣]/.test(a);   // 기사님이 읽을 수 있는 현지어 주소
 export const daysTo = (from, to) => Math.round((Date.parse(to) - Date.parse(from)) / 86400000);
 
 // → [{ key, dday, date, t, why, go, done, auto }] 날짜순
@@ -22,6 +23,11 @@ export function prepTasks(s){
   add(10, 'money', '현지 돈 조금 바꾸기', hk ? '홍콩달러 조금(옥토퍼스 충전·작은 가게)' + (sz ? ', 선전은 알리페이·위챗페이로 대부분 돼요.' : '.') : jp ? '엔화 현금·동전 지갑. 작은 식당·자판기는 현금만 받는 곳이 많아요.' : '');
   if(sz) add(7, 'cnarrive', '중국 입국카드 온라인 작성', '가족 한 사람씩. 작성한 화면을 캡처해 보관함에 넣어 두세요.', 'vault');
   if(jp) add(7, 'vjw', 'Visit Japan Web 등록', '입국 심사·세관 QR. 한 계정에 같이 가는 가족을 넣고, QR은 한 사람씩 따로 보여 줘요.', 'vault');
+  add(5, 'transapp', '번역 앱에 오프라인 언어 받기', `구글 번역 앱에서 ${hk ? '중국어(번체·간체)' : '일본어'} 오프라인 번역을 받아 두면 인터넷이 끊겨도 카메라로 간판·안내문을 읽어요.${sz ? ' 선전에서 현지 유심을 쓰면 구글이 막히는데, 받아 둔 언어는 그대로 돼요.' : ''}`);
+  add(5, 'askkey', '📷 메뉴판 읽기 준비', '메뉴판 사진을 찍으면 한국어로 풀어 주고 고른 메뉴로 주문 문장을 만들어 줘요. AI 묻기 창에서 구글 AI 키를 한 번 넣어 두세요. 키가 없어도 준비된 부탁·질문 문구는 인터넷 없이 쓸 수 있어요.', 'ask');
+  add(3, 'hotelcard', '택시용 숙소 주소 카드 채우기', `예약 확인서의 ${hk ? '한자' : '일본어'} 주소와 숙소 전화를 넣어 두면 택시 기사나 길을 물을 사람에게 화면만 크게 보여 주면 돼요.${hk ? ' 홍콩·선전에 나눠 자면 숙소마다 넣어요.' : ''}`, 'soshotel');
+  if(kids) add(3, 'kidcard', '아이 미아 카드 만들기', '긴급 화면에 부모 연락처를 넣으면 현지어 카드가 만들어져요. 아이 폰 배경으로 캡처해 두면 아이가 혼자서도 보여 줄 수 있어요.', 'soskid');
+  add(2, 'voice', '🔊 소리로 들려주기 시험', `긴급 화면의 문장을 눌러 크게 보기에서 🔊를 한 번 눌러 보세요. 소리가 안 나면 폰 설정의 '텍스트 음성 변환'에서 ${hk ? '중국어·광둥어' : '일본어'} 음성을 받아 두세요.`, 'sos');
   add(7, 'packlist', '준비물 체크리스트 만들기', '추천을 담고 누구 짐인지 나눠 두세요.', 'pack');
   add(5, 'moves', '공항 오가는 길 정하기', '자가용이면 공항 주차장 남은 자리를, 공항버스면 우리 동네를 지나는 버스를 앱에서 찾아 드려요. 정한 시각이 일정에 들어가요.', 'movebox');
   add(3, 'backup', '백업 파일 만들어 두기', '폰을 잃어버리거나 바꿔도 다른 폰에서 일정·보관함을 그대로 되돌릴 수 있어요.', 'backupbox');
@@ -41,7 +47,9 @@ export function prepTasks(s){
     moves:(s.moves || []).some(m => (m.k === 'go' || m.k === 'in') && !isEmptyMove(m)),
     packlist:Object.values(s.pack || {}).some(x => x && !x.hide),
     places:Object.keys(s.picked || {}).length >= 3,
-    backup:!!s.lastBackup
+    backup:!!s.lastBackup,
+    hotelcard:addrOk((s.safety || {}).addr) || (s.hotels || []).some(h => addrOk(h.addr)),
+    kidcard:!!s.sphone
   };
   const done = s.prep || {};
   return L.map(x => Object.assign(x, { date:addDay(s.start, -x.dday), done:!!done[x.key] || !!auto[x.key], auto:!done[x.key] && !!auto[x.key] }))

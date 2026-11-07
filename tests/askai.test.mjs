@@ -109,7 +109,7 @@ test('말이 안 통할 때 문구: 세 말이 모두 있고 한글이 섞이지
     assert.equal(new Set(list.map(x => x.key)).size, list.length);
     list.forEach(x => { assert.ok(x.ko && hasHangul(x.ko), x.key); ['CNY', 'HKD', 'JPY'].forEach(c => { assert.ok(x[c], `${x.key} ${c}`); assert.equal(hasHangul(x[c]), false, `${x.key} ${c}`); }); });
   });
-  ['CNY', 'HKD', 'JPY'].forEach(c => { const w = T.talkWords(c); ['reply', 'gone', 'write', 'go', 'all', 'dot', 'lang', 'html'].forEach(k => assert.ok(w[k], k)); assert.ok(w.unit(5)); });
+  ['CNY', 'HKD', 'JPY'].forEach(c => { const w = T.talkWords(c); ['reply', 'num', 'gone', 'write', 'go', 'all', 'dot', 'lang', 'html'].forEach(k => assert.ok(w[k], k)); assert.ok(w.unit(5)); });
   assert.equal(T.talkOf(T.REQS[0], 'KRW'), T.REQS[0].CNY);
 });
 
@@ -243,4 +243,13 @@ test('간판용 빠른 번역 바로가기: 자동 감지 → 한국어, https�
     assert.equal(quickHref(x, undefined), x.url);
   });
   assert.notEqual(quickNote(phone), quickNote(iphone));
+});
+
+test('숫자로 답받기: 상대가 쓴 숫자를 한국어로, 그 나라 돈이면 원화 어림', async () => {
+  const { numSay } = await import('../js/views.js');
+  const s = Object.assign(clone(D.DEFAULT), { city:'hksz', fx:{ rates:{ KRW:1, HKD:0.0057, CNY:0.0049 }, at:'2026-11-06' } });
+  const m = numSay(s, '120', 'HKD');
+  assert.match(m, /상대가 쓴 숫자: 120/); assert.match(m, /HK\$120/);
+  assert.equal(numSay(s, 'abc', 'HKD'), '');
+  assert.match(numSay(s, '1,280', 'CNY'), /1280/);
 });
