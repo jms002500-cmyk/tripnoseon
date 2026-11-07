@@ -52,9 +52,10 @@ export function askPrompt(s, kind, note){
   const unsure = '글자가 잘 안 보이거나 확실하지 않은 부분은 추측하지 말고 "잘 안 보임"이라고 해 줘.';
   const lines = {
     menu:['이 사진은 식당 메뉴판이야.',
-      '메뉴를 하나씩 한국어로 알려 줘. 글자 그대로 옮기지 말고 실제로 어떤 음식인지 짧게 설명해 줘.',
-      `가격은 현지 돈과 원화 대략을 같이 적어 줘. ${won}`,
-      `맵기, ${kidOk}돼지고기·소고기·해산물·견과류가 들어가는지 표시해 줘.`,
+      '사진 전체를 끝까지 훑어서 적힌 메뉴를 빠뜨리지 말고 분류별로 한국어로 알려 줘. 글자 그대로 옮기지 말고 실제로 어떤 음식인지 짧게 설명해 줘.',
+      `가격은 그 메뉴와 같은 줄에 적힌 값만 읽고, 현지 돈과 원화 대략을 같이 적어 줘. 면/밥처럼 가격이 둘이면 둘 다 적어 줘. ${won}`,
+      `맵기, ${kidOk}돼지고기·소고기·양고기·해산물·견과류가 들어가는지 표시해 줘.`,
+      '메뉴판에 적힌 가게 규칙(할랄, 음주 금지, 고수 빼는 법 등)이 있으면 맨 위에 알려 줘.',
       `우리에게 맞는 추천 3개와, 주문할 때 직원에게 보여 줄 ${w.lang} 한 줄을 알려 줘.`,
       unsure],
     sign:['이 사진은 표지판이나 안내문이야.',
@@ -140,9 +141,9 @@ const obj = (properties, required) => ({ type:'OBJECT', properties, required });
 const CUR = { type:'STRING', enum:['HKD', 'CNY', 'JPY'] };
 const LINE = obj({ ko:STR, local:STR }, ['ko', 'local']);
 const ASK_SCHEMA = {
-  menu:obj({ currency:CUR, recommend:{ type:'ARRAY', items:obj({ name:STR, why:STR }, ['name', 'why']) },
-    items:{ type:'ARRAY', items:obj({ ko:STR, local:STR, desc:STR, price:{ type:'NUMBER', nullable:true }, spicy:{ type:'INTEGER' }, kid:{ type:'STRING', enum:['좋음', '주의', '비추천'] }, contains:LIST, alert:STR }, ['ko', 'local', 'desc', 'spicy', 'kid', 'contains']) },
-    order:LINE, more:STR, unclear:STR }, ['currency', 'recommend', 'items', 'order']),
+  menu:obj({ currency:CUR, rules:LIST, recommend:{ type:'ARRAY', items:obj({ name:STR, why:STR }, ['name', 'why']) },
+    items:{ type:'ARRAY', items:obj({ group:STR, ko:STR, local:STR, desc:STR, prices:{ type:'ARRAY', items:obj({ label:STR, price:{ type:'NUMBER', nullable:true } }, ['label', 'price']) }, spicy:{ type:'INTEGER' }, kid:{ type:'STRING', enum:['좋음', '주의', '비추천'] }, contains:LIST, alert:STR }, ['group', 'ko', 'local', 'desc', 'prices', 'spicy', 'kid', 'contains']) },
+    order:LINE, more:STR, unclear:STR }, ['currency', 'rules', 'recommend', 'items', 'order']),
   sign:obj({ meaning:STR, todo:LIST, facts:LIST, unclear:STR }, ['meaning', 'todo', 'facts']),
   receipt:obj({ store:STR, date:STR, currency:CUR, items:{ type:'ARRAY', items:obj({ ko:STR, local:STR, price:{ type:'NUMBER', nullable:true } }, ['ko', 'local']) },
     service:{ type:'NUMBER', nullable:true }, tax:{ type:'NUMBER', nullable:true }, total:{ type:'NUMBER', nullable:true }, pay:STR, what:STR, unclear:STR }, ['store', 'currency', 'items', 'total', 'what']),
@@ -150,14 +151,17 @@ const ASK_SCHEMA = {
   food:obj({ name:STR, local:STR, how:STR, spicy:{ type:'INTEGER' }, kid:STR, warn:LIST, unclear:STR }, ['name', 'local', 'how', 'spicy', 'warn'])
 };
 const ASK_RULES = {
-  menu:w => ['이 사진은 식당 메뉴판이야. 위에서부터 메뉴를 최대 30개까지 items에 넣어 줘. 더 있으면 줄였다고 more에 적어 줘.',
-    'ko는 뜻이 통하는 한국어 음식 이름, local은 메뉴판에 적힌 그대로, desc는 실제로 어떤 음식인지 25자 안쪽 설명이야.',
-    'price는 숫자만 적고, 안 보이면 null로 해 줘. 메뉴판에 맞는 통화를 currency에 적어 줘.',
+  menu:w => ['이 사진은 식당 메뉴판이야. 사진 전체를 왼쪽 위부터 칸(분류)마다 끝까지 훑어서, 적힌 메뉴를 하나도 빠뜨리지 말고 모두 items에 넣어 줘. 사진에서 실제로 읽은 글자만 옮기고, 글자를 조합하거나 없는 메뉴를 지어내면 안 돼. 안 읽히는 글자가 있으면 그 메뉴는 빼고 unclear에 적어 줘.',
+    '밥·빵·고기 추가 같은 곁들임과 추가 요금, 손글씨나 덧붙인 쪽지의 메뉴도 넣어 줘. 200개가 넘을 때만 줄이고 줄였다고 more에 적어 줘.',
+    'group은 메뉴판의 분류 이름을 한국어로 옮긴 거야. 같은 분류는 붙여서 적고, 분류가 없으면 빈 글자로 둬.',
+    'ko는 뜻이 통하는 한국어 음식 이름이야. 拉面은 수타면, 刀削面은 도삭면처럼 한국 음식과 헷갈리지 않게 써 줘. local은 메뉴판에 적힌 글자 그대로, desc는 어떤 음식인지 15자 안쪽 설명이야.',
+    'prices는 그 메뉴와 같은 줄에 적힌 가격만 읽어 줘. 윗줄이나 아랫줄 가격을 가져오면 안 돼. 가격이 하나면 label은 빈 글자로 두고, 20元/18元처럼 둘이면 분류 제목의 면/밥이나 소/대 같은 구분을 label에 적어 각각 넣어 줘. 안 보이면 price를 null로 둬. 메뉴판에 맞는 통화를 currency에 적어 줘.',
     'spicy는 0(안 매움)~3(아주 매움)이야. kid는 함께 온 아이가 먹기에 어떤지야.',
-    'contains는 돼지고기·소고기·닭고기·해산물·견과류·달걀·유제품·밀 중 들어갔을 만한 것이야.',
-    'alert는 참고에 적은 내용(알레르기 등)에 걸리면 그 이유를 짧게, 아니면 빈 글자로 둬.',
-    'recommend는 우리 일행에게 맞는 3개, why는 고른 이유 한 줄이야.',
-    `order.local은 추천 1번을 달라고 직원에게 보여 줄 ${w.lang} 한 문장(참고에 주의할 것이 있으면 그 말도 함께), order.ko는 그 뜻이야.`],
+    'contains는 돼지고기·소고기·양고기·닭고기·해산물·견과류·달걀·유제품·밀 중 들어갔을 만한 것이야. 쌀밥만으로 만든 요리에는 밀을 넣지 마.',
+    'alert는 참고에 적은 내용(알레르기 등)에 걸리거나 향이 아주 강할 때 그 이유를 짧게, 아니면 빈 글자로 둬.',
+    'rules는 메뉴판에 적힌 가게 규칙과 주문 안내야. 할랄·돼지고기 없음, 음주 금지, 외부 음식 반입 금지, 고수를 빼려면 미리 말하기, 현금만 받음 같은 것을 한국어로 한 줄씩 적어 줘. 없으면 빈 목록이야.',
+    'recommend는 우리 일행에게 맞는 3개, why는 고른 이유 한 줄이야. 메뉴 전체에서 고르고, name은 items의 ko와 똑같이 적어 줘. 아이가 있으면 아이가 먹기 좋은 메뉴를 먼저 골라 줘.',
+    `order.local은 추천 1번의 local 글자를 그대로 넣어 직원에게 보여 줄 ${w.lang} 한 문장이고, order.ko는 그 뜻이야. 면/밥이나 크기를 골라야 하는 메뉴면 어느 쪽인지 넣어 줘. 요청은 참고에 적힌 것만 넣고, 참고에 없는 요청(고수 빼기 등)은 넣지 마.`],
   sign:() => ['이 사진은 표지판이나 안내문이야.', 'meaning은 무슨 뜻인지 한국어로 짧게, todo는 우리가 지금 해야 할 일이나 조심할 점이야.', 'facts는 시간·요금·날짜·출구 번호 같은 숫자 정보를 한 줄씩 적어 줘.'],
   receipt:() => ['이 사진은 영수증이야.', 'store는 가게 이름, date는 날짜, items는 항목마다 한국어 이름(ko), 적힌 그대로(local), 금액(price)이야.',
     'service는 봉사료, tax는 세금, total은 실제 낸 합계, pay는 결제 수단이야. 없으면 null이나 빈 글자로 둬.', 'what은 가계부에 적을 짧은 이름이야. (예: 점심, 간식, 약)'],
@@ -166,6 +170,16 @@ const ASK_RULES = {
   food:() => ['이 사진은 음식이야.', 'name은 한국어 이름, local은 현지에서 부르는 이름, how는 어떻게 먹는지(소스·먹는 순서)야.', 'spicy는 0~3, kid는 함께 온 아이가 먹기에 어떤지, warn은 들어갔을 만한 재료 중 주의할 것이야.', '확실하지 않으면 how 앞에 추측이라고 적어 줘.']
 };
 export const askSchema = kind => ASK_SCHEMA[askKindOf(kind).key];
+// 메뉴를 메뉴판의 분류별로 묶음 (나온 차례 유지). 분류 이름이 없으면 그 밖의 메뉴
+export function askGroups(items){
+  const out = [];
+  (Array.isArray(items) ? items : []).forEach(x => {
+    const name = String((x && x.group) || '').trim() || '그 밖의 메뉴';
+    let g = out.find(y => y.name === name); if(!g) out.push(g = { name, items:[] });
+    g.items.push(x);
+  });
+  return out;
+}
 export function askJsonPrompt(s, kind, note){
   const w = where(s); const extra = String(note || '').trim().slice(0, 200);
   return [`${w.place} 여행 중이야. 일행은 한국인 ${partyLine(s)}.`, ...ASK_RULES[askKindOf(kind).key](w),

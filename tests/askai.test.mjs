@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as D from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askKeyInfo, askKeys, askKeyNow, askTargets, askErrTag, ASK_KEY, ASK_VKEY, ASK_USE, b64url, pemToDer, jwtClaims } from '../js/askai.js';
+import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askGroups, askKeyInfo, askKeys, askKeyNow, askTargets, askErrTag, ASK_KEY, ASK_VKEY, ASK_USE, b64url, pemToDer, jwtClaims } from '../js/askai.js';
 
 test('키 칸: 구글 키·버텍스 키·서비스 계정 JSON을 구분', () => {
   const sa = { private_key:'-----BEGIN PRIVATE KEY-----\nQUJD\nREVG\n-----END PRIVATE KEY-----\n', client_email:'a@b.iam.gserviceaccount.com', project_id:'p1' };
@@ -39,6 +39,20 @@ test('키 칸: 구글 키·버텍스 키·서비스 계정 JSON을 구분', () =
   const c = jwtClaims(sa, 100); assert.equal(c.iss, sa.client_email); assert.equal(c.exp, 3700);
 });
 
+test('메뉴 답: 분류별로 묶고, 칸이 맞아야 받음', () => {
+  const g = askGroups([{ group:'국수', ko:'가' }, { group:'밥', ko:'나' }, { group:' 국수 ', ko:'다' }, { ko:'라' }]);
+  assert.deepEqual(g.map(x => [x.name, x.items.length]), [['국수', 2], ['밥', 1], ['그 밖의 메뉴', 1]]);
+  assert.deepEqual(askGroups(null), []);
+  const sc = askSchema('menu');
+  assert.ok(sc.required.includes('rules'));
+  assert.ok(sc.properties.items.items.required.includes('prices'));
+  assert.equal(askParse('menu', JSON.stringify({ currency:'CNY', recommend:[], items:[], order:{} })), null);
+  assert.ok(askParse('menu', JSON.stringify({ currency:'CNY', rules:[], recommend:[], items:[], order:{} })));
+  const s = fam({ city:'hksz' }), p = askJsonPrompt(s, 'menu', '');
+  ['양고기', '수타면', '빠뜨리지', '지어내면 안 돼', '참고에 없는 요청', 'rules'].forEach(w => assert.match(p, new RegExp(w), w));
+  assert.doesNotMatch(p, /최대 30개/);
+});
+
 test('공개 코드에 비밀키가 없음', () => {
   ['js/askai.js', 'js/app.js', 'js/views.js', 'js/firebase-config.js'].forEach(f => assert.doesNotMatch(readFileSync(new URL('../' + f, import.meta.url), 'utf8'), /-----BEGIN PRIVATE KEY-----[A-Za-z0-9+\/]|"private_key"\s*:|AQ\.[A-Za-z0-9_-]{20}/, f));
 });
@@ -48,10 +62,10 @@ test('앱 안 답: 종류마다 칸 정의가 있고, 모양이 맞아야 받음
   const s = fam({ city:'hksz' });
   ASK_KINDS.forEach(k => { assert.ok(askSchema(k.key).required.length, k.key); assert.match(askJsonPrompt(s, k.key, '땅콩 알레르기'), /참고: 땅콩 알레르기/); });
   assert.deepEqual(geminiBody('부탁', 'image/jpeg', 'QQ', askSchema('menu')).generationConfig.responseMimeType, 'application/json');
-  const ok = '{"currency":"HKD","recommend":[],"items":[],"order":{"ko":"a","local":"b"}}';
+  const ok = '{"currency":"HKD","rules":[],"recommend":[],"items":[],"order":{"ko":"a","local":"b"}}';
   assert.equal(askParse('menu', ok).currency, 'HKD');
   assert.equal(askParse('menu', '```json\n' + ok + '\n```').currency, 'HKD');
-  assert.equal(askParse('menu', '{"items":[]}'), null);   // 칸이 빠지면 글로 보여 줌
+  assert.equal(askParse('menu', '{"items":[]}'), null);   // 칸이 빠지면 답으로 받지 않음
   assert.equal(askParse('menu', '메뉴는 다음과 같아요'), null);
 });
 
@@ -94,7 +108,7 @@ test('도쿄 메뉴판: 일본어로 주문, 엔 환율, 아이 나이, 추측 �
   assert.match(p, /^일본 도쿄 여행 중이야\. 일행은 한국인 가족 3명/);
   assert.match(p, /메뉴판/); assert.match(p, /일본어 한 줄/); assert.match(p, /1엔 ≈ 9\.2원/);
   assert.match(p, /12살 아이가 먹기 괜찮은지/); assert.match(p, /잘 안 보임/);
-  assert.match(p, /\n1\. 메뉴를 하나씩/);
+  assert.match(p, /\n1\. 사진 전체를 끝까지 훑어서/);
 });
 
 test('홍콩·선전: 둘 다면 두 말·두 통화, 홍콩만이면 광둥어·홍콩달러만', async () => {

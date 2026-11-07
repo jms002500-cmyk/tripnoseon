@@ -101,7 +101,7 @@ export const EATS = [
   {id:'eat_hk_lobby', name:'더 로비 (페닌슐라 호텔)', local:'半島酒店大堂茶座 The Lobby', addr:'The Lobby, The Peninsula Hong Kong, Salisbury Road, Tsim Sha Tsui, Hong Kong', area:'tst', lat:22.2951, lng:114.1718,
     pos:'OpenStreetMap 호텔 좌표·앱의 hk_peninsula 좌표', kind:'디저트', indoor:true,
     menu:'애프터눈 티', price:{cur:'HKD', lo:460, hi:530}, spicy:0,
-    kid:'호텔 로비에서 라이브 음악을 들으며 먹어요. 12살도 함께 즐기기 좋지만 값이 높아요.', queue:'예약을 받지 않는다는 안내가 있어 일찍 가서 줄을 서요.',
+    kid:'호텔 로비에서 라이브 음악을 들으며 먹어요. 아이도 함께 즐기기 좋지만 값이 높아요.', queue:'예약을 받지 않는다는 안내가 있어 일찍 가서 줄을 서요.',
     hours:'애프터눈 티 오후 2시~6시쯤 (가기 전 확인)', note:'2인 세트가 1인 값보다 쌀 때가 있어요(2024년 기준 1인 HK$528·2인 HK$918).',
     src:['https://opentable.co.uk/r/the-lobby-the-peninsula-hong-kong', 'https://ordinarypatrons.com/2024/03/23/peninsula-hotel-afternoon-tea-hong-kong/'], checked:B},
   {id:'eat_hk_cookies', name:'쿠키스 쿼텟 (카나번로드)', local:'曲奇四重奏 加拿分道', addr:'Cookies Quartet, 16 Carnarvon Road, Tsim Sha Tsui, Hong Kong', area:'tst', lat:22.2972, lng:114.1730,

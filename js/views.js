@@ -25,7 +25,7 @@ import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDat
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
-import { ASK_KINDS, askKindOf, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
+import { ASK_KINDS, askKindOf, askGroups, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
@@ -136,15 +136,28 @@ const askLine = (title, l) => l && l.local ? `<div class="askorder"><b>${title}<
     <button type="button" class="ghost small" data-act="askline">이 문장 복사</button></div>` : '';
 const askNote = d => `${d.more ? `<p class="fine">${esc(String(d.more))}</p>` : ''}${d.unclear ? `<p class="fine">잘 안 보인 곳: ${esc(String(d.unclear))}</p>` : ''}`;
 const hot = n => n > 0 ? `<span>${'🌶'.repeat(Math.min(3, Math.max(1, Math.round(+n) || 0)))}</span>` : '<span>안 매움</span>';
-function askCard(s, r){
-  const d = r.data, k = r.kind;
-  if(k === 'menu') return `${(d.recommend || []).length ? `<h3>👍 우리 가족 추천</h3><ol class="askrec">${d.recommend.map(x => `<li><b>${esc(x.name)}</b><span>${esc(x.why)}</span></li>`).join('')}</ol>` : ''}
-    ${askLine('🗣 직원에게 보여 주세요', d.order)}
-    <h3>메뉴 ${(d.items || []).length}개</h3>
-    ${(d.items || []).map(x => `<div class="askitem${x.alert ? ' warned' : ''}"><div class="asktop"><b>${esc(x.ko)}</b><span class="askwon">${esc(askMoney(s, d.currency, x.price))}</span></div>
+// 메뉴 한 줄. 면/밥처럼 가격이 둘이면 줄을 나눠 보임
+const askPrices = (s, d, x) => (x.prices || []).map(p => `<span>${p.label ? `${esc(p.label)} ` : ''}${esc(askMoney(s, d.currency, p.price)) || '가격 안 보임'}</span>`).join('');
+const askRecPrice = (s, d, x) => { const m = (d.items || []).find(i => i.ko === x.name); return m ? `<em class="askwon">${askPrices(s, d, m)}</em>` : ''; };
+const askRow = (s, d, x) => `<div class="askitem${x.alert ? ' warned' : ''}"><div class="asktop"><b>${esc(x.ko)}</b><span class="askwon">${askPrices(s, d, x)}</span></div>
       <p class="fine">${esc(x.local || '')}</p><p>${esc(x.desc || '')}</p>
       ${x.alert ? `<p class="warnline">⚠️ ${esc(x.alert)}</p>` : ''}
-      <p class="asktags">${hot(x.spicy)}<span class="kid-${esc(x.kid)}">아이 ${esc(x.kid)}</span>${(x.contains || []).map(c => `<span>${esc(c)}</span>`).join('')}</p></div>`).join('')}
+      <p class="asktags">${hot(x.spicy)}<span class="kid-${esc(x.kid)}">아이 ${esc(x.kid)}</span>${(x.contains || []).map(c => `<span>${esc(c)}</span>`).join('')}</p></div>`;
+// 메뉴가 많으면 분류별로 접음. 접혀 있어도 주의할 메뉴 수는 제목에 보임
+function askMenu(s, d){
+  const items = d.items || [], groups = askGroups(items);
+  if(items.length <= 12 || groups.length < 2) return items.map(x => askRow(s, d, x)).join('');
+  return groups.map((g, i) => { const warn = g.items.filter(x => x.alert).length;
+    return `<details class="more askgroup"${i ? '' : ' open'}><summary>${esc(g.name)} ${g.items.length}개${warn ? ` · ⚠️ ${warn}` : ''}</summary>${g.items.map(x => askRow(s, d, x)).join('')}</details>`; }).join('');
+}
+function askCard(s, r){
+  const d = r.data, k = r.kind;
+  if(k === 'menu') return `${(d.rules || []).length ? `<div class="askrules"><b>📌 가게 안내</b><ul>${askList(d.rules)}</ul></div>` : ''}
+    ${(d.recommend || []).length ? `<h3>👍 우리 가족 추천</h3><ol class="askrec">${d.recommend.map(x => `<li><b>${esc(x.name)}</b>${askRecPrice(s, d, x)}<span>${esc(x.why)}</span></li>`).join('')}</ol>` : ''}
+    ${askLine('🗣 직원에게 보여 주세요', d.order)}
+    <h3>메뉴 ${(d.items || []).length}개</h3>
+    <p class="fine">AI가 읽은 값이라 이름·가격이 틀릴 수 있어요. 주문 전에 메뉴판과 한 번 확인하세요.</p>
+    ${askMenu(s, d)}
     ${askNote(d)}`;
   if(k === 'receipt'){ const line = receiptLine(d); return `<h3>🧾 ${esc(d.store || '영수증')}</h3>${d.date ? `<p class="fine">${esc(d.date)}${d.pay ? ` · ${esc(d.pay)}` : ''}</p>` : ''}
     ${(d.items || []).map(x => `<div class="askitem"><div class="asktop"><b>${esc(x.ko)}</b><span class="askwon">${esc(askMoney(s, d.currency, x.price))}</span></div><p class="fine">${esc(x.local || '')}</p></div>`).join('')}
@@ -161,7 +174,7 @@ function askCard(s, r){
 function askAnswer(s, hasKey, k){
   if(!hasKey) return '';
   const r = (s.sh.ask || {}).res;
-  if(r && r.busy) return '<p class="pnote" role="status">✨ 사진을 읽고 있어요… (10~20초쯤)</p>';
+  if(r && r.busy) return '<p class="pnote" role="status">✨ 사진을 읽고 있어요… (메뉴가 많으면 30초쯤)</p>';
   if(r && r.data) return `<div class="askcard" id="askres">${askCard(s, r)}</div>
     <p class="fine">AI 답은 틀릴 수 있어요. 알레르기·약은 직원·약사에게 한 번 더 확인하세요.</p>`;
   if(r && r.text) return `<div class="askres" id="askres">${esc(r.text)}</div>
