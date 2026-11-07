@@ -22,6 +22,22 @@ export function centroid(items){
 
 // 'YYYY-MM-DD'를 현지 날짜로 (UTC로 해석하면 하루 밀리는 문제를 피함)
 export function parseDate(str){ const [y,m,d] = str.split('-').map(Number); return new Date(y, m-1, d); }
+// 장소·식당 찾기. 띄어쓰기·문장부호를 무시하고, 낱말이 모두 들어 있는 곳만. 이름에 맞는 곳이 먼저
+const normText = x => String(x || '').toLowerCase().replace(/[\s·,.()'’/-]+/g, '');
+export function searchPlaces(list, q, areas = {}){
+  const toks = String(q || '').trim().split(/\s+/).map(normText).filter(Boolean);
+  if(!toks.length) return [];
+  return list.map(p => {
+    const name = normText(p.name), tiers = [[name, 8], [normText([p.ja, p.local, p.addr, (areas[p.area] || {}).name].join(' ')), 4],
+      [normText([p.kind, p.menu, ...(p.tags || [])].join(' ')), 2], [normText(p.note), 1]];
+    let sc = 0;
+    for(const t of toks){
+      const hit = tiers.find(([h]) => h.includes(t)); if(!hit) return null;
+      sc += hit[1] + (name.startsWith(t) ? 4 : 0);
+    }
+    return { p, sc };
+  }).filter(Boolean).sort((a, b) => b.sc - a.sc).map(x => x.p);
+}
 const shiftDate = (str, n) => { const d = parseDate(str); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 // 가는 날·오는 날 고치기. 가는 날을 오는 날 뒤로 옮기면 여행 길이는 그대로 두고 오는 날도 같이 옮김 (날짜가 뒤집혀 일정이 사라지지 않게)
 export const datesReversed = s => !!s.start && !!s.end && s.start > s.end;

@@ -251,6 +251,10 @@ details.more .list{margin-top:8px}
 .fullday{border-radius:10px; background:var(--paper); padding:12px; display:flex; flex-direction:column; gap:4px; border-left:5px solid var(--day)}
 .fullday span{font-size:var(--fs-sm); color:var(--muted)}
 .empty{font-size:var(--fs-md); color:var(--muted)}
+.psearch input{width:100%; box-sizing:border-box; padding:12px 14px; border:1.5px solid var(--rule); border-radius:12px; background:var(--surface); color:var(--ink); font-size:16px}
+#psres:empty{display:none}
+#psres{display:grid; gap:12px; margin-top:12px}
+#pickbody[hidden]{display:none}
 .warnline{font-size:var(--fs-sm); color:var(--warn); font-weight:600}
 
 /* bottom bar */
