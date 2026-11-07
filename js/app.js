@@ -27,7 +27,7 @@ import { mealSlots, foodKey } from './food.js';
 import { matchKnown, toCustom, staleGoogle, applyRefresh } from './gplace.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd, wxStale, keepWeather } from './weather.js';
-import { loadFx, convert } from './prices.js';
+import { loadFx, convert, addKrw } from './prices.js';
 import { planTripleImport, applyTripleImport } from './ledgerimport.js';
 import { atPlace, parseLine, lineFromAi, previewText, ledgerHint, defaultPayer, defaultDay, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, ratesOf, mainCur, personUsed, catOf } from './ledger.js';
 import { parseWon, setBudget } from './budget.js';
@@ -131,10 +131,11 @@ function ensureHko(){
 }
 
 // 숙소 동네·가계부 단계에서 환율을 하루 한 번 받아 둠 (원·엔 가격 비교, 지출 합계)
-let fxBusy = false;
+let fxBusy = false, fxTried = 0;
 function ensureFx(){
   const s = state; const today = ymd(new Date());
-  if((s.step !== 4 && s.step !== LEDGER_STEP) || fxBusy || (s.fx && s.fx.checked === today && s.fx.rates)) return;
+  if(fxBusy || Date.now() - fxTried < 600000 || (s.fx && s.fx.checked === today && s.fx.rates)) return;
+  fxTried = Date.now();
   fxBusy = true;
   loadFx(today).then(fx => { fxBusy = false; if(fx && state === s){ s.fx = fx; save(); render(); } });
 }
@@ -341,6 +342,18 @@ function onShareSubmit(f){
 // 다른 사람의 변경(실시간)으로 다시 그릴 때: 글자를 입력하는 중이면 미뤘다가 입력칸을 벗어나면 그림
 let renderLater = false;
 function typing(){ const a = document.activeElement; return !!a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(button|checkbox|radio|file)$/.test(a.type))); }
+// 화면의 현지 금액 뒤에 원화 참고 금액을 붙임. 데이터·저장값은 그대로 두고 그려진 글자만 바꿈.
+//   가계부는 원화 합계를 따로 보여 줘서 뺌. 고르기 칸·입력 칸은 글자가 값이라 건드리지 않음
+function showKrw(s){
+  const v = document.getElementById('view'); if(!v || (s.step === LEDGER_STEP && !s.mode)) return;
+  const rates = ratesOf(s); if(!Object.keys(rates).length) return;
+  const yen = s.city === 'tokyo' ? 'JPY' : 'CNY';
+  const w = document.createTreeWalker(v, NodeFilter.SHOW_TEXT);
+  for(let n = w.nextNode(); n; n = w.nextNode()){
+    if(n.parentElement.closest('select,option,textarea,script,style')) continue;
+    const t = addKrw(n.nodeValue, rates, yen); if(t !== n.nodeValue) n.nodeValue = t;
+  }
+}
 function renderRemote(){ if(typing()){ renderLater = true; return; } render(); }
 document.addEventListener('focusout', () => { if(renderLater){ renderLater = false; setTimeout(() => { if(!typing()) render(); else renderLater = true; }, 0); } });
 
@@ -389,6 +402,7 @@ function render(){
   ensureWeather(false);
   ensureHko();
   ensureFx();
+  showKrw(s);
   hydrateThumbs();
 }
 

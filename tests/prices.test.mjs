@@ -3,7 +3,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT } from '../js/data.js';
 import { clone, compareHotels } from '../js/logic.js';
-import { SITES, siteUrl, convert, priceOptions, bestPrice } from '../js/prices.js';
+import { SITES, siteUrl, convert, addKrw, priceOptions, bestPrice } from '../js/prices.js';
+
+test('글 속 현지 금액에 원화 참고 금액을 붙임', () => {
+  const r = { HKD:190, CNY:200, JPY:9 };
+  assert.equal(addKrw('1인 약 HK$30~45 · 걸어서 5분', r), '1인 약 HK$30~45 (약 5,700~8,600원) · 걸어서 5분');
+  assert.equal(addKrw('어른 HK$3.3, 아이 HK$1.6이에요.', r), '어른 HK$3.3 (약 630원), 아이 HK$1.6 (약 300원)이에요.');
+  assert.equal(addKrw('보증금 HK$350쯤부터', r), '보증금 HK$350쯤 (약 66,500원)부터');
+  assert.equal(addKrw('HK$120,000 넘으면 신고', r), 'HK$120,000 (약 22,800,000원) 넘으면 신고');
+  assert.equal(addKrw('2층 HK$5.0·1층 HK$4.0', r), '2층 HK$5.0 (약 950원)·1층 HK$4.0 (약 760원)');   // 가운뎃점 뒤 층수를 금액으로 읽지 않음
+  assert.equal(addKrw('HK$500·1,000 지폐', r), 'HK$500·1,000 (약 95,000~190,000원) 지폐');
+  assert.equal(addKrw('입장료 60위안', r), '입장료 60위안 (약 12,000원)');
+  assert.equal(addKrw('라멘 1,200엔이에요', r), '라멘 1,200엔 (약 10,800원)이에요');
+  assert.equal(addKrw('¥100~150', r, 'CNY'), '¥100~150 (약 20,000~30,000원)');
+  assert.equal(addKrw('¥100', r), '¥100 (약 900원)');
+  assert.equal(addKrw('엔화·위안화·3엔진·HK$ 없음', r), '엔화·위안화·3엔진·HK$ 없음');
+  const once = addKrw('HK$30', r);
+  assert.equal(addKrw(once, r), once);                                  // 다시 그려도 두 번 안 붙음
+  assert.equal(addKrw('HK$30 (20원)', {}), 'HK$30 (20원)');             // 환율이 없으면 그대로
+  assert.equal(addKrw('HK$30', null), 'HK$30');
+});
 
 const s0 = () => Object.assign(clone(DEFAULT), { who:'family', adults:2, kids:[9], start:'2027-03-07', end:'2027-03-11' });
 const site = k => SITES.find(x => x.key === k);

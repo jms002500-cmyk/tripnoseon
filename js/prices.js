@@ -54,6 +54,28 @@ export function convert(v, from, to, rate){
   return a && b ? v * a / b : null;
 }
 
+// 글 속 현지 금액 뒤에 원화 참고 금액을 붙임: 'HK$30~45쯤' → 'HK$30~45쯤 (약 5,800~8,700원)'.
+// 환율은 매일 바뀌니 참고용이라 작은 단위는 반올림. 환율이 없으면 글을 그대로 둠(순수 함수).
+// yen: 글에 '¥'만 있을 때 어느 통화인지 (도쿄 JPY, 홍콩·선전 CNY)
+const AMT_N = String.raw`\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?`;
+const AMT_RE = new RegExp(String.raw`HK\$\s?(${AMT_N})(?:\s?[~-]\s?(${AMT_N})|·(?=\d{3}|\d{1,3},\d{3})(${AMT_N}))?(쯤|대)?` +
+  String.raw`|¥\s?(${AMT_N})(?:\s?[~-]\s?(${AMT_N}))?(쯤)?` +
+  String.raw`|(${AMT_N})(?:\s?[~-]\s?(${AMT_N}))?\s?(위안|엔(?![화진트터디젤]))(쯤)?`, 'g');
+const amtNum = t => t == null ? null : +t.replace(/,/g, '');
+const roundKrw = w => { const u = w < 1000 ? 10 : w < 100000 ? 100 : w < 1000000 ? 1000 : 100000; return Math.round(w / u) * u; };
+export function addKrw(text, rates, yen = 'JPY'){
+  if(!text || !rates) return text;
+  return text.replace(AMT_RE, (m, h1, h2, h3, hs, y1, y2, ys, n1, n2, unit, us, at, all) => {
+    const cur = h1 != null ? 'HKD' : y1 != null ? yen : unit === '위안' ? 'CNY' : 'JPY';
+    const lo = amtNum(h1 ?? y1 ?? n1), hi = amtNum(h2 ?? h3 ?? y2 ?? n2);
+    const a = convert(lo, cur, 'KRW', rates); if(a == null) return m;
+    if(/^\s*(\(약|원)/.test(all.slice(at + m.length))) return m;   // 이미 원화가 붙어 있음
+    const b = hi > lo ? convert(hi, cur, 'KRW', rates) : null;
+    const won = n => roundKrw(n).toLocaleString('ko-KR');
+    return `${m} (약 ${won(a)}${b ? `~${won(b)}` : ''}원)`;
+  });
+}
+
 // 숙소 하나의 가격 후보들 → 기준 통화(cur)로 바꿔 가장 싼 것
 //   base: 카드에 넣은 가격(라쿠텐 자동 또는 직접 입력). 넣을 때 통화 h.pcur(없으면 옛 데이터라 지금 통화 cur로 봄)
 //   prices: 사이트별로 적은 가격 { site: { v, cur, at } }
