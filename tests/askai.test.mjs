@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as D from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askGroups, askOrder, askRecItem, askKeyInfo, askKeys, askKeyNow, askTargets, askErrTag, ASK_KEY, ASK_VKEY, ASK_USE, b64url, pemToDer, jwtClaims } from '../js/askai.js';
+import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askGroups, askOrder, askRecItem, askTransPrompt, hasHangul, askKeyInfo, askKeys, askKeyNow, askTargets, askErrTag, ASK_KEY, ASK_VKEY, ASK_USE, b64url, pemToDer, jwtClaims } from '../js/askai.js';
 
 test('키 칸: 구글 키·버텍스 키·서비스 계정 JSON을 구분', () => {
   const sa = { private_key:'-----BEGIN PRIVATE KEY-----\nQUJD\nREVG\n-----END PRIVATE KEY-----\n', client_email:'a@b.iam.gserviceaccount.com', project_id:'p1' };
@@ -68,19 +68,49 @@ test('메뉴 고르기: 여러 메뉴·수량으로 주문 문장을 만듦', ()
   assert.match(askOrder({ currency:'HKD', items }, { '0:0':1 }).local, /^唔該/);
   assert.match(askOrder({ currency:'JPY', items }, { '0:0':1 }).local, /^すみません/);
   assert.equal(askOrder({ currency:'CNY', items }, { '1:0':1 }).lines[0].local, '番茄炒蛋盖浇面');
-  assert.equal(askOrder({ currency:'CNY', items }, { '2:0':1 }).lines[0].local, '牛肉拉面');   // 보통은 붙이지 않음
+  assert.equal(askOrder({ currency:'CNY', items }, { '2:0':1 }).lines[0].local, '牛肉拉面（16元）');   // 한글 구분은 가격으로 알아보게
   // 직원에게 보여 줄 문장에는 한글이 들어가면 안 됨
   const sized = l => ({ currency:'CNY', items:[{ ko:'면', local:'牛肉面', prices:[{ label:l, price:16 }, { label:'x', price:18 }] }] });
-  [['일반', '牛肉面'], ['보통', '牛肉面'], ['대', '牛肉面（大碗）'], ['큰 그릇', '牛肉面（大碗）'], ['소', '牛肉面（小碗）'], ['작은 사이즈', '牛肉面（小碗）'], ['중', '牛肉面（中碗）'], ['大', '牛肉面（大）'], ['소고기', '牛肉面']]
+  [['일반', '牛肉面（16元）'], ['보통', '牛肉面（16元）'], ['매운맛', '牛肉面（16元）'], ['대', '牛肉面（大碗）'], ['큰 그릇', '牛肉面（大碗）'], ['소', '牛肉面（小碗）'], ['작은 사이즈', '牛肉面（小碗）'], ['중', '牛肉面（中碗）'], ['大', '牛肉面（大）']]
     .forEach(([l, want]) => assert.equal(askOrder(sized(l), { '0:0':1 }).lines[0].local, want, l));
   assert.equal(askOrder({ ...sized('대'), currency:'JPY' }, { '0:0':1 }).lines[0].local, '牛肉面（大盛り）');
   assert.equal(askOrder(sized('일반'), { '0:0':1 }).lines[0].ko, '면 (일반)');   // 뜻 줄은 한국어 그대로
+  // 옵션은 AI가 준 메뉴판 글자 이름이 먼저. 한글이면 쓰지 않음. 셋 이상도 가격으로 구분
+  const three = { currency:'HKD', items:[{ ko:'국수', local:'湯麵', prices:[{ label:'순한맛', local:'清湯麵', price:30 }, { label:'매운맛', local:'매운 국수', price:32 }, { label:'곱빼기', price:null }] }] };
+  assert.equal(askOrder(three, { '0:0':1 }).lines[0].local, '清湯麵');
+  assert.equal(askOrder(three, { '0:1':1 }).lines[0].local, '湯麵（HK$32）');
+  assert.equal(askOrder(three, { '0:2':1 }).lines[0].local, '湯麵（3）');
+  // AI가 옵션 이름 칸에 가격을 넣어도 주문 문장이 망가지지 않음 (실제로 나온 답)
+  const bad = l => ({ currency:'CNY', items:[{ ko:'덮밥', local:'孜然牛肉盖浇面/饭', prices:[{ label:'면', local:l, price:25 }, { label:'밥', local:l, price:22 }] }] });
+  ['25元', '孜然牛肉盖浇面/饭 22元'].forEach(l => assert.equal(askOrder(bad(l), { '0:1':1 }).lines[0].local, '孜然牛肉盖浇饭'));
+  const odd = { currency:'CNY', items:[{ ko:'국수', local:'汤面', prices:[{ label:'가', local:'25元', price:25 }, { label:'나', price:22 }] }] };
+  assert.equal(askOrder(odd, { '0:0':1 }).lines[0].local, '汤面（25元）');
+  // 메뉴별 요청·전체 요청·직접 쓴 말
+  const dd = { currency:'CNY', items:[items[0], items[2]] };
+  const m = askOrder(dd, { '0:0':2, '1:1':1 }, { reqs:{ '0:0':['nospicy', 'cilantro'], '*':['salt'] }, free:[{ ko:'작은 그릇에', local:'请用小碗。' }] });
+  assert.equal(m.local, '你好，我要这些：\n蛋炒饭 × 2（不要辣，不要香菜）\n牛肉拉面（大碗） × 1\n全部：少盐\n请用小碗。');
+  assert.equal(m.ko, '계란 볶음밥 2개(안 맵게, 고수 빼기), 소고기 수타면 (대) 1개\n전체: 덜 짜게\n작은 그릇에');
+  assert.equal(m.lines[0].say, '蛋炒饭 × 2（不要辣，不要香菜）');   // 크게 보기 화면의 줄에도 요청이 들어감
+  assert.match(askOrder({ currency:'HKD', items:dd.items }, { '0:0':1 }, { reqs:{ '0:0':['cilantro'] } }).local, /唔要芫荽/);
+  assert.match(askOrder({ currency:'JPY', items:dd.items }, { '0:0':1 }, { reqs:{ '0:0':['cilantro'] } }).local, /パクチー抜き/);
+  assert.equal(hasHangul('牛肉'), false); assert.equal(hasHangul('밥'), true);
+  assert.match(askTransPrompt('물 주세요', 'HKD'), /광둥어/); assert.match(askTransPrompt('x', 'CNY'), /간체/);
   const u = askOrder(d, { '0:0':1, '3:0':2 }); assert.equal(u.total, 18); assert.equal(u.unknown, true);
   assert.equal(askOrder(d, {}).count, 0); assert.equal(askOrder(d, undefined).count, 0);
   assert.equal(askOrder(d, { '9:0':1, '0:0':0 }).count, 0);   // 없는 메뉴·0개는 넣지 않음
   assert.equal(askRecItem(d, { name:'다른 이름', local:'牛肉拉面' }), items[2]);
   assert.equal(askRecItem(d, { name:'계란 볶음밥' }), items[0]);
   assert.equal(askRecItem(d, { name:'없는 메뉴', local:'无' }), null);
+});
+
+test('말이 안 통할 때 문구: 세 말이 모두 있고 한글이 섞이지 않음', async () => {
+  const T = await import('../js/asktalk.js');
+  [T.REQS, T.SAYS, T.ASKS, T.REPLIES].forEach(list => {
+    assert.equal(new Set(list.map(x => x.key)).size, list.length);
+    list.forEach(x => { assert.ok(x.ko && hasHangul(x.ko), x.key); ['CNY', 'HKD', 'JPY'].forEach(c => { assert.ok(x[c], `${x.key} ${c}`); assert.equal(hasHangul(x[c]), false, `${x.key} ${c}`); }); });
+  });
+  ['CNY', 'HKD', 'JPY'].forEach(c => { const w = T.talkWords(c); ['reply', 'gone', 'write', 'go', 'all', 'dot', 'lang'].forEach(k => assert.ok(w[k], k)); assert.ok(w.unit(5)); });
+  assert.equal(T.talkOf(T.REQS[0], 'KRW'), T.REQS[0].CNY);
 });
 
 test('공개 코드에 비밀키가 없음', () => {
