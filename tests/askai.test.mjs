@@ -3,7 +3,33 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError } from '../js/askai.js';
+import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText } from '../js/askai.js';
+import { parseLine } from '../js/ledger.js';
+
+test('앱 안 답: 종류마다 칸 정의가 있고, 모양이 맞아야 받음', () => {
+  const s = fam({ city:'hksz' });
+  ASK_KINDS.forEach(k => { assert.ok(askSchema(k.key).required.length, k.key); assert.match(askJsonPrompt(s, k.key, '땅콩 알레르기'), /참고: 땅콩 알레르기/); });
+  assert.deepEqual(geminiBody('부탁', 'image/jpeg', 'QQ', askSchema('menu')).generationConfig.responseMimeType, 'application/json');
+  const ok = '{"currency":"HKD","recommend":[],"items":[],"order":{"ko":"a","local":"b"}}';
+  assert.equal(askParse('menu', ok).currency, 'HKD');
+  assert.equal(askParse('menu', '```json\n' + ok + '\n```').currency, 'HKD');
+  assert.equal(askParse('menu', '{"items":[]}'), null);   // 칸이 빠지면 글로 보여 줌
+  assert.equal(askParse('menu', '메뉴는 다음과 같아요'), null);
+});
+
+test('영수증 → 가계부 한 줄을 가계부가 그대로 읽음', () => {
+  const s = fam({ city:'hksz' });
+  assert.equal(receiptLine({ what:'점심', total:267.3, currency:'HKD' }), '점심 267.3홍콩달러');
+  assert.equal(receiptLine({ what:'점심', total:null, currency:'HKD' }), '');
+  const r = parseLine(receiptLine({ what:'점심', total:267.3, currency:'HKD' }), s, { today:'2026-12-21', cur:'HKD', by:'' });
+  assert.equal(r.ok, true); assert.equal(r.e.cur, 'HKD'); assert.equal(r.e.amt, 267);   // 가계부는 정수
+});
+
+test('사진 위 부탁 문장: 안내 줄을 붙이고 폭에 맞춰 줄바꿈', () => {
+  assert.match(composedPrompt(fam({ city:'hksz' }), 'menu', ''), /^\[이 글 아래 사진을 보고/);
+  assert.deepEqual(wrapText('가나다라마\n바', 3, t => t.length), ['가나다', '라마', '바']);
+  assert.deepEqual(wrapText('', 3, t => t.length), ['']);
+});
 
 test('앱 안에서 바로 받기: 보낼 모양·답 정리·오류 문구', () => {
   assert.deepEqual(geminiBody('부탁', 'image/jpeg', 'QUJD').contents[0].parts, [{ text:'부탁' }, { inline_data:{ mime_type:'image/jpeg', data:'QUJD' } }]);
