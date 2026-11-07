@@ -28,6 +28,7 @@ import { matchKnown, toCustom, staleGoogle, applyRefresh } from './gplace.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd, wxStale, keepWeather } from './weather.js';
 import { loadFx, convert, addKrw } from './prices.js';
+import { isNewer } from './update.js';
 import { planTripleImport, applyTripleImport } from './ledgerimport.js';
 import { atPlace, parseLine, lineFromAi, previewText, ledgerHint, defaultPayer, defaultDay, dayLabel, partyOf, newSpendId, newPersonId, money, rateOf, ratesOf, mainCur, personUsed, catOf } from './ledger.js';
 import { parseWon, setBudget } from './budget.js';
@@ -899,6 +900,7 @@ function act(a, v){
     case 'theme': s.themeFilter = v === 'all' || s.themeFilter === v ? 'all' : v; break;   // 같은 테마를 다시 누르면 풀림
     // 목록 끝의 테마 버튼: 동네·종류 거르기를 풀고 새 목록의 맨 위로
     case 'themenext': s.themeFilter = v; s.areaFilter = 'all'; s.kindFilter = 'all'; save(); render(); goTo('picklist'); return;
+    case 'refresh': applyUpdate(); return;
     case 'akind': s.anchorKind = v; break;
     case 'autopick': autoPickIds(s).forEach(id => { s.picked[id] = true; }); break;
     case 'customdel': s.custom = s.custom.filter(c => c.id !== v); unpick(s, v); break;
@@ -1595,3 +1597,36 @@ function devBar(){ if(devBar.el) document.getElementById('bar').appendChild(devB
 if('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)){
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
+
+// 새 버전 알림: 앱을 켜 둔 채로는 새 버전을 알 길이 없어서, 서버의 sw.js 번호를 가끔 봄 (열 때·앱으로 돌아올 때·15분마다, 5분에 한 번까지)
+//   주고받는 것은 앱 파일뿐이라 일정·개인정보는 나가지 않음. 새 버전이 있으면 새로고침 버튼이 깜빡임
+const UP_GAP = 300000;
+let upLast = 0, upBusy = false;
+async function checkUpdate(){
+  const b = document.getElementById('refreshBtn');
+  if(!b || b.classList.contains('new') || upBusy || !navigator.onLine || Date.now() - upLast < UP_GAP) return;
+  upBusy = true; upLast = Date.now();
+  try{
+    const r = await fetch('sw.js', { cache:'no-store' });
+    if(r.ok && isNewer(await r.text())){ b.classList.add('new'); b.textContent = '↻ 새 버전 적용'; b.setAttribute('aria-label', '새 버전이 있어요. 눌러서 적용하기'); }
+  }catch(e){}
+  upBusy = false;
+}
+// 새로고침: 아직 안 올린 공유 변경을 올리고, 새 버전을 받아 둔 뒤 다시 엶 (느린 연결에서도 새 파일이 열리게)
+async function applyUpdate(){
+  const b = document.getElementById('refreshBtn'); b.disabled = true; b.textContent = '↻ 적용 중…';
+  const wait = ms => new Promise(ok => setTimeout(ok, ms));
+  try{
+    if(pushTimer){ clearTimeout(pushTimer); await Promise.race([pushNow(), wait(1500)]); }
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if(reg){
+      await Promise.race([reg.update(), wait(4000)]);
+      const w = reg.installing || reg.waiting;
+      if(w) await Promise.race([new Promise(ok => w.addEventListener('statechange', () => { if(w.state === 'activated' || w.state === 'redundant') ok(); })), wait(8000)]);
+    }
+  }catch(e){}
+  location.reload();
+}
+setTimeout(checkUpdate, 3000);
+setInterval(() => { if(document.visibilityState === 'visible') checkUpdate(); }, 900000);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') checkUpdate(); });

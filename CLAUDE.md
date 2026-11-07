@@ -66,7 +66,7 @@ npm test       # node --test, 설치할 패키지 없음
 - Nominatim 이용 규칙: 1초에 1번 이하, 같은 검색 반복 금지(캐시), 자동완성 용도 금지.
 - 이벤트는 `data-act`/`data-v`(클릭)와 `data-kid`/`data-date`/`data-full`/`data-move`(변경)로 `app.js`에서 한곳에 처리. 새 버튼도 같은 방식으로.
 - 사용자 입력을 HTML에 넣을 땐 항상 `esc()`.
-- 파일을 추가·삭제하면 `sw.js`의 `SHELL` 목록과 `CACHE` 버전 숫자를 같이 고친다.
+- 파일을 추가·삭제하면 `sw.js`의 `SHELL` 목록과 `CACHE` 버전 숫자를 같이 고친다. 배포할 때 `CACHE`를 올리면 `js/update.js`의 `BUILD`도 같은 값으로 올린다(새로고침 버튼이 이 번호로 새 버전을 알아챔, 테스트가 확인).
 - **API 키를 코드·저장소에 넣지 않는다**. 예외는 `js/firebase-config.js`(Firebase 웹 설정값은 원래 공개용이고 보안은 로그인·접근 규칙이 맡음)와 `js/maps-config.js`(구글 지도 웹 키는 페이지에 보이는 게 정상이고, 구글 클라우드에서 웹사이트 제한·API 제한으로 보호. **Firebase와 다른 구글 클라우드 프로젝트**에 둠: Firebase 프로젝트에 결제를 붙이면 Firebase가 유료 요금제로 바뀜). 지금(개인 사용 단계)은 사용자가 자기 키를 앱에 직접 넣고 그 기기 localStorage(`tripnoseon-rakuten`, 공공데이터포털 키는 `tripnoseon-datagokr`, 일정 상태와 별도)에만 둔다. 라쿠텐은 앱 등록의 '허용된 웹사이트'(Referer 검사)로 다른 사이트에서의 사용을 막는다. 출시할 때는 키를 서버(예: Cloudflare Workers) 뒤로 옮긴다.
 - 대략값·예시 데이터에는 화면에 "대략값" 안내를 남긴다.
 - 다시 받을 수 있거나 화면에서만 쓰는 새 상태 칸을 만들면 `js/backup.js`의 DROP에도 넣는다(백업에서 빼고, 되돌릴 때 기본값).

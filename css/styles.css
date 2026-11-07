@@ -65,6 +65,13 @@ p{margin:0}
 .net.back b{color:var(--good)}
 .brand{display:flex; align-items:baseline; gap:8px}
 .logo{font:400 22px/1 var(--f-display); letter-spacing:.02em}
+.brandrow{flex-wrap:wrap}   /* 아주 좁은 폰은 버튼이 다음 줄로 */
+.brandcol{flex:none; display:flex; flex-direction:column; align-items:flex-start; gap:5px}
+.refresh{min-height:26px; padding:3px 9px; border:1px solid var(--rule); border-radius:999px; background:transparent; color:var(--muted); font-size:12px; line-height:1.2; white-space:nowrap; cursor:pointer}
+.refresh.new{border-color:var(--accent); background:var(--accent); color:var(--paper); font-weight:700; animation:refreshblink 1.1s ease-in-out infinite}
+.refresh:disabled{opacity:.7; animation:none}
+@keyframes refreshblink{ 50%{opacity:.35} }
+@media (prefers-reduced-motion: reduce){ .refresh.new{animation:none} }
 .tag{font:500 var(--fs-xs)/1 var(--f-mono); color:var(--muted); letter-spacing:.08em; text-transform:uppercase;
   border:1px solid var(--rule); border-radius:4px; padding:3px 5px}
 .line{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(var(--n, 6),1fr); position:relative}
