@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import vm from 'node:vm';
+import { BUILD, isNewer } from '../js/update.js';
 
 const root = new URL('../', import.meta.url);
 const read = f => readFileSync(new URL(f, root), 'utf8');
@@ -202,6 +203,15 @@ test('sw: 공공데이터·홍콩 MTR·천문대·구글 지도·Firebase 요청
   await w.tick(0);
   assert.equal(w.store.size, 0);
   assert.equal(w.net.calls.length, 0);
+});
+
+test('새 버전 알림: 화면 번호(BUILD)가 sw.js CACHE와 같고, 더 큰 번호만 새 버전으로 봄', () => {
+  assert.equal(BUILD, sw.match(/const CACHE = '([^']+)'/)[1]);
+  assert.equal(isNewer("const CACHE = 'tripnoseon-v12';", 'tripnoseon-v11'), true);
+  assert.equal(isNewer("const CACHE = 'tripnoseon-v9';", 'tripnoseon-v11'), false);   // 앞자리가 아니라 숫자로 비교, 옛 파일이 와도 알리지 않음
+  assert.equal(isNewer("const CACHE = 'tripnoseon-v11';", 'tripnoseon-v11'), false);
+  assert.equal(isNewer('<html>오류 화면</html>', 'tripnoseon-v11'), false);
+  assert.match(read('index.html'), /id="refreshBtn"[^>]*data-act="refresh"/);
 });
 
 test('sw: 새 버전이 켜지면 옛 tripnoseon 사본만 지우고 같은 출처의 다른 앱 사본은 둠', async () => {
