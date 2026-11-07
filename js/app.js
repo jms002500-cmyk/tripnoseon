@@ -6,7 +6,7 @@ import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
-import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, ASK_KEY, askKeyInfo, askModels, askUrl, b64url, pemToDer, jwtClaims, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
+import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, ASK_KEY, ASK_VKEY, ASK_USE, askKeys, askKeyNow, askKeyInfo, askTargets, askErrTag, b64url, pemToDer, jwtClaims, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
 import { PK_KEY, krAirport, moveKap, parkUrl, parseParking } from './parking.js';
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
@@ -1078,8 +1078,9 @@ function act(a, v){
       s.spend[newSpendId()] = Object.assign(r.e, { at:Date.now() }); res.saved = true; toast(`가계부에 적었어요 · ${spentText(r.e)}`); save(); render(); return;
     }
     case 'askresult': clipText((s.sh.ask.res || {}).text || '').then(ok => toast(ok ? '답을 복사했어요.' : '복사가 안 됐어요.')); return;
-    case 'askkeysave': { const k = (document.getElementById('askkey') || {}).value || ''; if(!askKeyInfo(k)){ toast(k.trim() ? '키 모양이 맞지 않아요. 다시 복사해 주세요.' : '키를 붙여 넣어 주세요.'); return; } try{ localStorage.setItem(ASK_KEY, k.trim()); }catch(e){} toast('저장했어요. 이제 사진을 고르면 바로 답이 나와요.'); render(); if(askPhoto) askNow(); return; }
-    case 'askkeydel': try{ localStorage.removeItem(ASK_KEY); }catch(e){} s.sh.ask.res = null; toast('이 폰에서 키를 지웠어요.'); render(); return;
+    case 'askkeysave': { const vx = v === 'v', k = (document.getElementById(vx ? 'askvkey' : 'askkey') || {}).value || ''; if(!askKeyInfo(k, vx)){ toast(!k.trim() ? '키를 붙여 넣어 주세요.' : !vx && k.trim()[0] === '{' ? '이 키는 버텍스 칸에 넣어 주세요.' : '키 모양이 맞지 않아요. 다시 복사해 주세요.'); return; } try{ localStorage.setItem(vx ? ASK_VKEY : ASK_KEY, k.trim()); localStorage.setItem(ASK_USE, vx ? 'v' : 'g'); }catch(e){} s.sh.ask.res = null; toast('저장했어요. 이제 사진을 고르면 바로 답이 나와요.'); render(); if(askPhoto) askNow(); return; }
+    case 'askkeydel': try{ localStorage.removeItem(v === 'v' ? ASK_VKEY : ASK_KEY); }catch(e){} s.sh.ask.res = null; toast('이 폰에서 키를 지웠어요.'); render(); return;
+    case 'askkeyuse': try{ localStorage.setItem(ASK_USE, v); }catch(e){} s.sh.ask.res = null; render(); if(askPhoto) askNow(); return;
     case 'askcopy': clipText(askPrompt(s, s.sh.ask.kind, s.askNote)).then(ok => toast(ok ? '부탁 문장을 복사했어요. AI 입력칸에 붙여 넣으세요.' : '복사가 안 됐어요. 문장을 길게 눌러 복사해 주세요.')); return;
     case 'asksend': sendAsk(); return;
     case 'login': case 'logout': case 'sharestart': case 'joinok': case 'joincancel': case 'restore': case 'copylink': case 'sendlink':
@@ -1335,21 +1336,21 @@ async function vertexToken(sa){
 }
 // 앱 안에서 바로 답 받기: 이 폰에 넣어 둔 키로 구글에 직접 물음 (키가 없으면 아무것도 안 함)
 async function askNow(){
-  const s = state, ask = s.sh.ask; let key = ''; try{ key = localStorage.getItem(ASK_KEY) || ''; }catch(e){}
-  const photo = askPhoto; if(!key || !photo || !ask || (ask.res && ask.res.busy)) return;
+  const s = state, ask = s.sh.ask; let info = null; try{ info = askKeyNow(askKeys(localStorage)); }catch(e){}
+  const photo = askPhoto; if(!info || !photo || !ask || (ask.res && ask.res.busy)) return;
   if(!navigator.onLine){ ask.res = { err:'인터넷이 끊겨 있어요. 연결되면 다시 눌러 주세요.' }; render(); return; }
   ask.res = { busy:true }; render();
   let res;
   try{
     const img = await askImage(photo.file);
-    const info = askKeyInfo(key); const token = info && info.kind === 'sa' ? await vertexToken(info.sa) : '';
-    if(!info || (info.kind === 'sa' && !token)){ ask.res = { err:'키가 맞지 않아요. 키를 다시 넣어 주세요.' }; render(); return; }
+    const token = info.kind === 'sa' ? await vertexToken(info.sa) : '';
+    if(info.kind === 'sa' && !token){ ask.res = { err:'키가 맞지 않아요. 키를 다시 넣어 주세요.' }; render(); return; }
     const body = JSON.stringify(geminiBody(askJsonPrompt(s, ask.kind, s.askNote), img.mime, img.data, askSchema(ask.kind)));
     const headers = Object.assign({ 'Content-Type':'application/json' }, token ? { Authorization:`Bearer ${token}` } : { 'x-goog-api-key':info.key });
     let r;
-    for(const m of askModels(info)){ r = await fetchTimed(askUrl(info, m), { method:'POST', headers, body }, 60000); if(r.status !== 404) break; }
+    for(const u of askTargets(info)){ r = await fetchTimed(u, { method:'POST', headers, body }, 60000); if(r.status !== 404) break; }
     const j = await r.json().catch(() => null); const data = r.ok ? askParse(ask.kind, geminiRaw(j)) : null; const text = r.ok && !data ? geminiText(j) : '';
-    res = data ? { data, kind:ask.kind } : text ? { text } : { err:r.ok ? '답을 받지 못했어요. 사진을 다시 찍어 주세요.' : geminiError(r.status, j) };
+    res = data ? { data, kind:ask.kind } : text ? { text } : { err:r.ok ? '답을 받지 못했어요. 사진을 다시 찍어 주세요.' : `${geminiError(r.status, j)} (구글 응답 ${askErrTag(r.status, j)})` };
   }catch(e){ res = { err:'답이 늦어요. 다시 누르거나 아래 AI 앱으로 보내기를 써 주세요.' }; }
   if(askPhoto !== photo || s.sh.ask !== ask) return;   // 기다리는 동안 사진을 바꿨거나 창을 닫음
   ask.res = res; render(); { const a = document.getElementById('askres'); if(a) a.scrollIntoView({ block:'start' }); }

@@ -25,7 +25,7 @@ import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDat
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
-import { ASK_KINDS, askKindOf, askPrompt, receiptLine, askKeyInfo, AI_SITES, ASK_KEY, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
+import { ASK_KINDS, askKindOf, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
@@ -169,20 +169,25 @@ function askAnswer(s, hasKey, k){
     <p class="fine">AI 답은 틀릴 수 있어요. 알레르기·약은 직원·약사에게 한 번 더 확인하세요.</p>`;
   return `${r && r.err ? `<p class="warnline">${esc(r.err)}</p>` : ''}<button type="button" class="primary" data-act="asknow">✨ ${k.label} 바로 보기</button>`;
 }
-function askKeyBox(hasKey){
-  const vertex = !!hasKey && ['sa', 'express'].includes((askKeyInfo(hasKey) || {}).kind);
-  return `<details class="more"><summary>✨ ${hasKey ? '앱 안에서 바로 받기 켜짐' : '사진만 고르면 앱 안에서 바로 답 받기 (처음 한 번 설정)'}</summary>
-    ${hasKey ? `<p class="fine">사진을 고르면 공유 창 없이 이 화면에 바로 답이 나와요.${vertex ? ' 버텍스로 물어요. 쓴 만큼 크레딧이 줄어요.' : ''}</p>
-      <div><button type="button" class="ghost small" data-act="askkeydel">이 폰에서 키 지우기</button></div>`
-    : `<p class="fine">구글 계정으로 무료 키를 만들어 한 번만 넣으면, 사진을 찍거나 저장된 사진을 고르기만 해도 이 화면에 답이 나와요. 카드 등록은 하지 마세요. 등록하지 않으면 요금이 나오지 않아요.</p>
+function askKeyBox(ks){
+  const kept = (slot, name) => `<p class="fine">${name} 저장됨</p><div><button type="button" class="ghost small" data-act="askkeydel" data-v="${slot}">${name} 지우기</button></div>`;
+  return `<details class="more"><summary>✨ ${ks.use ? '앱 안에서 바로 받기 켜짐' : '사진만 고르면 앱 안에서 바로 답 받기 (처음 한 번 설정)'}</summary>
+    ${ks.use ? `<p class="fine">사진을 고르면 공유 창 없이 이 화면에 바로 답이 나와요.${ks.use === 'v' ? ' 버텍스로 물어요. 쓴 만큼 크레딧이 줄어요.' : ''}</p>` : ''}
+    ${ks.g && ks.v ? `<div class="chips">${chip('askkeyuse', 'g', '구글 무료 키로 묻기', ks.use === 'g')}${chip('askkeyuse', 'v', '버텍스로 묻기', ks.use === 'v')}</div>` : ''}
+    ${ks.g ? kept('g', '구글 무료 키') : `<p class="fine">구글 계정으로 무료 키를 만들어 한 번만 넣으면, 사진을 찍거나 저장된 사진을 고르기만 해도 이 화면에 답이 나와요. 카드 등록은 하지 마세요. 등록하지 않으면 요금이 나오지 않아요.</p>
       <ol class="fine asksteps"><li><a class="link" href="${ASK_KEY_PAGE}" target="_blank" rel="noopener">구글 AI 스튜디오 열기 ↗</a></li><li>Create API key를 눌러 키를 복사</li><li>아래 칸에 붙여 넣고 저장</li></ol>
-      <label for="askkey" class="shlabel">무료 키 (이 폰에만 저장)<input id="askkey" type="password" autocomplete="off" spellcheck="false" maxlength="6000"></label>
-      <div><button type="button" class="primary small" data-act="askkeysave">저장</button></div>`}
-    <p class="fine">이 기능을 쓰면 사진과 부탁 문장이 이 폰에서 구글로 바로 가요.${vertex ? '' : ' 무료 사용분은 구글이 제품 개선에 쓸 수 있어요.'} 여권·카드·얼굴이 나온 사진은 보내지 마세요.</p>
+      <label for="askkey" class="shlabel">구글 무료 키 (이 폰에만 저장)<input id="askkey" type="password" autocomplete="off" spellcheck="false" maxlength="6000"></label>
+      <div><button type="button" class="primary small" data-act="askkeysave" data-v="g">저장</button></div>`}
+    ${ks.v ? kept('v', '버텍스 키') : `<details class="more"><summary>버텍스 키가 있으면 (선택)</summary>
+      <p class="fine">구글 클라우드의 서비스 계정 JSON이나 버텍스 키를 따로 넣는 칸이에요. 구글 무료 키만 쓴다면 비워 두세요. 버텍스는 크레딧이 끝나면 요금이 나올 수 있어요.</p>
+      <label for="askvkey" class="shlabel">버텍스 키 (이 폰에만 저장)<input id="askvkey" type="password" autocomplete="off" spellcheck="false" maxlength="6000"></label>
+      <div><button type="button" class="ghost small" data-act="askkeysave" data-v="v">버텍스 키 저장</button></div></details>`}
+    <p class="fine">이 기능을 쓰면 사진과 부탁 문장이 이 폰에서 구글로 바로 가요.${ks.use === 'v' ? '' : ' 무료 사용분은 구글이 제품 개선에 쓸 수 있어요.'} 여권·카드·얼굴이 나온 사진은 보내지 마세요.</p>
   </details>`;
 }
 export function ASKSHEET(s, photo){
-  let hasKey = ''; try{ hasKey = localStorage.getItem(ASK_KEY) || ''; }catch(e){}
+  let ks = { g:'', v:'', use:'' }; try{ ks = askKeys(localStorage); }catch(e){}
+  const hasKey = !!ks.use;
   const k = askKindOf(s.sh.ask && s.sh.ask.kind);
   return `<div class="mapsheet sheet" role="dialog" aria-label="AI에게 묻기">
     <div class="mshead"><b>📷 AI에게 묻기</b><button type="button" class="ghost small" data-act="askclose">닫기</button></div>
@@ -194,7 +199,7 @@ export function ASKSHEET(s, photo){
       <h2>무슨 사진인가요?</h2>
       <div class="chips">${ASK_KINDS.map(x => chip('askkind', x.key, `${x.icon} ${x.label}`, x.key === k.key)).join('')}</div>
       ${photo ? `<figure class="askphoto"><img src="${photo.url}" alt="고른 사진"><figcaption><button type="button" class="link" data-act="askclear">다른 사진 고르기</button></figcaption></figure>
-      ${askAnswer(s, !!hasKey, k)}
+      ${askAnswer(s, hasKey, k)}
       <button type="button" class="${hasKey ? 'ghost' : 'primary'}" data-act="asksend">${k.icon} AI 앱으로 보내기</button>
       <p class="fine">사진 위에 부탁 문장을 넣은 그림 한 장으로 보내요. 앱 목록에서 쓰는 AI를 고르고 전송만 누르세요. 답이 엉뚱하면 입력칸을 꾹 눌러 붙여 넣으세요(문장은 복사돼 있어요).</p>`
       : `<div class="askpick">
@@ -204,7 +209,7 @@ export function ASKSHEET(s, photo){
       <label for="asknote" class="shlabel">AI에게 늘 덧붙일 말 (이 폰에만 저장)<input id="asknote" type="text" maxlength="200" value="${esc(s.askNote || '')}" placeholder="예: 땅콩 알레르기 있어요, 매운 건 못 먹어요" data-asknote></label>
       <details class="more"><summary>보낼 부탁 문장 보기</summary><pre class="askprompt">${esc(askPrompt(s, k.key, s.askNote))}</pre>
         <div><button type="button" class="ghost small" data-act="askcopy">문장만 복사</button></div></details>
-      ${askKeyBox(hasKey)}
+      ${askKeyBox(ks)}
       <details class="more"><summary>보내기가 안 될 때</summary>
         <p class="fine">'문장만 복사'를 누른 뒤 아래에서 AI를 열고, 사진은 AI 화면에서 직접 붙여 주세요.</p>
         <div class="chips">${AI_SITES.map(x => `<a class="chip" href="${x.url}" target="_blank" rel="noopener">${x.label} 열기 ↗</a>`).join('')}</div>
