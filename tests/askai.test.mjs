@@ -12,7 +12,7 @@ test('키 칸: 구글 키·버텍스 키·서비스 계정 JSON을 구분', () =
   assert.equal(askKeyInfo('AQ.abc').kind, 'express');
   assert.equal(askKeyInfo(JSON.stringify(sa)).kind, 'sa');
   assert.equal(askKeyInfo('{"a":1}'), null); assert.equal(askKeyInfo('{ 깨진'), null); assert.equal(askKeyInfo('두 낱말'), null); assert.equal(askKeyInfo(''), null);
-  assert.match(askUrl(askKeyInfo('AIzaXYZ'), ''), /generativelanguage.*gemini-flash-latest:generateContent/);
+  assert.match(askUrl(askKeyInfo('AIzaXYZ'), ''), /generativelanguage.*gemini-3\.5-flash-lite:generateContent/);
   assert.equal(askUrl({ kind:'sa', sa }, 'm1'), 'https://aiplatform.googleapis.com/v1/projects/p1/locations/global/publishers/google/models/m1:generateContent');
   assert.equal(askUrl(askKeyInfo('AQ.abc'), 'm1'), 'https://aiplatform.googleapis.com/v1/publishers/google/models/m1:generateContent');
   assert.equal(askModels(askKeyInfo('AIzaXYZ')).length, 1); assert.ok(askModels({ kind:'sa' }).length > 1);

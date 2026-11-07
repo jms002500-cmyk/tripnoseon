@@ -95,14 +95,14 @@ export function askPrompt(s, kind, note){
 //   폰에 앱이 깔려 있으면 앱으로 열리고, 없으면 웹 사진 번역. 우리 앱은 주소만 열고 아무것도 보내지 않음
 // 앱 안에서 바로 답 받기(선택): 사용자가 만든 제미나이 무료 키로 이 폰에서 구글에 직접 물음. 서버·비용 없음.
 // 키는 이 폰 localStorage에만 두고 일정·공유·백업에 넣지 않음. 무료 등급은 보낸 내용이 구글 제품 개선에 쓰일 수 있어서 화면에 알림.
-// 모델은 공식 별칭(gemini-flash-latest): 새 버전으로 알아서 바뀌어서 옛 이름이 없어져도 앱을 안 고쳐도 됨
+// 모델은 Flash-Lite(무료 등급·안정판): 같은 메뉴판 시험(2026-11-07)에서 3.5 Flash-Lite 6초, 3.6 Flash 33초, 3.8 Flash는 2분 넘게 걸려 식당에서 쓸 수 있는 것으로 고름
 export const ASK_KEY = 'tripnoseon-askkey';
 export const ASK_KEY_PAGE = 'https://aistudio.google.com/apikey';
-export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
+export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
 // 개발자 본인용: 키 칸에 버텍스 서비스 계정 JSON이나 버텍스 키(AQ.…)를 넣으면 버텍스로 물음. 화면에는 안내하지 않음(일반 사용자는 구글 무료 키).
 //   값은 그 폰 localStorage에만 두고 코드·저장소·공유·백업에 넣지 않음. 위치는 global이어야 새 Flash 모델이 열림(2026-11-07 직접 확인).
 //   별칭 gemini-flash-latest는 버텍스에 없어서(404) 차례로 시도
-export const VERTEX_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-2.5-flash'];
+export const VERTEX_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-flash'];
 const VERTEX_HOST = 'https://aiplatform.googleapis.com';
 export function askKeyInfo(raw){
   const t = String(raw || '').trim(); if(!t) return null;
