@@ -1,9 +1,29 @@
 // AI 도우미 부탁 문장: 여행지·동행·환율에 맞춰 만들고, 모르는 건 추측하지 말라고 함
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import * as D from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText } from '../js/askai.js';
+import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askKeyInfo, askModels, askUrl, b64url, pemToDer, jwtClaims } from '../js/askai.js';
+
+test('키 칸: 구글 키·버텍스 키·서비스 계정 JSON을 구분', () => {
+  const sa = { private_key:'-----BEGIN PRIVATE KEY-----\nQUJD\nREVG\n-----END PRIVATE KEY-----\n', client_email:'a@b.iam.gserviceaccount.com', project_id:'p1' };
+  assert.equal(askKeyInfo(' AIzaXYZ ').kind, 'gemini');
+  assert.equal(askKeyInfo('AQ.abc').kind, 'express');
+  assert.equal(askKeyInfo(JSON.stringify(sa)).kind, 'sa');
+  assert.equal(askKeyInfo('{"a":1}'), null); assert.equal(askKeyInfo('{ 깨진'), null); assert.equal(askKeyInfo('두 낱말'), null); assert.equal(askKeyInfo(''), null);
+  assert.match(askUrl(askKeyInfo('AIzaXYZ'), ''), /generativelanguage.*gemini-flash-latest:generateContent/);
+  assert.equal(askUrl({ kind:'sa', sa }, 'm1'), 'https://aiplatform.googleapis.com/v1/projects/p1/locations/global/publishers/google/models/m1:generateContent');
+  assert.equal(askUrl(askKeyInfo('AQ.abc'), 'm1'), 'https://aiplatform.googleapis.com/v1/publishers/google/models/m1:generateContent');
+  assert.equal(askModels(askKeyInfo('AIzaXYZ')).length, 1); assert.ok(askModels({ kind:'sa' }).length > 1);
+  assert.deepEqual([...pemToDer(sa.private_key)], [...Buffer.from('QUJDREVG', 'base64')]);
+  assert.equal(b64url('a?>'), Buffer.from('a?>').toString('base64url'));
+  const c = jwtClaims(sa, 100); assert.equal(c.iss, sa.client_email); assert.equal(c.exp, 3700);
+});
+
+test('공개 코드에 비밀키가 없음', () => {
+  ['js/askai.js', 'js/app.js', 'js/views.js', 'js/firebase-config.js'].forEach(f => assert.doesNotMatch(readFileSync(new URL('../' + f, import.meta.url), 'utf8'), /-----BEGIN PRIVATE KEY-----[A-Za-z0-9+\/]|"private_key"\s*:|AQ\.[A-Za-z0-9_-]{20}/, f));
+});
 import { parseLine } from '../js/ledger.js';
 
 test('앱 안 답: 종류마다 칸 정의가 있고, 모양이 맞아야 받음', () => {

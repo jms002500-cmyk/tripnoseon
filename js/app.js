@@ -6,7 +6,7 @@ import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
-import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, ASK_KEY, GEMINI_URL, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
+import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, ASK_KEY, askKeyInfo, askModels, askUrl, b64url, pemToDer, jwtClaims, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
 import { PK_KEY, krAirport, moveKap, parkUrl, parseParking } from './parking.js';
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
@@ -1078,7 +1078,7 @@ function act(a, v){
       s.spend[newSpendId()] = Object.assign(r.e, { at:Date.now() }); res.saved = true; toast(`가계부에 적었어요 · ${spentText(r.e)}`); save(); render(); return;
     }
     case 'askresult': clipText((s.sh.ask.res || {}).text || '').then(ok => toast(ok ? '답을 복사했어요.' : '복사가 안 됐어요.')); return;
-    case 'askkeysave': { const k = (document.getElementById('askkey') || {}).value || ''; if(!k.trim()){ toast('키를 붙여 넣어 주세요.'); return; } try{ localStorage.setItem(ASK_KEY, k.trim()); }catch(e){} toast('저장했어요. 이제 사진을 고르면 바로 답이 나와요.'); render(); if(askPhoto) askNow(); return; }
+    case 'askkeysave': { const k = (document.getElementById('askkey') || {}).value || ''; if(!askKeyInfo(k)){ toast(k.trim() ? '키 모양이 맞지 않아요. 다시 복사해 주세요.' : '키를 붙여 넣어 주세요.'); return; } try{ localStorage.setItem(ASK_KEY, k.trim()); }catch(e){} toast('저장했어요. 이제 사진을 고르면 바로 답이 나와요.'); render(); if(askPhoto) askNow(); return; }
     case 'askkeydel': try{ localStorage.removeItem(ASK_KEY); }catch(e){} s.sh.ask.res = null; toast('이 폰에서 키를 지웠어요.'); render(); return;
     case 'askcopy': clipText(askPrompt(s, s.sh.ask.kind, s.askNote)).then(ok => toast(ok ? '부탁 문장을 복사했어요. AI 입력칸에 붙여 넣으세요.' : '복사가 안 됐어요. 문장을 길게 눌러 복사해 주세요.')); return;
     case 'asksend': sendAsk(); return;
@@ -1318,6 +1318,21 @@ async function askImage(f){
     return { mime:f.type || 'image/jpeg', data:u.slice(u.indexOf(',') + 1) };
   }
 }
+// 버텍스 서비스 계정 → 1시간짜리 출입증. 폰 안에서 서명해 구글에서 바로 받음 (askai.js 개발자 본인용, 받은 값은 메모리에만)
+let vToken = null;
+async function vertexToken(sa){
+  if(vToken && vToken.who === sa.client_email && vToken.until > Date.now() + 60000) return vToken.t;
+  const body = `${b64url(JSON.stringify({ alg:'RS256', typ:'JWT' }))}.${b64url(JSON.stringify(jwtClaims(sa, Math.floor(Date.now() / 1000))))}`;
+  const algo = { name:'RSASSA-PKCS1-v1_5', hash:'SHA-256' };
+  const key = await crypto.subtle.importKey('pkcs8', pemToDer(sa.private_key), algo, false, ['sign']);
+  const sig = await crypto.subtle.sign(algo, key, new TextEncoder().encode(body));
+  const r = await fetchTimed('https://oauth2.googleapis.com/token', { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+    body:`grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer')}&assertion=${body}.${b64url(sig)}` }, 20000);
+  const j = await r.json().catch(() => null);
+  if(!r.ok || !j || !j.access_token) return null;
+  vToken = { who:sa.client_email, t:j.access_token, until:Date.now() + (j.expires_in || 3600) * 1000 };
+  return vToken.t;
+}
 // 앱 안에서 바로 답 받기: 이 폰에 넣어 둔 키로 구글에 직접 물음 (키가 없으면 아무것도 안 함)
 async function askNow(){
   const s = state, ask = s.sh.ask; let key = ''; try{ key = localStorage.getItem(ASK_KEY) || ''; }catch(e){}
@@ -1327,7 +1342,12 @@ async function askNow(){
   let res;
   try{
     const img = await askImage(photo.file);
-    const r = await fetchTimed(GEMINI_URL, { method:'POST', headers:{ 'Content-Type':'application/json', 'x-goog-api-key':key }, body:JSON.stringify(geminiBody(askJsonPrompt(s, ask.kind, s.askNote), img.mime, img.data, askSchema(ask.kind))) }, 60000);
+    const info = askKeyInfo(key); const token = info && info.kind === 'sa' ? await vertexToken(info.sa) : '';
+    if(!info || (info.kind === 'sa' && !token)){ ask.res = { err:'키가 맞지 않아요. 키를 다시 넣어 주세요.' }; render(); return; }
+    const body = JSON.stringify(geminiBody(askJsonPrompt(s, ask.kind, s.askNote), img.mime, img.data, askSchema(ask.kind)));
+    const headers = Object.assign({ 'Content-Type':'application/json' }, token ? { Authorization:`Bearer ${token}` } : { 'x-goog-api-key':info.key });
+    let r;
+    for(const m of askModels(info)){ r = await fetchTimed(askUrl(info, m), { method:'POST', headers, body }, 60000); if(r.status !== 404) break; }
     const j = await r.json().catch(() => null); const data = r.ok ? askParse(ask.kind, geminiRaw(j)) : null; const text = r.ok && !data ? geminiText(j) : '';
     res = data ? { data, kind:ask.kind } : text ? { text } : { err:r.ok ? '답을 받지 못했어요. 사진을 다시 찍어 주세요.' : geminiError(r.status, j) };
   }catch(e){ res = { err:'답이 늦어요. 다시 누르거나 아래 AI 앱으로 보내기를 써 주세요.' }; }

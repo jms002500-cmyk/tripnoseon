@@ -25,7 +25,7 @@ import { CATS, PAYS, catOf, partyOf, defaultPayer, defaultDay, dayLabel, tripDat
 import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js';
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
-import { ASK_KINDS, askKindOf, askPrompt, receiptLine, AI_SITES, ASK_KEY, ASK_KEY_PAGE, QUICK_TRANSLATE, planPrompt, aiToPick } from './askai.js';
+import { ASK_KINDS, askKindOf, askPrompt, receiptLine, askKeyInfo, AI_SITES, ASK_KEY, ASK_KEY_PAGE, QUICK_TRANSLATE, planPrompt, aiToPick } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
@@ -170,14 +170,15 @@ function askAnswer(s, hasKey, k){
   return `${r && r.err ? `<p class="warnline">${esc(r.err)}</p>` : ''}<button type="button" class="primary" data-act="asknow">✨ ${k.label} 바로 보기</button>`;
 }
 function askKeyBox(hasKey){
+  const vertex = !!hasKey && ['sa', 'express'].includes((askKeyInfo(hasKey) || {}).kind);
   return `<details class="more"><summary>✨ ${hasKey ? '앱 안에서 바로 받기 켜짐' : '찍으면 앱 안에서 바로 답 받기 (처음 한 번 설정)'}</summary>
-    ${hasKey ? `<p class="fine">사진을 고르면 공유 창 없이 이 화면에 바로 답이 나와요.</p>
+    ${hasKey ? `<p class="fine">사진을 고르면 공유 창 없이 이 화면에 바로 답이 나와요.${vertex ? ' 버텍스로 물어요. 쓴 만큼 크레딧이 줄어요.' : ''}</p>
       <div><button type="button" class="ghost small" data-act="askkeydel">이 폰에서 키 지우기</button></div>`
     : `<p class="fine">구글 계정으로 무료 키를 만들어 한 번만 넣으면, 사진을 찍는 것만으로 이 화면에 답이 나와요. 카드 등록은 하지 마세요. 등록하지 않으면 요금이 나오지 않아요.</p>
       <ol class="fine asksteps"><li><a class="link" href="${ASK_KEY_PAGE}" target="_blank" rel="noopener">구글 AI 스튜디오 열기 ↗</a></li><li>Create API key를 눌러 키를 복사</li><li>아래 칸에 붙여 넣고 저장</li></ol>
-      <label for="askkey" class="shlabel">무료 키 (이 폰에만 저장)<input id="askkey" type="password" autocomplete="off" spellcheck="false" maxlength="120"></label>
+      <label for="askkey" class="shlabel">무료 키 (이 폰에만 저장)<input id="askkey" type="password" autocomplete="off" spellcheck="false" maxlength="6000"></label>
       <div><button type="button" class="primary small" data-act="askkeysave">저장</button></div>`}
-    <p class="fine">이 기능을 쓰면 사진과 부탁 문장이 이 폰에서 구글로 바로 가요. 무료 사용분은 구글이 제품 개선에 쓸 수 있어요. 여권·카드·얼굴이 나온 사진은 보내지 마세요.</p>
+    <p class="fine">이 기능을 쓰면 사진과 부탁 문장이 이 폰에서 구글로 바로 가요.${vertex ? '' : ' 무료 사용분은 구글이 제품 개선에 쓸 수 있어요.'} 여권·카드·얼굴이 나온 사진은 보내지 마세요.</p>
   </details>`;
 }
 export function ASKSHEET(s, photo){
