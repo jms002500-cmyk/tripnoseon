@@ -57,13 +57,49 @@ export function partyText(s){
   const w = WHO.find(x => x.key === s.who); return `${w ? w.label : '동행'} ${+s.adults || 0}명`;
 }
 
+/* 함께 짜기: 누가 담았는지 (두 사람 넘게 함께 짤 때만). 사람마다 참여 순서로 색 --who0~5 */
+const sharedMany = s => !!(s.shareId && s.sh && s.sh.user && s.sh.trip && (s.sh.trip.memberUids || []).length > 1);
+function whoOf(s, uid){
+  const t = s.sh.trip, me = s.sh.user.uid, i = (t.memberUids || []).indexOf(uid);
+  return { i:i < 0 ? 5 : i % 6, me:uid === me, gone:i < 0, name:uid === me ? '나' : i < 0 ? '나간 사람' : ((t.members[uid] || {}).name || '참여자').slice(0, 12) };
+}
+const whoChip = w => `<span class="who" style="--who:var(--who${w.i})">${esc(w.name)}</span>`;
+const byOf = (s, id) => (s.by || {})[id] || null;
+function whoTag(s, p){
+  if(!sharedMany(s)) return '';
+  const b = byOf(s, p.id); if(!b || !b.u) return '';
+  const me = s.sh.user.uid, now = Date.now(), DAY = 864e5;
+  const fresh = (b.u !== me && now - (b.at || 0) < DAY) || (b.m && b.m !== me && now - (b.mt || 0) < DAY);
+  return `<p class="whoby">${whoChip(whoOf(s, b.u))} 담음${b.m && b.m !== b.u ? ` · ${whoChip(whoOf(s, b.m))} 날짜 바꿈` : ''}${fresh ? ' <span class="whonew">새로</span>' : ''}</p>`;
+}
+// 이름을 눌러 한 사람 것만 볼 때 나머지를 흐리게
+const whoDim = (s, p) => { const f = s.sh && s.sh.whoFocus; return f && sharedMany(s) && (byOf(s, p.id) || {}).u !== f ? ' whodim' : ''; };
+function whoBox(s, where){
+  if(!sharedMany(s)) return '';
+  const t = s.sh.trip, f = s.sh.whoFocus, picked = pickedPlaces(s);
+  const n = uid => picked.filter(p => (byOf(s, p.id) || {}).u === uid).length;
+  const notes = s.sh.whoNotes || [];
+  return `<div class="box" id="whobox"><h2>누가 담았는지<small>사람마다 색으로</small></h2>
+    ${notes.map((x, i) => `<div class="whonote"><p class="warnline">${esc(x.text)}</p><div class="pfoot"><button type="button" class="ghost small" data-act="whoundo" data-v="${i}">${x.kind === 'gone' ? '다시 담기' : '되돌리기'}</button><button type="button" class="link" data-act="whook" data-v="${i}">괜찮아요</button></div></div>`).join('')}
+    <div class="chips" role="group" aria-label="누가 담았는지 보기">${chip('whofocus', '', '모두', !f)}${t.memberUids.map(u => { const w = whoOf(s, u);
+      return `<button type="button" class="chip whochip" data-act="whofocus" data-v="${esc(u)}" aria-pressed="${f === u}" style="--who:var(--who${w.i})">${esc(w.name)} ${n(u)}곳</button>`; }).join('')}</div>
+    <p class="fine">${where === 'plan' ? '이름을 누르면 그 사람이 담은 곳만 진하게 보여요.' : '이름을 누르면 그 사람이 담은 곳만 보여요.'} 다른 사람이 하루 안에 담거나 날짜를 바꾼 곳엔 '새로'가 붙고, 내가 담은 곳을 누가 빼거나 옮기면 여기에 알려 드려요.</p>
+  </div>`;
+}
+// 여러 사람이 담은 곳이 한 날에 몰려 시간이 넘침
+function crowdWarn(s, d){
+  if(!sharedMany(s) || d.full || !(d.used > d.cap)) return '';
+  const us = [...new Set(d.items.map(p => (byOf(s, p.id) || {}).u).filter(Boolean))]; if(us.length < 2) return '';
+  return `<p class="warnline">여러 사람이 담은 곳이 이날에 몰렸어요(${us.map(u => whoChip(whoOf(s, u))).join(' ')}). 약 ${esc(d.cap)}시간에 ${esc(d.used)}시간어치예요. 의견을 나눠 한 곳을 다른 날로 옮겨 보세요.</p>`;
+}
+
 /* 함께 짜기: 장소마다 투표·의견 (공유 여행일 때만) */
 function voteBar(s, p){
   if(!s.shareId || !s.sh || !s.sh.user) return '';
   const v = voteSummary(s.sh.votes, p.id, s.sh.user.uid);
   const cms = (s.sh.comments || []).filter(c => c.placeId === p.id);
   const open = s.sh.cmPlace === p.id;
-  return `<div class="votes">
+  return `${whoTag(s, p)}<div class="votes">
       <button type="button" class="vbtn" data-act="vote" data-v="${esc(p.id)}|1" aria-pressed="${v.mine === 1}" aria-label="좋아요">👍 ${v.up || ''}</button>
       <button type="button" class="vbtn" data-act="vote" data-v="${esc(p.id)}|-1" aria-pressed="${v.mine === -1}" aria-label="글쎄요">🤔 ${v.down || ''}</button>
       <button type="button" class="vbtn" data-act="cmopen" data-v="${esc(p.id)}" aria-expanded="${open}">의견 ${cms.length || ''}</button>
@@ -519,7 +555,7 @@ export function vMust(s){
   const nearest = p => { let best = null, bd = Infinity; anchors.forEach(q => { if(q.id === p.id || (multi && placeCity(q) !== placeCity(p))) return; const d = dist(p, q); if(d < bd){ bd = d; best = q; } }); return best ? { q:best, km:bd } : null; };
   const nearText = n => n ? `가장 가까운 곳: ${anchors.indexOf(n.q) + 1}번 ${esc(n.q.name)} · ${n.km < 1 ? Math.round(n.km * 10) * 100 + 'm' : n.km.toFixed(1) + 'km'}${n.km <= 1.2 ? ` (걸어서 약 ${walkMin(n.km * 1.3)}분)` : ''}` : '';
   const card = p => { const on = !!s.must[p.id]; const n = anchors.indexOf(p) + 1;
-      return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
+      return `<article class="pcard${on ? ' on' : ''}${whoDim(s, p)}" id="pc-${esc(p.id)}">
         <div class="ptop"><div><h3><span class="pnum">${n}</span>${esc(p.name)}</h3><p class="ja">${esc(p.ja)}</p></div>
           <button type="button" class="mustbtn" data-act="anchor" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '꼭 갈 곳 ✓' : '꼭 갈 곳으로'}</button></div>
         <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${p.book ? ' · 예약 필요' : ''}${closedText(p) ? ` · <span class="closed">${esc(closedText(p))}</span>` : ''}</p>
@@ -574,7 +610,7 @@ function themeEnd(s){
 
 function placeCard(p, s, n){
   const on = !!s.picked[p.id]; const must = !!s.must[p.id]; const f = fitScore(p, s);
-  return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
+  return `<article class="pcard${on ? ' on' : ''}${whoDim(s, p)}" id="pc-${esc(p.id)}">
     <div class="ptop"><div><h3>${n ? `<span class="pnum">${n}</span>` : ''}${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}${p.addr ? `<p class="ja">📍 ${esc(p.addr)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
     <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + esc(p.hours) + '시간'}${closedText(p) ? ` · <span class="closed">${esc(closedText(p))}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
@@ -708,6 +744,7 @@ export function vPick(s){
   if(s.areaFilter !== 'all') list = list.filter(x => x.p.area === s.areaFilter);
   const byArea = list.map(x => x.p);
   if(s.kindFilter !== 'all') list = list.filter(x => x.p.kind === s.kindFilter);
+  if(s.sh && s.sh.whoFocus && sharedMany(s)) list = list.filter(x => (byOf(s, x.p.id) || {}).u === s.sh.whoFocus);   // 누가 담았는지: 그 사람 것만
   list.sort((a, b) => b.sc - a.sc);
   const counts = {}; allPlaces(s).forEach(p => { counts[p.area] = (counts[p.area] || 0) + 1; });
   // 동네·종류로 거르면 그곳만 번호를 달아 지도에 (너무 많으면 번호 없이 전체 약도)
@@ -728,6 +765,7 @@ export function vPick(s){
       <p class="fine">${!cap.total ? '여행 날짜를 정하면 쓸 수 있는 시간을 계산해 드려요.' : over ? '쓸 수 있는 시간보다 많이 담았어요. 일정에서 넘치는 곳은 따로 모아둘게요.' : (cap.total - cap.used < 0.5 ? '쓸 수 있는 시간을 거의 다 채웠어요. 더 담으면 일정에서 넘치는 곳은 따로 모아둘게요.' : `하루 종일 쓰는 곳을 뺀 나머지 날에 ${+(cap.total - cap.used).toFixed(1)}시간 정도 여유가 있어요.`)}</p>
       <div><button type="button" class="ghost small" data-act="autopick">추천 순서대로 빈 시간 채우기</button></div>
     </div>
+    ${whoBox(s, 'pick')}
     ${themeBox(s)}
     <div class="box">
       <h2>구글 지도에서 찾아 담기</h2>
@@ -1311,6 +1349,7 @@ export function vPlan(s){
       ? `밤마다 자는 곳을 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${REGION.key === 'hksz' ? ' 국경을 오가지 않게 그날 자는 도시의 장소를 먼저 넣어요.' : ''}${buildDays(s).slice(0, -1).some(d => !(s.nights || {})[d.key] && autoNight(s, d.key)) ? ' 아직 정하지 않은 밤은 숙소 동네 단계의 나눠 자기 추천대로 계산했어요.' : ''}`
       : `${esc(P.hotel.name)}에 묵는 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${s.hotelArea || P.hotel.cand ? '' : ' 숙소 동네를 아직 안 정해서 1순위 동네로 계산했어요.'}`}</p>
     <div><button type="button" class="ghost small" data-act="replan">손으로 옮긴 것 지우고 다시 짜기</button></div>
+    ${whoBox(s, 'plan')}
     ${mapSVG('plan', s, P)}
     ${moveBox(s, P)}
     ${(sh => sh.total ? `<p class="fine">담은 곳 ${sh.total}곳 중 실내는 ${sh.indoor}곳이에요. 날짜마다 '☔ 비 오면?'을 누르면 가까운 실내 장소로 바꿀 수 있어요.</p>` : '')(indoorShare(s))}
@@ -1318,15 +1357,16 @@ export function vPlan(s){
       const T = dayTrips(d, P.hotel); const mvMin = d.cross ? 0 : etcMinutes(s, d.key);   // 숙소 옮기며 국경 넘는 날은 이미 2시간 뺐음
       const tight = !d.full && (T.travelMin || mvMin) && d.used + (T.travelMin + mvMin) / 60 > d.cap + 0.5;
       const body = d.full
-        ? `<div class="fullday"><b>${esc(d.full.name)}</b><span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(d.from, d.full))}" target="_blank" rel="noopener">숙소에서 ${T.legs[0] ? `약 ${minText(T.legs[0].min)} · ${esc(T.legs[0].mode)} · ` : ''}길찾기 ↗</a>${closedOn(d.full, d) ? '<p class="warnline">이날은 쉬는 날이에요. 다른 날로 옮겨 주세요.</p>' : (d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
+        ? `<div class="fullday${whoDim(s, d.full)}"><b>${esc(d.full.name)}</b>${whoTag(s, d.full)}<span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(d.from, d.full))}" target="_blank" rel="noopener">숙소에서 ${T.legs[0] ? `약 ${minText(T.legs[0].min)} · ${esc(T.legs[0].mode)} · ` : ''}길찾기 ↗</a>${closedOn(d.full, d) ? '<p class="warnline">이날은 쉬는 날이에요. 다른 날로 옮겨 주세요.</p>' : (d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
         : d.items.length
           ? `<ol class="stops">${d.items.map((p, j) => { const cl = closedOn(p, d);
               const prev = j ? d.items[j-1] : d.from;
-              return `<li><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${esc(p.hours)}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
+              return `<li${whoDim(s, p) ? ' class="whodim"' : ''}><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${esc(p.hours)}시간${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.' : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day${d.locked ? ' locked' : ''}" style="--day:${col}">
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${kindLabel(d.kind)} · ${d.full ? '하루 종일' : `${d.used}시간 / 약 ${d.cap}시간`}${T.travelMin ? ` · 이동 약 ${minText(T.travelMin)}` : ''}${(r => r ? ` · 예보 ${esc(r.text || '')}${probText(r) ? `${r.psr ? ' · ' : ' '}${esc(probText(r))}` : ''}` : '')(dayRain(wxOf(s, P), ymdStr(d.date)))}</p></div></header>
         ${tight ? `<p class="warnline">이동까지 넣으면 약 ${minText(Math.round(d.used * 60 + T.travelMin + mvMin))}이라 하루가 빠듯해요. 한 곳을 다른 날로 옮겨 보세요.</p>` : ''}
+        ${crowdWarn(s, d)}
         ${dayMoves(s, d, mctx, 'start')}
         ${split ? `<p class="fine">🏨 ${d.from.name !== d.to.name ? `🧳 숙소 옮기는 날: ${esc(d.from.name)} → ${esc(d.to.name)}${d.cross ? ' · 짐 옮기고 국경 넘는 2시간을 빼고 짰어요' : ''}` : `${esc(d.to.name)}`}</p>` : ''}
         ${body}

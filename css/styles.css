@@ -6,6 +6,7 @@
   --warn:#B93226; --warn-soft:#FCEBE8; --good:#1D7F47;
   --btn:#142030; --btn-ink:#FFFFFF;
   --map-bg:#E9EFF2; --map-loop:#8DBF3A;
+  --who0:#0F7C8C; --who1:#7A45C4; --who2:#C23A78; --who3:#3F7F18; --who4:#2C66C9; --who5:#8A5A1C;   /* 함께 짜기 사람 색 (참여 순서) */
   --pin-look:#1A73E8;   /* 구글 지도 시트 '지금 보는 곳' 핀(gmap.js) — 지도 위라 라이트·다크 같은 색 */
   --f-display:"Do Hyeon","IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
@@ -21,6 +22,7 @@
     --warn:#FF7D6E; --warn-soft:#3A1D1A; --good:#55C98A;
     --btn:#E4E9EE; --btn-ink:#0D141B;
     --map-bg:#121D27; --map-loop:#6A9530;
+    --who0:#4FC3D1; --who1:#B892F0; --who2:#F07DB0; --who3:#8CCB5E; --who4:#7FA8F5; --who5:#D9A35E;
     color-scheme:dark;
   }
 }
@@ -30,6 +32,7 @@
   --warn:#FF7D6E; --warn-soft:#3A1D1A; --good:#55C98A;
   --btn:#E4E9EE; --btn-ink:#0D141B;
   --map-bg:#121D27; --map-loop:#6A9530;
+  --who0:#4FC3D1; --who1:#B892F0; --who2:#F07DB0; --who3:#8CCB5E; --who4:#7FA8F5; --who5:#D9A35E;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -452,6 +455,15 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .shlabel{display:flex; flex-direction:column; gap:6px; font-size:var(--fs-sm); color:var(--muted)}
 .ghost.armed{border-color:var(--warn); color:var(--warn)}
 .votes{display:flex; gap:6px; flex-wrap:wrap; margin-top:4px}
+.whoby{margin:4px 0 0; font-size:var(--fs-sm); color:var(--muted); display:flex; flex-wrap:wrap; align-items:center; gap:4px}
+.who{display:inline-flex; align-items:center; gap:5px; font-weight:700; color:var(--who)}
+.who::before{content:''; width:10px; height:10px; border-radius:50%; background:var(--who); flex:none}
+.whonew{font-size:var(--fs-xs); font-weight:700; color:var(--accent-ink); background:var(--accent-soft); border-radius:999px; padding:1px 7px}
+.whochip{border-color:var(--who)}
+.whochip::before{content:''; display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--who); margin-right:6px; vertical-align:0}
+.whochip[aria-pressed="true"]{border-color:var(--who); background:var(--surface); color:var(--who); box-shadow:inset 0 0 0 1.5px var(--who)}
+.whodim{opacity:.4}
+.pcard.on.whodim, .stops li.whodim{filter:grayscale(.6)}
 .vbtn{border:1.5px solid var(--rule); background:var(--surface); border-radius:999px; padding:3px 10px; font-size:var(--fs-sm); min-height:30px}
 .vbtn[aria-pressed="true"], .vbtn[aria-expanded="true"]{border-color:var(--accent); background:var(--accent-soft); color:var(--accent-ink); font-weight:600}
 .cms{display:flex; flex-direction:column; gap:8px; margin-top:6px; padding:8px; border-radius:8px; background:var(--paper)}

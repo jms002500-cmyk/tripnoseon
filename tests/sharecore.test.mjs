@@ -257,3 +257,27 @@ test('끊긴 채로 열 때 이 기기 사본에 없다는 소식은 \'지워졌
   assert.equal(tripSnap(false, true), 'wait');   // 서버에 못 물어봄 → 기다림
   assert.equal(tripSnap(false, false), 'gone');  // 서버가 없다고 함 → 정말 지워짐
 });
+
+test('누가 담았는지: 새로 담은 곳·날짜 바꾼 곳은 이 기기 사람, 뺀 곳은 지움, 남이 바꾼 것은 안 건드림', async () => {
+  const { stampBy, othersChanged, cleanShared, MAP_KEYS } = await import('../js/sharecore.js');
+  const prev = { picked:{ tdl:true, sensoji:true }, assign:{ sensoji:1 }, fullDay:{}, by:{ tdl:{ u:'A', at:1 }, sensoji:{ u:'A', at:1 } } };
+  const s = Object.assign(base(), { picked:{ tdl:true, sensoji:true, skytree:true }, assign:{ sensoji:2 }, by:clone(prev.by) });
+  assert.ok(stampBy(s, prev, 'B', 100));
+  assert.deepEqual(s.by.skytree, { u:'B', at:100 });                       // B가 새로 담음
+  assert.deepEqual(s.by.sensoji, { u:'A', at:1, m:'B', mt:100 });          // A가 담고 B가 날짜를 바꿈
+  assert.deepEqual(s.by.tdl, { u:'A', at:1 });                             // 안 건드린 곳은 그대로
+  assert.ok(!stampBy(s, sharedOf(s), 'B', 200));                           // 서버가 받은 뒤엔 바뀐 게 없음
+  delete s.picked.tdl; assert.ok(stampBy(s, sharedOf(Object.assign({}, s, { picked:{ tdl:true, sensoji:true, skytree:true } })), 'B', 300));
+  assert.ok(!('tdl' in s.by));                                             // 뺀 곳은 지움
+  assert.ok(SHARED_KEYS.includes('by') && MAP_KEYS.includes('by'));
+  // 남이 준 이상한 모양은 바로잡음
+  const c = cleanShared(Object.assign(base(), { by:{ x:{ u:5, at:'<b>' }, y:'nope' } }));
+  assert.deepEqual(c.by, { x:{ u:'5', at:0 } });
+  // 남이 내 장소를 빼거나 옮김 → 알림, 내가 바꾼 건 알리지 않음
+  const before = { picked:{ a:true, b:true, c:true }, assign:{ b:0 }, fullDay:{}, by:{ a:{ u:'me' }, b:{ u:'me' }, c:{ u:'mom' } } };
+  const after = { picked:{ b:true, c:true }, assign:{ b:2 }, fullDay:{}, by:{ b:{ u:'me', m:'mom' }, c:{ u:'mom' } } };
+  assert.deepEqual(othersChanged(before, after, 'me', 'mom'), [{ kind:'gone', id:'a', from:undefined }, { kind:'moved', id:'b', from:0, to:2 }]);
+  assert.deepEqual(othersChanged(before, after, 'me', 'me'), []);
+  // 기록 한 줄에는 '일정 수정'이 끼지 않음
+  assert.equal(describeChange(sharedOf(base()), sharedOf(Object.assign(base(), { by:{ tdl:{ u:'A', at:1 } } }))), '');
+});

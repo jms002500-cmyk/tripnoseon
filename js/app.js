@@ -41,7 +41,7 @@ import { sizeText } from './vault.js';
 import * as SH from './share.js';
 import { netBanner, fetchTimed, withTimeout } from './net.js';
 import { roundLoc, shouldSend, canShareLoc, locExpired, expiredLocs, locToday } from './loc.js';
-import { sharedOf, syncedOf, diffShared, mergeRemote, afterPush, inviteLink, parseJoin, describeChange, voteSummary } from './sharecore.js';
+import { sharedOf, syncedOf, diffShared, mergeRemote, afterPush, inviteLink, parseJoin, describeChange, voteSummary, stampBy, othersChanged } from './sharecore.js';
 
 const S_KEY = 'tripnoseon-v1';
 const RK_KEY = 'tripnoseon-rakuten';   // 라쿠텐 키는 일정 상태와 따로 저장 (상태를 내보내거나 백업해도 키는 안 섞이게)
@@ -214,7 +214,9 @@ function watchTrip(){
       // 아직 서버에 못 올린 내 변경을 기억했다가, 서버 일정을 받은 뒤 그 위에 다시 얹음 (서로 덮어쓰지 않게, sharecore mergeRemote)
       //   앱을 막 열었으면 이 기기에 남긴 기준으로 (끊긴 동안 고친 것)
       const base = lastSynced || loadBase(id);
+      const before = { picked:Object.assign({}, s.picked), assign:Object.assign({}, s.assign), fullDay:Object.assign({}, s.fullDay), by:JSON.parse(JSON.stringify(s.by || {})) }, beforePlaces = allPlaces(s);
       const pending = mergeRemote(s, data.p, base);
+      if(!mine) whoNotice(before, beforePlaces, data.updatedBy);
       // 가족이 여행 지역을 바꿨거나 다른 지역 여행에 참여함: 그 지역 데이터를 불러온 뒤에 그림 (옛 지역 동네로 그리면 숙소 동네 화면이 멈춤)
       if(REGION.key !== s.city){ regionWait = true; loadRegion(s.city).then(() => renderRemote()); }
       lastSynced = syncedOf(data.p);        // 서버에 있는 모양 그대로 (옛 배열 모양 칸은 처음 고칠 때 통째로 새 모양으로)
@@ -241,6 +243,33 @@ function stopShare(msg){
   saveLocal(); render();
 }
 
+// 남이 내 장소를 빼거나 날짜를 옮김 → 장소 담기·일정 위에 알림(되돌리기). 이 기기 화면에만, 최근 10개
+function whoNotice(before, places, upd){
+  const s = state, me = s.sh.user && s.sh.user.uid; if(!me || !upd) return;
+  const list = othersChanged(before, s, me, upd.uid); if(!list.length) return;
+  const day = v => v == null ? '날짜 자동' : v < 0 ? '빼 둠' : `${v + 1}일차`;
+  const who = (upd.name || '함께 짜는 사람').slice(0, 20);
+  const notes = s.sh.whoNotes = (s.sh.whoNotes || []).filter(x => !list.some(y => y.id === x.id));
+  list.forEach(x => {
+    const p = places.find(q => q.id === x.id) || allPlaces(s).find(q => q.id === x.id); const name = p ? p.name : '장소';
+    notes.unshift(Object.assign(x, { name, full:!!(p && p.full), custom:p && p.custom ? JSON.parse(JSON.stringify(p)) : null,
+      text:x.kind === 'gone' ? `${who}님이 내가 담은 '${name}'을(를) 뺐어요.` : `${who}님이 '${name}'을(를) ${day(x.from)} → ${day(x.to)}(으)로 옮겼어요.` }));
+  });
+  s.sh.whoNotes = notes.slice(0, 10);
+  const top = s.sh.whoNotes[0]; toast(`${top.text}${list.length > 1 ? ` 외 ${list.length - 1}건` : ''} 장소 담기·일정 위 '누가 담았는지'에서 되돌릴 수 있어요.`);
+}
+function whoUndo(i){
+  const s = state, x = (s.sh.whoNotes || [])[+i]; if(!x) return;
+  s.sh.whoNotes.splice(+i, 1);
+  const setDay = v => { delete s.assign[x.id]; delete s.fullDay[x.id]; if(v != null){ if(x.full) s.fullDay[x.id] = v; else s.assign[x.id] = v; } };
+  if(x.kind === 'gone'){
+    if(x.custom && !(s.custom || []).some(c => c.id === x.id))s.custom.push(Object.assign({}, x.custom));
+    if(!allPlaces(s).some(p => p.id === x.id)){ toast('그 장소가 목록에서 지워져서 다시 담지 못했어요.'); save(); render(); return; }
+    s.picked[x.id] = true; setDay(x.from); toast(`'${x.name}'을(를) 다시 담았어요.`);
+  } else { setDay(x.from); toast(`'${x.name}'을(를) ${x.from == null ? '자동 날짜' : x.from < 0 ? '빼 둠' : `${x.from + 1}일차`}(으)로 되돌렸어요.`); }
+  save(); render();
+}
+
 function schedulePush(){
   if(!state.shareId || !state.sh || !state.sh.user || !lastSynced) return;
   clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, 500);
@@ -248,6 +277,7 @@ function schedulePush(){
 async function pushNow(){
   pushTimer = null;
   const s = state, id = s.shareId, u = s.sh.user; if(!id || !u || !lastSynced) return;
+  if(stampBy(s, lastSynced, u.uid, Date.now())){ saveLocal(); renderRemote(); }   // 누가 담았는지·날짜를 바꿨는지
   const next = sharedOf(s); const changes = diffShared(lastSynced, next); if(!changes.length) return;
   const prev = lastSynced; const text = describeChange(prev, next); lastSynced = afterPush(prev, changes);
   try{
@@ -269,6 +299,7 @@ async function shareAct(a, v){
         if(!u || sh.busy) return;
         const title = (document.getElementById('sharetitle')?.value || '').trim().slice(0, 40) || '함께 짜는 여행';
         sh.busy = true; render();
+        stampBy(s, { picked:{} }, u.uid, Date.now());   // 공유 전에 담은 곳은 만든 사람이 담은 것
         const newId = await SH.createTrip(u, title, sharedOf(s));
         s.shareId = newId; lastSynced = sharedOf(s); saveBase(newId, lastSynced); sh.busy = false; saveLocal(); watchTrip();
         SH.addLog(newId, u, '공유 여행을 만듦').catch(() => {});
@@ -856,6 +887,9 @@ function act(a, v){
     case 'sos': packTick('appsos'); s.mode = s.mode === 'sos' ? null : 'sos'; s.sh.sbig = null; scroll = true; break;
     case 'helpopen': s.mode = s.mode === 'help' ? null : 'help'; scroll = true; break;
     case 'helpgo': goTo(v); return;
+    case 'whofocus': s.sh.whoFocus = v || null; render(); return;
+    case 'whoundo': whoUndo(v); return;
+    case 'whook': (s.sh.whoNotes || []).splice(+v, 1); render(); return;
     case 'helpjump': { const b = document.getElementById('help-' + v); if(b) b.scrollIntoView({ block:'start' }); return; }
     case 'sbig': s.sh.sbig = v || null; s.sh.sreply = null; s.sh.snum = ''; if(v && s.mode !== 'sos') s.mode = 'sos'; break;
     case 'sreply': s.sh.sreply = s.sh.sreply === v ? null : v; render(); { const o = document.querySelector('.sosover'); if(o) o.scrollTop = 0; } return;
