@@ -26,7 +26,7 @@ import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js'
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
 import { REQS, SAYS, ASKS, REPLIES, talkOf, talkWords } from './asktalk.js';
-import { ASK_KINDS, askKindOf, askGroups, askOrder, askRecItem, askTalkCurs, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
+import { ASK_KINDS, askKindOf, askGroups, askOrder, askRecItem, askTalkCurs, askCount, askLastList, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
@@ -133,16 +133,16 @@ export function SHEET(s){
 // AI 답 카드: 칸으로 받은 답을 종류별 화면으로 (js/askai.js ASK_SCHEMA). 금액은 숫자로 받아 앱 환율로 원화를 붙임
 const askMoney = (s, cur, n) => n > 0 ? addKrw(cur === 'HKD' ? `HK$${n}` : cur === 'CNY' ? `${n}위안` : `${n}엔`, ratesOf(s), 'CNY') : '';
 const askList = a => (Array.isArray(a) ? a : []).filter(Boolean).map(x => `<li>${esc(String(x))}</li>`).join('');
-const askLine = (title, l) => l && l.local ? `<div class="askorder"><b>${title}</b><p class="askloc">${esc(l.local)}</p><p>${esc(l.ko || '')}</p>
+const askLine = (title, l, lang) => l && l.local ? `<div class="askorder"><b>${title}</b><p class="askloc"${lang ? ` lang="${lang}"` : ''}>${esc(l.local)}</p><p>${esc(l.ko || '')}</p>
     <button type="button" class="ghost small" data-act="askline">이 문장 복사</button></div>` : '';
 const askNote = d => `${d.more ? `<p class="fine">${esc(String(d.more))}</p>` : ''}${d.unclear ? `<p class="fine">잘 안 보인 곳: ${esc(String(d.unclear))}</p>` : ''}`;
 const hot = n => n > 0 ? `<span>${'🌶'.repeat(Math.min(3, Math.max(1, Math.round(+n) || 0)))}</span>` : '<span>안 매움</span>';
 // 메뉴 한 줄. 면/밥처럼 가격이 둘이면 줄을 나누고 줄마다 수량을 고름
-const askQty = (r, k) => { const n = (r.cart || {})[k] || 0; return `<div class="askqty${n ? ' on' : ''}" data-k="${k}"><button type="button" class="ghost small" data-act="askdel" data-v="${k}" aria-label="하나 빼기">−</button><b>${n}</b><button type="button" class="ghost small" data-act="askadd" data-v="${k}" aria-label="하나 담기">+</button></div>`; };
+const askQty = (r, k) => { const n = askCount(r.cart, k); return `<div class="askqty${n ? ' on' : ''}" data-k="${k}"><button type="button" class="ghost small" data-act="askdel" data-v="${k}" aria-label="하나 빼기">−</button><b>${n}</b><button type="button" class="ghost small" data-act="askadd" data-v="${k}" aria-label="하나 담기">+</button></div>`; };
 const askPrices = (s, r, x) => { const d = r.data, i = d.items.indexOf(x), a = (x.prices || []).length ? x.prices : [{}];
   return a.map((p, j) => `<div class="askprice"><div>${p.label ? `${esc(p.label)} ` : ''}${esc(askMoney(s, d.currency, p.price)) || '가격 안 보임'}</div>${askQty(r, `${i}:${j}`)}</div>`).join(''); };
 const askRow = (s, r, x) => `<div class="askitem${x.alert ? ' warned' : ''}"><b>${esc(x.ko)}</b>
-      <p class="fine">${esc(x.local || '')}</p><p>${esc(x.desc || '')}</p>
+      <p class="fine" lang="${talkWords(r.data.currency).html}">${esc(x.local || '')}</p><p>${esc(x.desc || '')}</p>
       ${x.alert ? `<p class="warnline">⚠️ ${esc(x.alert)}</p>` : ''}
       <p class="asktags">${hot(x.spicy)}<span class="kid-${esc(x.kid)}">아이 ${esc(x.kid)}</span>${(x.contains || []).map(c => `<span>${esc(c)}</span>`).join('')}</p>
       ${askPrices(s, r, x)}</div>`;
@@ -156,19 +156,21 @@ function askMenu(s, r){
 const askSum = (s, d, o) => `${o.total > 0 ? `합계 ${esc(askMoney(s, d.currency, o.total))}` : '합계 모름'}${o.total > 0 && o.unknown ? ' + 가격 안 보이는 메뉴' : ''}`;
 // 주문 문장 칸: 고른 메뉴가 있으면 그 메뉴로, 없으면 추천 1번 문장. 수량이 바뀌면 이 칸만 다시 그림(분류가 접히지 않게)
 export function askOrderBox(s, r){
-  const d = r.data, o = askOrder(d, r.cart, r);
-  if(!o.count) return `${askLine('🗣 직원에게 보여 주세요', d.order)}<p class="fine">메뉴의 + 를 눌러 고르면 고른 메뉴로 주문 문장이 바뀌어요. 여러 개 고를 수 있어요.</p>`;
-  return `<div class="askorder"><b>🗣 직원에게 보여 주세요 · ${o.count}개</b><p class="askloc">${esc(o.local)}</p><p class="askmeaning">${esc(o.ko)}</p>
+  const d = r.data, o = askOrder(d, r.cart, r), lang = talkWords(d.currency).html;
+  const stale = String(s.askNote || '').trim() !== String(r.note || '').trim() ? '<p class="warnline">덧붙일 말이 바뀌었어요. 주문 문장에 넣으려면 아래 요청을 고르거나 사진을 다시 읽어 주세요.</p>' : '';
+  if(!o.count) return `${askLine('🗣 직원에게 보여 주세요', d.order, lang)}<p class="fine">메뉴의 + 를 눌러 고르면 고른 메뉴로 주문 문장이 바뀌어요. 여러 개 고를 수 있어요.</p>${stale}`;
+  return `<div class="askorder"><b>🗣 직원에게 보여 주세요 · ${o.count}개</b><p class="askloc" lang="${lang}">${esc(o.local)}</p><p class="askmeaning">${esc(o.ko)}</p>
     <p class="asksum">${askSum(s, d, o)}</p>
     <div class="askrow"><button type="button" class="primary small" data-act="askbig" data-v="order">크게 보여 주기</button><button type="button" class="ghost small" data-act="askline">복사</button><button type="button" class="ghost small" data-act="askcartclear">다 지우기</button></div></div>
-    ${askReqBox(r, o)}`;
+    ${stale}${askReqBox(r, o)}`;
 }
 // 요청 넣기: 전체 또는 메뉴 하나를 고르고 요청을 누름 (문구는 미리 준비해 둬서 인터넷 없이 됨)
 function askReqBox(r, o){
   const to = o.lines.some(l => l.k === r.reqFor) ? r.reqFor : '*', on = (r.reqs || {})[to] || [];
   return `<div class="askreqs"><b>🙏 요청 넣기</b>
-    <div class="chips">${chip('askreqfor', '*', '전체 메뉴', to === '*')}${o.lines.map(l => chip('askreqfor', l.k, esc(l.ko), to === l.k)).join('')}</div>
-    <div class="chips">${REQS.map(x => chip('askreq', x.key, x.ko, on.includes(x.key))).join('')}</div></div>`;
+    <div class="chips">${chip('askreqfor', '*', '전체 메뉴', to === '*')}${o.lines.map(l => chip('askreqfor', l.k, `${esc(l.ko)} ${l.n}개${l.k.split(':').length > 2 ? ' · 따로' : ''}`, to === l.k)).join('')}</div>
+    <div class="chips">${REQS.map(x => chip('askreq', x.key, x.ko, on.includes(x.key))).join('')}</div>
+    ${(r.cart || {})[to] > 1 ? `<div><button type="button" class="ghost small" data-act="asksplit" data-v="${esc(to)}">이 중 1개만 따로 요청하기</button></div>` : ''}</div>`;
 }
 export function askCartBar(s, r){
   const o = askOrder(r.data, r.cart, r);
@@ -177,7 +179,7 @@ export function askCartBar(s, r){
 function askCard(s, r){
   const d = r.data, k = r.kind;
   if(k === 'menu') return `${(d.rules || []).length ? `<div class="askrules"><b>📌 가게 안내</b><ul>${askList(d.rules)}</ul></div>` : ''}
-    ${(d.recommend || []).length ? `<h3>👍 우리 가족 추천</h3><ol class="askrec">${d.recommend.map(x => { const m = askRecItem(d, x), local = (m && m.local) || x.local; return `<li><b>${esc(x.name)}</b>${local ? `<p class="fine">${esc(local)}</p>` : ''}<span>${esc(x.why)}</span>${m ? askPrices(s, r, m) : ''}</li>`; }).join('')}</ol>` : ''}
+    ${(d.recommend || []).length ? `<h3>👍 우리 가족 추천</h3><ol class="askrec">${d.recommend.map(x => { const m = askRecItem(d, x), local = (m && m.local) || x.local; return `<li><b>${esc(x.name)}</b>${local ? `<p class="fine" lang="${talkWords(d.currency).html}">${esc(local)}</p>` : ''}<span>${esc(x.why)}</span>${m ? askPrices(s, r, m) : ''}</li>`; }).join('')}</ol>` : ''}
     <div id="askorderbox">${askOrderBox(s, r)}</div>
     <h3>메뉴 ${(d.items || []).length}개</h3>
     <p class="fine">AI가 읽은 값이라 이름·가격이 틀릴 수 있어요. 주문 전에 메뉴판과 한 번 확인하세요.</p>
@@ -197,8 +199,8 @@ function askCard(s, r){
 }
 // 앱 안에서 바로 받은 답 (js/askai.js, 키가 있을 때만)
 function askAnswer(s, hasKey, k){
-  if(!hasKey) return '';
   const r = (s.sh.ask || {}).res;
+  if(!hasKey && !(r && r.data)) return '';
   if(r && r.busy) return '<p class="pnote" role="status">✨ 사진을 읽고 있어요… (메뉴가 많으면 30초쯤)</p>';
   if(r && r.data) return `<div class="askcard" id="askres">${askCard(s, r)}</div>
     <p class="fine">AI 답은 틀릴 수 있어요. 알레르기·약은 직원·약사에게 한 번 더 확인하세요.</p>`;
@@ -228,12 +230,12 @@ export const askTalkCur = s => { const r = s.sh.ask && s.sh.ask.res, c = askTalk
 function askTalk(s, hasKey){
   const cur = askTalkCur(s), curs = askTalkCurs(s), name = { HKD:'홍콩 말', CNY:'선전 말', JPY:'일본어' };
   return `<details class="more"><summary>💬 말이 안 통할 때 (식당·가게)</summary>
-    <p class="fine">누르면 현지어가 크게 떠요. 직원에게 보여 주면 직원이 답을 눌러 주고, 답이 한국어로 나와요.</p>
+    <p class="fine">누르면 현지어가 크게 떠요. 직원에게 보여 주면 직원이 답을 눌러 주고, 답이 한국어로 나와요. 인터넷이 없어도 돼요.</p>
     ${curs.length > 1 ? `<div class="chips">${curs.map(c => chip('asktalkcur', c, name[c], c === cur)).join('')}</div>` : ''}
     <h3>부탁하기</h3><div class="chips">${SAYS.map(x => chip('askbig', `say:${x.key}`, x.ko)).join('')}</div>
     <h3>물어보기</h3><div class="chips">${ASKS.map(x => chip('askbig', `ask:${x.key}`, x.ko)).join('')}</div>
     ${hasKey ? `<label for="asktr" class="shlabel">하고 싶은 말을 직접 쓰기<input id="asktr" type="text" maxlength="300" placeholder="예: 아이 것은 작은 그릇에 담아 주세요"></label>
-    <div><button type="button" class="primary small" data-act="asktrans">현지어로 옮기기</button></div>` : ''}
+    <div><button type="button" class="primary small" data-act="asktrans">현지어로 옮기기</button></div><p class="fine">직접 쓴 말은 번역을 위해 구글로 가요. 인터넷이 있어야 해요.</p>` : ''}
   </details>`;
 }
 // 크게 보여 주기 화면. 다시 그려도 사라지지 않게 시트 밖에 띄움 (app.js askBigShow)
@@ -242,7 +244,7 @@ export function askBigHtml(s, v){
   const answers = `<p class="askbighead">${esc(w.reply)}</p><div class="askans">${REPLIES.map(x => `<button type="button" data-act="askreply" data-v="${x.key}">${esc(talkOf(x, cur))}</button>`).join('')}</div>`;
   const write = v.hasKey ? `<p class="askbighead">${esc(w.write)}</p><div class="askbigwrite"><input id="askstaff" type="text" maxlength="300"><button type="button" data-act="askstaff">${esc(w.go)}</button></div>` : '';
   const msg = v.msg ? `<p class="askbigmsg" role="status">${esc(v.msg)}</p>` : '';
-  const close = `<button type="button" class="askbigclose" data-act="askbigclose">닫기</button>`;
+  const close = `<div class="askbigtop"><button type="button" class="askbigclose" data-act="askbigclose">닫기</button>${globalThis.speechSynthesis ? '<button type="button" data-act="askspeak">🔊 소리로 들려주기</button>' : ''}</div>`;
   if(v.type === 'order'){ const o = askOrder(r.data, r.cart, r);
     return `${close}${msg}<div class="askbigtext">${esc(o.local.split('\n')[0])}</div>
       <div class="askgone">${o.lines.map(l => `<button type="button" data-act="askgone" data-v="${l.k}">${esc(l.say)}</button>`).join('')}</div>
@@ -254,10 +256,19 @@ export function askBigHtml(s, v){
   const x = (v.type === 'say' ? SAYS : ASKS).find(y => y.key === v.key);
   return `${close}${msg}<div class="askbigtext">${esc(talkOf(x, cur))}</div><p class="askbigko">${esc((x || {}).ko || '')}</p>${answers}${write}`;
 }
+// 읽어 둔 메뉴판 다시 보기: 고른 주문까지 그대로, 인터넷이 없어도 열림
+function askRecent(){
+  let a = []; try{ a = askLastList(localStorage); }catch(e){}
+  if(!a.length) return '';
+  const when = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  return `<div class="askrecent"><b>🕘 읽어 둔 메뉴판</b>
+    <div class="chips">${a.map(x => chip('asklast', String(x.id), `${esc((x.data && x.data.shop) || '메뉴판')} · ${when(x.id)}`)).join('')}</div>
+    <div><button type="button" class="link" data-act="asklastclear">기록 지우기</button></div></div>`;
+}
 export function ASKSHEET(s, photo){
   let ks = { g:'', v:'', use:'' }; try{ ks = askKeys(localStorage); }catch(e){}
   const hasKey = !!ks.use;
-  const k = askKindOf(s.sh.ask && s.sh.ask.kind);
+  const k = askKindOf(s.sh.ask && s.sh.ask.kind), res = s.sh.ask && s.sh.ask.res, restored = !photo && !!(res && res.restored);
   return `<div class="mapsheet sheet" role="dialog" aria-label="AI에게 묻기">
     <div class="mshead"><b>📷 AI에게 묻기</b><button type="button" class="ghost small" data-act="askclose">닫기</button></div>
     <div class="shbody">
@@ -267,14 +278,14 @@ export function ASKSHEET(s, photo){
         <p class="fine">${QUICK_TRANSLATE.map(x => esc(x.tip)).join(' ')} ${esc(quickNote(globalThis.navigator && navigator.userAgent))}</p></div>
       <h2>무슨 사진인가요?</h2>
       <div class="chips">${ASK_KINDS.map(x => chip('askkind', x.key, `${x.icon} ${x.label}`, x.key === k.key)).join('')}</div>
-      ${photo ? `<figure class="askphoto"><img src="${photo.url}" alt="고른 사진"><figcaption><button type="button" class="link" data-act="askclear">다른 사진 고르기</button></figcaption></figure>
+      ${photo || restored ? `${photo ? `<figure class="askphoto"><img src="${photo.url}" alt="고른 사진"><figcaption><button type="button" class="link" data-act="askclear">다른 사진 고르기</button></figcaption></figure>` : '<p class="fine">저장해 둔 메뉴판이에요. <button type="button" class="link" data-act="askclear">다른 사진 고르기</button></p>'}
       ${askAnswer(s, hasKey, k)}
-      <button type="button" class="${hasKey ? 'ghost' : 'primary'}" data-act="asksend">${k.icon} AI 앱으로 보내기</button>
-      <p class="fine">사진 위에 부탁 문장을 넣은 그림 한 장으로 보내요. 앱 목록에서 쓰는 AI를 고르고 전송만 누르세요. 답이 엉뚱하면 입력칸을 꾹 눌러 붙여 넣으세요(문장은 복사돼 있어요).</p>`
+      ${restored ? '' : `      <button type="button" class="${hasKey ? 'ghost' : 'primary'}" data-act="asksend">${k.icon} AI 앱으로 보내기</button>
+      <p class="fine">사진 위에 부탁 문장을 넣은 그림 한 장으로 보내요. 앱 목록에서 쓰는 AI를 고르고 전송만 누르세요. 답이 엉뚱하면 입력칸을 꾹 눌러 붙여 넣으세요(문장은 복사돼 있어요).</p>`}`
       : `<div class="askpick">
         <label class="primary filebtn">📷 사진 찍기<input type="file" accept="image/*" capture="environment" data-askphoto hidden></label>
         <label class="ghost filebtn">🖼️ 저장된 사진 고르기<input type="file" accept="image/*" data-askphoto hidden></label>
-      </div>`}
+      </div>${askRecent()}`}
       <label for="asknote" class="shlabel">AI에게 늘 덧붙일 말 (이 폰에만 저장)<input id="asknote" type="text" maxlength="200" value="${esc(s.askNote || '')}" placeholder="예: 땅콩 알레르기 있어요, 매운 건 못 먹어요" data-asknote></label>
       <details class="more"><summary>보낼 부탁 문장 보기</summary><pre class="askprompt">${esc(askPrompt(s, k.key, s.askNote))}</pre>
         <div><button type="button" class="ghost small" data-act="askcopy">문장만 복사</button></div></details>

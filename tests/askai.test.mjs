@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as D from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askGroups, askOrder, askRecItem, askTransPrompt, hasHangul, askKeyInfo, askKeys, askKeyNow, askTargets, askErrTag, ASK_KEY, ASK_VKEY, ASK_USE, b64url, pemToDer, jwtClaims } from '../js/askai.js';
+import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askGroups, askOrder, askRecItem, askTransPrompt, hasHangul, askCount, askStep, askSplit, askKeysOf, askLastList, askLastSave, ASK_LAST, askKeyInfo, askKeys, askKeyNow, askTargets, askErrTag, ASK_KEY, ASK_VKEY, ASK_USE, b64url, pemToDer, jwtClaims } from '../js/askai.js';
 
 test('키 칸: 구글 키·버텍스 키·서비스 계정 JSON을 구분', () => {
   const sa = { private_key:'-----BEGIN PRIVATE KEY-----\nQUJD\nREVG\n-----END PRIVATE KEY-----\n', client_email:'a@b.iam.gserviceaccount.com', project_id:'p1' };
@@ -91,7 +91,7 @@ test('메뉴 고르기: 여러 메뉴·수량으로 주문 문장을 만듦', ()
   assert.equal(m.local, '你好，我要这些：\n蛋炒饭 × 2（不要辣，不要香菜）\n牛肉拉面（大碗） × 1\n全部：少盐\n请用小碗。');
   assert.equal(m.ko, '계란 볶음밥 2개(안 맵게, 고수 빼기), 소고기 수타면 (대) 1개\n전체: 덜 짜게\n작은 그릇에');
   assert.equal(m.lines[0].say, '蛋炒饭 × 2（不要辣，不要香菜）');   // 크게 보기 화면의 줄에도 요청이 들어감
-  assert.match(askOrder({ currency:'HKD', items:dd.items }, { '0:0':1 }, { reqs:{ '0:0':['cilantro'] } }).local, /唔要芫荽/);
+  assert.match(askOrder({ currency:'HKD', items:dd.items }, { '0:0':1 }, { reqs:{ '0:0':['cilantro'] } }).local, /走芫茜/);
   assert.match(askOrder({ currency:'JPY', items:dd.items }, { '0:0':1 }, { reqs:{ '0:0':['cilantro'] } }).local, /パクチー抜き/);
   assert.equal(hasHangul('牛肉'), false); assert.equal(hasHangul('밥'), true);
   assert.match(askTransPrompt('물 주세요', 'HKD'), /광둥어/); assert.match(askTransPrompt('x', 'CNY'), /간체/);
@@ -109,8 +109,37 @@ test('말이 안 통할 때 문구: 세 말이 모두 있고 한글이 섞이지
     assert.equal(new Set(list.map(x => x.key)).size, list.length);
     list.forEach(x => { assert.ok(x.ko && hasHangul(x.ko), x.key); ['CNY', 'HKD', 'JPY'].forEach(c => { assert.ok(x[c], `${x.key} ${c}`); assert.equal(hasHangul(x[c]), false, `${x.key} ${c}`); }); });
   });
-  ['CNY', 'HKD', 'JPY'].forEach(c => { const w = T.talkWords(c); ['reply', 'gone', 'write', 'go', 'all', 'dot', 'lang'].forEach(k => assert.ok(w[k], k)); assert.ok(w.unit(5)); });
+  ['CNY', 'HKD', 'JPY'].forEach(c => { const w = T.talkWords(c); ['reply', 'gone', 'write', 'go', 'all', 'dot', 'lang', 'html'].forEach(k => assert.ok(w[k], k)); assert.ok(w.unit(5)); });
   assert.equal(T.talkOf(T.REQS[0], 'KRW'), T.REQS[0].CNY);
+});
+
+test('같은 메뉴 나눠 요청: 수량을 줄별로 쪼개고 합쳐 셈', () => {
+  const items = [{ ko:'계란 볶음밥', local:'蛋炒饭', prices:[{ label:'', price:18 }] }];
+  let c = askStep({}, '0:0', 1); c = askStep(c, '0:0', 1); c = askStep(c, '0:0', 1);
+  assert.deepEqual(c, { '0:0':3 });
+  const x = askSplit(c, '0:0'); assert.equal(x.key, '0:0:1'); assert.deepEqual(x.cart, { '0:0':2, '0:0:1':1 });
+  assert.equal(askCount(x.cart, '0:0'), 3); assert.deepEqual(askKeysOf(x.cart, '0:0'), ['0:0', '0:0:1']);
+  const y = askSplit(x.cart, '0:0'); assert.equal(y.key, '0:0:2');
+  assert.equal(askSplit({ '0:0':1 }, '0:0'), null); assert.equal(askSplit(undefined, '0:0'), null);
+  const o = askOrder({ currency:'CNY', items }, x.cart, { reqs:{ '0:0:1':['nospicy'] } });
+  assert.equal(o.count, 3); assert.equal(o.total, 54);
+  assert.equal(o.local, '你好，我要这些：\n蛋炒饭 × 2\n蛋炒饭 × 1（不要辣）');
+  assert.equal(askCount(askStep(x.cart, '0:0', -1), '0:0'), 2);   // 빼면 나눈 줄부터
+  assert.deepEqual(askStep(x.cart, '0:0', -1), { '0:0':2 });
+  assert.deepEqual(askStep({}, '0:0', -1), {});
+  assert.deepEqual(askKeysOf({ '1:0':1, '11:0':1 }, '1:0'), ['1:0']);   // 번호가 비슷해도 섞이지 않음
+});
+
+test('읽은 메뉴판 보관: 최근 5장, 망가져도 앱이 멈추지 않음', () => {
+  const box = () => ({ m:new Map(), full:false, getItem(k){ return this.m.has(k) ? this.m.get(k) : null; }, setItem(k, x){ if(this.full && x.length > 40) throw new Error('quota'); this.m.set(k, x); } });
+  const b = box(); assert.deepEqual(askLastList(b), []);
+  for(let i = 1; i <= 7; i++) askLastSave(b, { id:i, data:{ shop:`가게${i}` } });
+  assert.deepEqual(askLastList(b).map(x => x.id), [7, 6, 5, 4, 3]);
+  askLastSave(b, { id:5, data:{ shop:'가게5' }, cart:{ '0:0':2 } });   // 같은 메뉴판은 고쳐 쓰고 맨 앞으로
+  assert.deepEqual(askLastList(b).map(x => x.id), [5, 7, 6, 4, 3]); assert.deepEqual(askLastList(b)[0].cart, { '0:0':2 });
+  b.m.set(ASK_LAST, '{깨짐'); assert.deepEqual(askLastList(b), []);
+  b.m.set(ASK_LAST, '[null,{"id":1}]'); assert.deepEqual(askLastList(b), []);
+  const f = box(); f.full = true; assert.equal(askLastSave(f, { id:1, data:{ shop:'아주 긴 가게 이름 '.repeat(20) } }), false);
 });
 
 test('공개 코드에 비밀키가 없음', () => {

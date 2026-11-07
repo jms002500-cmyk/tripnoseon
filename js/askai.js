@@ -1,5 +1,5 @@
 // AI 도우미: 사진(메뉴판·표지판·영수증·약·음식)에 상황에 맞는 부탁 문장을 붙여 사용자의 AI 앱(제미나이·ChatGPT·Claude 등)으로 넘김.
-// 앱이 AI를 직접 부르지 않음(비용 0, 키 없음). 보내는 것은 사용자가 고른 사진과 아래 문장뿐 — 보관함·영수증 첨부·위치는 넣지 않음.
+// 기본은 앱이 AI를 부르지 않음(비용 0, 키 없음). 사용자가 키를 넣으면 그 폰에서 구글로 바로 물음. 보내는 것은 고른 사진과 아래 문장, 직접 쓴 말뿐 — 보관함·영수증 첨부·위치는 넣지 않음.
 // 순수 함수(테스트 대상).
 import { talkWords, talkOf, reqOf } from './asktalk.js';
 import { tripCities, onlyCity, pickedPlaces } from './logic.js';
@@ -98,7 +98,7 @@ export function askPrompt(s, kind, note){
 // 앱 안에서 바로 답 받기(선택): 사용자가 만든 제미나이 무료 키로 이 폰에서 구글에 직접 물음. 서버·비용 없음.
 // 키는 이 폰 localStorage에만 두고 일정·공유·백업에 넣지 않음. 무료 등급은 보낸 내용이 구글 제품 개선에 쓰일 수 있어서 화면에 알림.
 // 모델은 Flash-Lite(무료 등급·안정판): 같은 메뉴판 시험(2026-11-07)에서 3.5 Flash-Lite 6초, 3.6 Flash 33초, 3.8 Flash는 2분 넘게 걸려 식당에서 쓸 수 있는 것으로 고름
-export const ASK_KEY = 'tripnoseon-askkey', ASK_VKEY = 'tripnoseon-askkey-vertex', ASK_USE = 'tripnoseon-askuse';
+export const ASK_KEY = 'tripnoseon-askkey', ASK_VKEY = 'tripnoseon-askkey-vertex', ASK_USE = 'tripnoseon-askuse', ASK_LAST = 'tripnoseon-asklast';
 export const ASK_KEY_PAGE = 'https://aistudio.google.com/apikey';
 export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
 // 키 칸이 둘이고 칸이 곧 경로: 구글 칸은 구글 일반 주소로만, 버텍스 칸은 버텍스로만 물음. 앞글자로 추측하지 않음(새 AI 스튜디오 키도 AQ.로 시작).
@@ -142,7 +142,7 @@ const obj = (properties, required) => ({ type:'OBJECT', properties, required });
 const CUR = { type:'STRING', enum:['HKD', 'CNY', 'JPY'] };
 const LINE = obj({ ko:STR, local:STR }, ['ko', 'local']);
 const ASK_SCHEMA = {
-  menu:obj({ currency:CUR, rules:LIST, recommend:{ type:'ARRAY', items:obj({ name:STR, local:STR, why:STR }, ['name', 'local', 'why']) },
+  menu:obj({ shop:STR, currency:CUR, rules:LIST, recommend:{ type:'ARRAY', items:obj({ name:STR, local:STR, why:STR }, ['name', 'local', 'why']) },
     items:{ type:'ARRAY', items:obj({ group:STR, ko:STR, local:STR, desc:STR, prices:{ type:'ARRAY', items:obj({ label:STR, local:STR, price:{ type:'NUMBER', nullable:true } }, ['label', 'price']) }, spicy:{ type:'INTEGER' }, kid:{ type:'STRING', enum:['좋음', '주의', '비추천'] }, contains:LIST, alert:STR }, ['group', 'ko', 'local', 'desc', 'prices', 'spicy', 'kid', 'contains']) },
     order:LINE, request:LINE, more:STR, unclear:STR }, ['currency', 'rules', 'recommend', 'items', 'order']),
   sign:obj({ meaning:STR, todo:LIST, facts:LIST, unclear:STR }, ['meaning', 'todo', 'facts']),
@@ -154,13 +154,13 @@ const ASK_SCHEMA = {
 const ASK_RULES = {
   menu:w => ['이 사진은 식당 메뉴판이야. 사진 전체를 왼쪽 위부터 칸(분류)마다 끝까지 훑어서, 적힌 메뉴를 하나도 빠뜨리지 말고 모두 items에 넣어 줘. 사진에서 실제로 읽은 글자만 옮기고, 글자를 조합하거나 없는 메뉴를 지어내면 안 돼. 안 읽히는 글자가 있으면 그 메뉴는 빼고 unclear에 적어 줘.',
     '밥·빵·고기 추가 같은 곁들임과 추가 요금, 손글씨나 덧붙인 쪽지의 메뉴도 넣어 줘. 200개가 넘을 때만 줄이고 줄였다고 more에 적어 줘.',
-    'group은 메뉴판의 분류 이름을 한국어로 옮긴 거야. 같은 분류는 붙여서 적고, 분류가 없으면 빈 글자로 둬.',
+    'shop은 메뉴판에 적힌 가게 이름 그대로이고 없으면 빈 글자야. group은 메뉴판의 분류 이름을 한국어로 옮긴 거야. 같은 분류는 붙여서 적고, 분류가 없으면 빈 글자로 둬.',
     'ko는 뜻이 통하는 한국어 음식 이름이야. 拉面은 수타면, 刀削面은 도삭면처럼 한국 음식과 헷갈리지 않게 써 줘. local은 메뉴판에 적힌 글자 그대로, desc는 어떤 음식인지 15자 안쪽 설명이야.',
     '메뉴판의 한 줄이 메뉴 하나야. 줄을 합치지 말고 大碗이 붙은 줄도 따로 넣어 줘. prices는 그 메뉴와 같은 줄에 적힌 가격만 읽어 줘. 윗줄이나 아랫줄 가격을 가져오면 안 돼. 그 줄에 숫자가 하나면 메뉴 이름에 /가 있어도 prices는 하나이고 label은 빈 글자야. 20元/18元처럼 한 줄에 숫자가 둘일 때만 적힌 차례대로 둘 다 넣고, 면/밥이나 소/대 같은 구분을 label에 한국어로, 그 가격을 주문할 때 쓸 메뉴판 글자 이름을 local에 적어 줘(예: 番茄炒蛋盖浇饭). 숫자가 셋 이상이어도 같아. 안 보이면 price를 null로 둬. 메뉴판에 맞는 통화를 currency에 적어 줘.',
     'spicy는 0(안 매움)~3(아주 매움)이야. kid는 함께 온 아이가 먹기에 어떤지야.',
     'contains는 돼지고기·소고기·양고기·닭고기·해산물·견과류·달걀·유제품·밀 중 들어갔을 만한 것이야. 쌀밥만으로 만든 요리에는 밀을 넣지 마.',
     'alert는 참고에 적은 내용(알레르기 등)에 걸리거나 향이 아주 강할 때 그 이유를 짧게, 아니면 빈 글자로 둬.',
-    'rules는 메뉴판에 적힌 가게 규칙과 주문 안내를 자연스러운 한국어로 옮긴 거야. 규칙 하나를 한 줄로 나눠 적어 줘. (예: 할랄 식당이에요, 음주 금지, 외부 음식 반입 금지, 고수를 빼려면 미리 말하기, 현금만 받음) 없으면 빈 목록이야.',
+    'rules는 메뉴판에 적힌 가게 규칙과 주문 안내를 자연스러운 한국어로 옮긴 거야. 규칙 하나를 한 줄로 나눠 적어 줘. (예: 할랄 식당이에요, 음주 금지, 외부 음식 반입 금지, 고수를 빼려면 미리 말하기, 현금만 받음, 봉사료 10% 별도(加一), 자리값 별도, 최소 주문) 없으면 빈 목록이야.',
     'recommend는 우리 일행에게 맞는 3개, why는 고른 이유 한 줄이야. 메뉴 전체에서 고르고, name은 items의 ko와, local은 items의 local과 똑같이 적어 줘. 아이가 있으면 아이가 먹기 좋은 메뉴를 먼저 골라 줘.',
     `order.local은 추천 1번 메뉴 하나만 local 글자를 그대로 넣어 직원에게 보여 줄 ${w.lang} 한 문장이고, order.ko는 그 뜻이야. 면/밥이나 크기를 골라야 하는 메뉴면 어느 쪽인지 넣어 줘. 요청은 참고에 적힌 것만 넣고, 참고에 없는 요청(고수 빼기 등)은 넣지 마.`,
     `request는 참고에 적힌 요청만 직원에게 보여 줄 ${w.lang} 한 문장(local)과 그 뜻(ko)으로 쓴 거야. 참고가 없으면 두 칸 모두 빈 글자로 둬.`],
@@ -193,6 +193,30 @@ function orderName(x, p, cur){
 // 요청 글자: 쓰는 말에 맞게 한 줄로
 const reqLocal = (keys, cur) => (keys || []).map(k => talkOf(reqOf(k), cur)).filter(Boolean).join(talkWords(cur).dot);
 const reqKo = keys => (keys || []).map(k => (reqOf(k) || {}).ko).filter(Boolean).join(', ');
+// 같은 메뉴를 나눠 요청할 수 있게 줄을 쪼갬: '메뉴:가격' 줄과 '메뉴:가격:번호' 줄을 합쳐 수량을 셈
+export const askKeysOf = (cart, k) => Object.keys(cart || {}).filter(x => x === k || x.startsWith(`${k}:`));
+export const askCount = (cart, k) => askKeysOf(cart, k).reduce((a, x) => a + cart[x], 0);
+export function askStep(cart, k, d){
+  const c = Object.assign({}, cart), keys = askKeysOf(c, k), t = d > 0 ? k : keys[keys.length - 1];
+  if(t == null) return c;
+  c[t] = (c[t] || 0) + d; if(c[t] <= 0) delete c[t];
+  return c;
+}
+export function askSplit(cart, k){
+  const n = (cart || {})[k]; if(!(n > 1)) return null;
+  const base = k.split(':').slice(0, 2).join(':'); let v = 1; while(cart[`${base}:${v}`] != null) v++;
+  const key = `${base}:${v}`;
+  return { key, cart:Object.assign({}, cart, { [k]:n - 1, [key]:1 }) };
+}
+// 읽은 메뉴판 보관: 창을 닫거나 앱이 다시 열려도, 인터넷이 없어도 다시 볼 수 있게 이 폰에만 최근 5장
+export function askLastList(store){
+  try{ const a = JSON.parse(store.getItem(ASK_LAST) || '[]'); return Array.isArray(a) ? a.filter(x => x && x.id && x.data) : []; }catch(e){ return []; }
+}
+export function askLastSave(store, e){
+  const a = [e, ...askLastList(store).filter(x => x.id !== e.id)].slice(0, 5);
+  for(let n = a.length; n > 0; n--){ try{ store.setItem(ASK_LAST, JSON.stringify(a.slice(0, n))); return true; }catch(err){} }   // 저장 공간이 모자라면 오래된 것부터 뺌
+  return false;
+}
 export function askOrder(d, cart, more){
   const cur = d && d.currency, reqs = (more && more.reqs) || {}, free = (more && more.free) || [];
   const lines = Object.entries(cart || {}).map(([k, n]) => {
