@@ -1,8 +1,8 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
-import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
+import { AREAS, STEPS, DEFAULT, REGIONS, REGION, PLACES, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
 import { REPLIES, talkWords } from './asktalk.js';
-import { VIEWS, SHEET, ASKSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, NEARSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
@@ -54,7 +54,7 @@ state.sh = freshSh();
 let resetArmed = false; let resetTimer = null;
 // AI 도우미에 고른 사진 (메모리에만, 저장 안 함) { file, url }
 let askPhoto = null;
-const ASK_BTN = '<button type="button" class="ghost askbtn" data-act="askopen" aria-label="사진으로 AI에게 묻기">📷</button>';
+const ASK_BTN = '<button type="button" class="ghost askbtn" data-act="nearopen" aria-label="내 주변 가볼 만한 곳">📍</button><button type="button" class="ghost askbtn" data-act="askopen" aria-label="사진으로 AI에게 묻기">📷</button>';
 
 function load(){
   try{ const raw = localStorage.getItem(S_KEY); if(raw) return Object.assign(clone(DEFAULT), JSON.parse(raw), { geoBusy:false, hotelBusy:false, rkBusy:false, wxBusy:false }); }catch(e){}
@@ -422,7 +422,7 @@ function render(){
   tb.hidden = phaseOf(s, s.sh.today).phase === 'none';
   tb.classList.toggle('on', todayMode); tb.setAttribute('aria-pressed', String(todayMode));
   const xb = document.getElementById('sosBtn'); xb.classList.toggle('on', sosMode); xb.setAttribute('aria-pressed', String(sosMode));
-  const anySheet = !!s.sh.open || !!(s.sh.ask && s.sh.ask.open);
+  const anySheet = !!s.sh.open || !!(s.sh.ask && s.sh.ask.open) || !!(s.sh.near && s.sh.near.open);
   document.body.classList.toggle('noscroll', anySheet || (sosMode && !!s.sh.sbig));
   const sb = document.getElementById('shareBtn');
   sb.textContent = s.shareId && s.sh.trip ? `함께 · ${s.sh.trip.memberUids.length}명` : '함께 짜기';
@@ -430,6 +430,7 @@ function render(){
   const sheet = document.getElementById('sheet');
   const keepScroll = sheet.querySelector('.shbody') ? sheet.querySelector('.shbody').scrollTop : 0;
   if(s.sh.ask && s.sh.ask.open){ sheet.innerHTML = ASKSHEET(s, askPhoto); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
+  else if(s.sh.near && s.sh.near.open){ sheet.innerHTML = NEARSHEET(s); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
   else if(s.sh.open){ sheet.innerHTML = SHEET(s); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
   else sheet.innerHTML = '';
   if(!(sosMode && s.sh.sbig)) document.body.classList.toggle('noscroll', anySheet);
@@ -887,6 +888,16 @@ function act(a, v){
     case 'sos': packTick('appsos'); s.mode = s.mode === 'sos' ? null : 'sos'; s.sh.sbig = null; scroll = true; break;
     case 'helpopen': s.mode = s.mode === 'help' ? null : 'help'; scroll = true; break;
     case 'helpgo': goTo(v); return;
+    case 'nearopen': s.sh.near = Object.assign({}, s.sh.near, { open:true }); if(s.sh.ask) s.sh.ask.open = false; s.sh.open = false;
+      if(!s.sh.near.pt || Date.now() - (s.sh.near.at || 0) > 3 * 60000) nearLocate(); else render(); return;   // 3분 안에 찾은 위치는 다시 씀
+    case 'nearagain': nearLocate(); return;
+    case 'nearclose': if(s.sh.near) s.sh.near.open = false; render(); return;
+    case 'nearpick': { const p = allPlaces(s).concat(PLACES).find(x => x.id === v); if(!p) return; s.picked[p.id] = true; toast(`'${p.name}'을(를) 담았어요.`); break; }
+    case 'neartoday': {   // 오늘 일정에 넣기 (하루 종일 장소는 그날을 통째로)
+      const p = allPlaces(s).concat(PLACES).find(x => x.id === v); const d = buildDays(s).find(x => x.key === s.sh.today); if(!p || !d) return;
+      s.picked[p.id] = true; if(p.full){ s.fullDay[p.id] = d.i; delete s.assign[p.id]; } else { s.assign[p.id] = d.i; delete s.fullDay[p.id]; }
+      toast(`'${p.name}'을(를) 오늘(${d.i + 1}일차) 일정에 넣었어요.`); break;
+    }
     case 'whofocus': s.sh.whoFocus = v || null; render(); return;
     case 'whoundo': whoUndo(v); return;
     case 'whook': (s.sh.whoNotes || []).splice(+v, 1); render(); return;
@@ -1215,6 +1226,19 @@ function flash(el){ el.classList.remove('flash'); void el.getBoundingClientRect(
 // 약도 번호(svg g)는 버튼이 아니라서 키보드 Enter·Space도 누른 것으로
 document.addEventListener('keydown', e => { if(e.key !== 'Enter' && e.key !== ' ') return; const g = e.target.closest && e.target.closest('.m-go'); if(!g) return; e.preventDefault(); act(g.dataset.act, g.dataset.v); });
 
+/* ---------- 📍 내 주변 (js/nearby.js) ---------- */
+// 버튼을 눌렀을 때만 위치를 한 번 받음. 좌표는 화면(s.sh.near, 저장 안 함)에서만 씀
+function nearLocate(){
+  const s = state; s.sh.near = Object.assign({}, s.sh.near, { open:true, busy:true, err:'' }); render();
+  if(!('geolocation' in navigator)){ s.sh.near.busy = false; s.sh.near.err = 'none'; render(); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const n = state.sh.near || {}; Object.assign(n, { busy:false, err:'', at:Date.now(), pt:{ lat:pos.coords.latitude, lng:pos.coords.longitude, acc:Math.round(pos.coords.accuracy || 0) } });
+    state.sh.near = n; render();
+  }, err => {
+    const n = state.sh.near || {}; n.busy = false; n.err = err && err.code === 1 ? 'deny' : 'fail'; state.sh.near = n; render();
+  }, { enableHighAccuracy:true, timeout:20000, maximumAge:60000 });
+}
+
 /* ---------- 시차·내 위치 (js/clock.js) ---------- */
 // 지금 한국인지 여행지인지만 s.here에 (좌표는 안 남김). ask: 버튼으로 눌렀을 때만 허락 창이 뜰 수 있음
 function checkWhere(ask){
@@ -1445,6 +1469,7 @@ const LAYERS = [
   [() => !!askBigView, () => askBigHide()],
   [() => mapOpen(), () => closeMap()],
   [() => !!(state.sh.ask && state.sh.ask.open), () => askSheetClose()],
+  [() => !!(state.sh.near && state.sh.near.open), () => { state.sh.near.open = false; render(); }],
   [() => !!state.sh.open, () => { state.sh.open = false; render(); }],
   [() => !!state.sh.sbig, () => { state.sh.sbig = null; state.sh.sreply = null; try{ speechSynthesis.cancel(); }catch(e){} render(); }],
   [() => !!state.mode, () => { state.mode = null; save(); render(); window.scrollTo({ top:0 }); }]

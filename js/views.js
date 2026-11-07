@@ -26,6 +26,7 @@ import { budgetOf, budgetView, budgetLines, catLine, manwon } from './budget.js'
 import { phaseOf, dayToShow, shownDate, nextStopIndex, fromFor, dayVault, dayWeather, phaseText, doneKey } from './today.js';
 import { mapSVG } from './map.js';
 import { REQS, SAYS, ASKS, REPLIES, talkOf, talkWords } from './asktalk.js';
+import { nearbyOf, googleNearUrl, amapNearUrl, nearDirUrl, amapDirUrl, WALK_KM } from './nearby.js';
 import { ASK_KINDS, askKindOf, askGroups, askOrder, askRecItem, askTalkCurs, askCount, askLastList, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
 import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
@@ -309,6 +310,42 @@ function askRecent(){
   return `<div class="askrecent"><b>🕘 읽어 둔 메뉴판</b>
     <div class="chips">${a.map(x => chip('asklast', String(x.id), `${esc((x.data && x.data.shop) || '메뉴판')} · ${when(x.id)}`)).join('')}</div>
     <div><button type="button" class="link" data-act="asklastclear">기록 지우기</button></div></div>`;
+}
+// 📍 내 주변 가볼 만한 곳 (app.js nearLocate가 위치를 받음, 좌표는 화면에서만 쓰고 저장·전송 안 함)
+export function NEARSHEET(s){
+  const n = s.sh.near || {}, pt = n.pt;
+  const head = `<div class="mshead"><b>📍 내 주변 가볼 만한 곳</b><button type="button" class="ghost small" data-act="nearclose">닫기</button></div>`;
+  const note = '<p class="fine">위치는 이 폰 안에서만 쓰고 남기지 않아요. 앱에 담긴 장소·가족 식당에서 찾아서 인터넷이 없어도 돼요. 지도 링크를 누를 때만 지금 좌표가 그 지도 회사로 가요.</p>';
+  const wrap = body => `<div class="mapsheet sheet" role="dialog" aria-label="내 주변 가볼 만한 곳">${head}<div class="shbody">${body}${note}</div></div>`;
+  if(n.busy && !pt) return wrap('<p class="pnote">지금 위치를 찾고 있어요… 건물 안이면 조금 걸릴 수 있어요.</p>');
+  if(!pt) return wrap(`<p class="warnline">${n.err === 'deny' ? '위치 허락이 꺼져 있어요. 폰 설정 → 이 앱(또는 브라우저)의 위치를 허용으로 바꾼 뒤 다시 눌러 주세요.' : n.err === 'none' ? '이 폰에서는 위치를 쓸 수 없어요.' : '위치를 못 받았어요. 하늘이 보이는 곳에서 다시 눌러 주세요.'}</p>
+    <div class="pfoot"><button type="button" class="primary small" data-act="nearagain">다시 찾기</button><button type="button" class="ghost small" data-act="sbig" data-v="hotel">🏨 숙소 카드</button></div>`);
+  const wd = s.sh.today ? new Date(s.sh.today + 'T00:00:00Z').getUTCDay() : null, hour = Math.floor((s.sh.nowMin || 0) / 60);
+  const R = nearbyOf({ places:PLACES.concat(s.custom || []), eats:EATS, s, pt, wd, hour });
+  const nearArea = Object.keys(AREAS).map(k => ({ k, km:dist(pt, AREAS[k]) })).sort((a, b) => a.km - b.km)[0];
+  const inSz = REGION.key === 'hksz' && nearArea && nearArea.km <= 25 && cityOfArea(nearArea.k) === 'sz';
+  const day = s.start ? buildDays(s).find(d => d.key === s.sh.today) : null;
+  const age = Math.max(0, Math.round((Date.now() - (n.at || 0)) / 60000));
+  const sta = REGION.key === 'hksz' && !inSz ? nearStations(pt, 1, 3)[0] : null;
+  const far = R.far || !nearArea || nearArea.km > 25;
+  const item = x => { const p = x.p;
+    return `<li class="nearit"><div class="sbody"><b>${esc(p.name)}</b>${p.ja ? `<span class="ja" lang="${REGION.key === 'tokyo' ? 'ja' : 'zh-HK'}">${esc(p.ja)}</span>` : ''}
+      <span>${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${esc(kmText(x.km))} · ${x.byWalk ? `걸어서 약 ${x.walk}분` : '지하철·택시로'}${p.full ? ' · 하루 종일' : p.hours ? ` · 약 ${esc(p.hours)}시간` : ''}</span>
+      <span class="nearbadges">${x.picked ? '<span class="nb on">담은 곳</span>' : ''}${x.off ? '<span class="nb off">오늘 쉬어요</span>' : ''}${x.night ? `<span class="nb">🌙 ${hour >= 17 || hour < 4 ? '지금 보기 좋아요' : '밤에 좋아요'}</span>` : ''}${p.indoor === true ? '<span class="nb">실내</span>' : ''}${x.why.map(w => `<span class="nb">${esc(w)}</span>`).join('')}</span>
+      ${p.note ? `<span class="fine">${esc(p.note.length > 90 ? p.note.slice(0, 88) + '…' : p.note)}</span>` : ''}
+      <span class="nearacts"><a class="link" href="${esc(nearDirUrl(pt, p, x.byWalk))}" target="_blank" rel="noopener">${x.byWalk ? '🚶' : '🚇'} 길찾기 ↗</a>${inSz ? `<a class="link" href="${esc(amapDirUrl(pt, p, x.byWalk))}" target="_blank" rel="noopener">가오더 길찾기 ↗</a>` : ''}
+        ${day && !x.off ? `<button type="button" class="link" data-act="neartoday" data-v="${esc(p.id)}">${(s.assign || {})[p.id] === day.i || (s.fullDay || {})[p.id] === day.i ? '✓ 오늘 일정에 있어요' : '+ 오늘 일정에 넣기'}</button>` : ''}
+        ${x.picked ? '' : `<button type="button" class="link" data-act="nearpick" data-v="${esc(p.id)}">담기</button>`}</span></div></li>`; };
+  const eat = e => `<li class="nearit"><div class="sbody"><b>${eatIcon(e)} ${esc(e.name)}</b>${e.local ? `<span class="ja" lang="${REGION.key === 'tokyo' ? 'ja' : 'zh-HK'}">${esc(e.local)}</span>` : ''}
+      <span>${esc(e.kind || '')} · ${esc(kmText(e.km))} · 걸어서 약 ${e.walk}분${priceText(e.price) ? ` · ${esc(priceText(e.price))}` : ''}${e.off ? ' · <span class="closed">오늘 쉬어요</span>' : ''}</span>
+      <span class="nearacts"><a class="link" href="${esc(nearDirUrl(pt, Object.assign({}, e, { mapq:e.mapq || e.addr || e.local }), true))}" target="_blank" rel="noopener">🚶 길찾기 ↗</a>${inSz ? `<a class="link" href="${esc(eatAmapUrl(e))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}</span></div></li>`;
+  return wrap(`<p class="fine">${age < 1 ? '방금' : `${age}분 전`} 찾은 위치 기준${pt.acc ? ` · 오차 약 ${esc(kmText(pt.acc / 1000))}` : ''} · <button type="button" class="link" data-act="nearagain">${n.busy ? '찾는 중…' : '지금 위치로 다시 찾기'}</button></p>
+    ${sta ? `<p class="pnote">🚇 가장 가까운 MTR역: <b>${esc(stationKo(sta.code))}</b> ${esc(distText(sta.km))}</p>` : ''}
+    ${far ? `<p class="warnline">${!nearArea || nearArea.km > 25 ? '여행지에서 먼 곳이에요. 앱에 담긴 장소가 근처에 없어서 아래 지도 앱에서 찾아 주세요.' : `앱에 담긴 장소가 4km 안에 없어서 가장 가까운 곳을 보여 드려요.`}</p>` : `<p class="pnote">${R.radius}km 안에서 ${R.items.length}곳을 골랐어요. 가까운 순이고, 오늘 쉬는 곳은 뒤로 뺐어요.</p>`}
+    ${R.items.length && !(far && (!nearArea || nearArea.km > 25)) ? `<ul class="nearlist">${R.items.map(item).join('')}</ul>` : ''}
+    ${R.eats.length ? `<h3>근처 가족 식당 (1km 안)</h3><ul class="nearlist">${R.eats.map(eat).join('')}</ul>` : ''}
+    <div class="pfoot"><a class="ghost small" href="${esc(googleNearUrl(pt))}" target="_blank" rel="noopener">구글 지도에서 주변 명소 더 보기 ↗</a>${inSz ? `<a class="ghost small" href="${esc(amapNearUrl(pt))}" target="_blank" rel="noopener">가오더 지도에서 보기 ↗</a>` : ''}</div>
+    <div class="pfoot"><button type="button" class="ghost small" data-act="sbig" data-v="hotel">🏨 숙소로 돌아갈 때: 숙소 카드</button></div>`);
 }
 export function ASKSHEET(s, photo){
   let ks = { g:'', v:'', use:'' }; try{ ks = askKeys(localStorage); }catch(e){}
@@ -2208,6 +2245,7 @@ export function vToday(s){
     <div class="scroller" role="group" aria-label="날짜 고르기">${P.days.map(x => `<button type="button" class="chip" data-act="tday" data-v="${x.i}" aria-pressed="${x.i === i}">${x.i + 1}일차${x.i === ph.index ? ' · 오늘' : ''}</button>`).join('')}</div>
     ${todayWeatherLine(dayWeather(wxOf(s, P), date), REGION.key === 'hksz' && ph.phase === 'during' && date === today && hkDates(P, AREAS).has(today) ? freshNow(s.hko, Date.now()) : null)}
     ${clockBox(s, ph)}
+    <div><button type="button" class="ghost small" data-act="nearopen">📍 내 주변 가볼 만한 곳</button></div>
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
     ${ph.phase === 'before' ? prepBox(s, 'today') : ''}
