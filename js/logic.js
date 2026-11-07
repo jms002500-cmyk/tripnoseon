@@ -22,6 +22,14 @@ export function centroid(items){
 
 // 'YYYY-MM-DD'를 현지 날짜로 (UTC로 해석하면 하루 밀리는 문제를 피함)
 export function parseDate(str){ const [y,m,d] = str.split('-').map(Number); return new Date(y, m-1, d); }
+const shiftDate = (str, n) => { const d = parseDate(str); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+// 가는 날·오는 날 고치기. 가는 날을 오는 날 뒤로 옮기면 여행 길이는 그대로 두고 오는 날도 같이 옮김 (날짜가 뒤집혀 일정이 사라지지 않게)
+export const datesReversed = s => !!s.start && !!s.end && s.start > s.end;
+export function setTripDate(s, k, v){
+  const len = s.start && s.end ? Math.max(0, Math.round((parseDate(s.end) - parseDate(s.start)) / 864e5)) : 0;
+  s[k] = v;
+  if(datesReversed(s)){ if(k === 'start') s.end = shiftDate(s.start, len); else s.start = shiftDate(s.end, -len); }
+}
 
 // 지금 여행 지역 범위 안인지 (지역을 바꿔도 전에 담은 다른 지역 장소·숙소 후보는 지우지 않고 숨김)
 export function inRegion(pt){ return !!pt && pt.lat != null && dist(REGION.center, pt) <= (REGION.radiusKm || 80); }
