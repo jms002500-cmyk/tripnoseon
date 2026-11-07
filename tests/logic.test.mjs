@@ -2,7 +2,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT, PLACES } from '../js/data.js';
-import { clone, buildDays, setTripDate, datesReversed, fullAssign, rankAreas, plan, fitScore, capacity, autoPickIds } from '../js/logic.js';
+import { clone, buildDays, searchPlaces, setTripDate, datesReversed, fullAssign, rankAreas, plan, fitScore, capacity, autoPickIds } from '../js/logic.js';
+
+test('장소 찾기: 이름·현지 이름·주소·동네·설명, 띄어쓰기 무시, 이름 맞는 곳 먼저', () => {
+  const L = [
+    { id:'a', name:'오션파크', ja:'海洋公園', addr:'Ocean Park, Aberdeen', area:'south', kind:'테마파크', tags:['아이'], note:'' },
+    { id:'b', name:'스타페리 부두', ja:'', addr:'Star Ferry Pier', area:'tst', kind:'거리', tags:[], note:'오션파크 가는 버스 근처' },
+    { id:'c', name:'K11 뮤지아', local:'K11 MUSEA', addr:'18 Salisbury Road', area:'tst', menu:'딤섬', note:'' }
+  ];
+  const A = { south:{ name:'홍콩섬 남쪽' }, tst:{ name:'침사추이' } };
+  const ids = q => searchPlaces(L, q, A).map(p => p.id);
+  assert.deepEqual(ids('오션파크'), ['a', 'b']);       // 이름이 먼저, 설명에만 있는 곳은 뒤에
+  assert.deepEqual(ids('오션 파크'), ['a', 'b']);       // 띄어 써도 찾음
+  assert.deepEqual(ids('오션 거리'), ['b']);            // 낱말이 모두 있어야 함
+  assert.deepEqual(ids('스타 페리'), ['b']);
+  assert.deepEqual(ids('海洋'), ['a']);
+  assert.deepEqual(ids('salisbury'), ['c']);
+  assert.deepEqual(ids('침사추이'), ['b', 'c']);
+  assert.deepEqual(ids('딤섬'), ['c']);
+  assert.deepEqual(ids('침사추이 딤섬'), ['c']);
+  assert.deepEqual(ids('   '), []);
+  assert.deepEqual(ids('없는곳'), []);
+});
 
 test('가는 날을 오는 날 뒤로 옮기면 여행 길이를 지켜 오는 날도 옮김', () => {
   const s = { start:'2027-03-07', end:'2027-03-11' };

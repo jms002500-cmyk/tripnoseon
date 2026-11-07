@@ -13,7 +13,7 @@ import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHEC
 // 한 구간 이동 시간 한 줄: '약 15분 · 지하철' (직선거리 어림)
 const legText = (a, b) => { const segs = legSegments(a, b); return `약 ${minText(legMinutes(a, b, segs))} · ${legMode(segs)}`; };
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
-import { datesReversed, nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, closedOn, tripEvents, dayEvents, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf, tripCities, onlyCity, placeCity, dist } from './logic.js';
+import { searchPlaces, datesReversed, nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, closedOn, tripEvents, dayEvents, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf, tripCities, onlyCity, placeCity, dist } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
@@ -530,6 +530,17 @@ function importBox(s){
     ${list}`;
 }
 
+// 장소 담기 검색 결과 (글자를 칠 때마다 이 부분만 다시 그림: 한글 조합이 끊기지 않게)
+export function pickSearch(s){
+  const q = ((s.sh || {}).pq || '').trim(); if(!q) return '';
+  const cities = tripCities(s); const inTrip = x => !cities.length || !AREAS[x.area] || cities.includes(AREAS[x.area].city);
+  const places = searchPlaces(allPlaces(s).filter(inTrip), q, AREAS), eats = searchPlaces(EATS.filter(inTrip), q, AREAS);
+  if(!places.length && !eats.length) return `<p class="empty">'${esc(q)}'에 맞는 곳이 없어요. 다른 이름으로 찾거나 구글 지도에서 찾아 담아 보세요.</p><div><button type="button" class="ghost small" data-act="mapopen">구글 지도 열기</button></div>`;
+  return `<p class="fine">장소 ${places.length}곳${eats.length ? ` · 식당 ${eats.length}곳` : ''}을 찾았어요.</p>
+    <div class="list">${places.map(p => placeCard(p, s, 0)).join('')}</div>
+    ${eats.length ? `<div class="box"><h2>🍜 식당</h2><ul class="implist flist">${eats.map(eatRow).join('')}</ul></div>` : ''}`;
+}
+
 export function vPick(s){
   const cap = capacity(s); const pct = cap.total ? Math.min(100, cap.used / cap.total * 100) : 0; const over = cap.used > cap.total;
   let list = allPlaces(s).map(p => ({ p, sc: fitScore(p, s).score + (s.must[p.id] ? 100 : 0) }));
@@ -547,6 +558,9 @@ export function vPick(s){
     <p class="eyebrow">Step 4 · 장소 담기</p>
     <h1>가고 싶은 곳을 담아요</h1>
     <p class="lead">고민은 나중에 하고 일단 담으세요. ${esc(partyText(s))}에게 맞는 순서로 보여드려요.</p>
+    <div class="psearch"><input id="psearch" type="search" enterkeyhint="search" autocomplete="off" maxlength="40" aria-label="장소와 식당 찾기" placeholder="🔍 장소·식당 이름, 주소, 동네로 찾기" value="${esc((s.sh || {}).pq || '')}"></div>
+    <div id="psres">${pickSearch(s)}</div>
+    <div id="pickbody"${((s.sh || {}).pq || '').trim() ? ' hidden' : ''}>
     ${mapSVG('pick', s, null, focus)}
     ${focus ? '' : '<p class="fine">아래에서 동네나 종류를 고르면 그곳만 번호를 달아 지도에 보여 드려요.</p>'}
     <div class="box">
@@ -583,6 +597,7 @@ export function vPick(s){
       <div><button type="submit" class="primary small">추가하고 담기</button></div>
       <p class="fine">고른 동네 근처에 대략 표시돼요. 정확한 위치가 필요하면 위의 '구글 지도에서 가져오기'를 써 주세요.</p>
     </form>
+    </div>
   </section>`;
 }
 

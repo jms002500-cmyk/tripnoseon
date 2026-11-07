@@ -1,7 +1,7 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
@@ -359,6 +359,7 @@ document.addEventListener('focusout', () => { if(renderLater){ renderLater = fal
 
 function render(){
   const s = state;
+  if(s.sh && s.sh.pq && (s.mode || STEPS[s.step] !== '장소 담기')) s.sh.pq = '';   // 다른 화면으로 가면 검색을 풂
   document.documentElement.dataset.size = s.textSize || '';   // 큰 글씨 모드 (css html[data-size])
   renderNet(); locSync();
   document.getElementById('line').innerHTML =
@@ -650,7 +651,15 @@ function updatePreview(){
 }
 // 가족 식당 상자를 펼치고 접은 것을 기억 (다시 그려도 그대로, views.js eatsBox)
 document.addEventListener('toggle', e => { const t = e.target; if(t && t.classList && t.classList.contains('eatbox')) state.sh.eatsOpen = t.open; }, true);
-document.addEventListener('input', e => { if(e.target.id === 'lline') updatePreview();
+document.addEventListener('input', e => {
+  if(e.target.id === 'psearch'){   // 검색 결과만 다시 그림 (입력 칸을 그대로 둬서 한글 조합이 안 끊기게)
+    const s = state; s.sh.pq = e.target.value;
+    const r = document.getElementById('psres'), b = document.getElementById('pickbody');
+    if(r) r.innerHTML = pickSearch(s);
+    if(b) b.hidden = !!s.sh.pq.trim();
+    showKrw(s); return;
+  }
+  if(e.target.id === 'lline') updatePreview();
   if(e.target.id === 'aiwant') (state.sh.aiPlan = state.sh.aiPlan || {}).want = e.target.value.slice(0, 100); });
 
 // 오늘 하루 화면에서 장소의 '여기서 쓴 돈'을 눌렀으면 그 장소를 단 지출로
