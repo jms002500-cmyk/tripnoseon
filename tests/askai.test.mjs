@@ -113,4 +113,13 @@ test('간판용 빠른 번역 바로가기: 자동 감지 → 한국어, https�
   const { QUICK_TRANSLATE } = await import('../js/askai.js');
   assert.deepEqual(QUICK_TRANSLATE.map(x => x.key), ['google', 'papago']);
   QUICK_TRANSLATE.forEach(x => { assert.match(x.url, /^https:\/\//); assert.match(x.url, /auto/); assert.match(x.url, /=ko\b/); });
+  const { quickHref, quickNote } = await import('../js/askai.js');
+  const phone = 'Mozilla/5.0 (Linux; Android 10; K) Chrome/120 Mobile', iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)';
+  QUICK_TRANSLATE.forEach(x => {
+    const h = quickHref(x, phone);
+    assert.match(h, /^intent:\/\/[^#]+#Intent;scheme=https;package=[\w.]+;S\.browser_fallback_url=https%3A%2F%2Fplay\.google\.com%2Fstore%2Fapps%2Fdetails%3Fid%3D[\w.]+;end$/);
+    assert.equal(quickHref(x, iphone), x.url);
+    assert.equal(quickHref(x, undefined), x.url);
+  });
+  assert.notEqual(quickNote(phone), quickNote(iphone));
 });

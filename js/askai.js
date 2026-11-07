@@ -203,10 +203,15 @@ export function wrapText(text, maxW, width){
   return out;
 }
 
+const appIntent = (pkg, path) => `intent://${path}#Intent;scheme=https;package=${pkg};S.browser_fallback_url=${encodeURIComponent(`https://play.google.com/store/apps/details?id=${pkg}`)};end`;
 export const QUICK_TRANSLATE = [
-  { key:'google', label:'구글 번역 카메라', url:'https://translate.google.com/?sl=auto&tl=ko&op=images', tip:'구글 번역 앱이 있으면 앱의 카메라 버튼을 누르세요.' },
-  { key:'papago', label:'파파고', url:'https://papago.naver.com/?sk=auto&tk=ko', tip:'파파고 앱이 있으면 앱의 이미지(카메라) 버튼을 누르세요.' }
+  { key:'google', label:'구글 번역 앱', url:'https://translate.google.com/?sl=auto&tl=ko&op=images', android:appIntent('com.google.android.apps.translate', 'translate.google.com/'), tip:'구글 번역은 앱의 카메라 버튼을 누르세요.' },
+  { key:'papago', label:'파파고 앱', url:'https://papago.naver.com/?sk=auto&tk=ko', android:appIntent('com.naver.labs.translator', 'papago.naver.com/'), tip:'파파고는 앱의 이미지(카메라) 버튼을 누르세요.' }
 ];
+
+// 웹 번역 화면에는 카메라가 없어 안드로이드에서는 앱을 부름. 카메라를 바로 여는 공개 주소는 없어서 앱 첫 화면까지만 감
+export const quickHref = (x, ua) => /Android/i.test(ua || '') ? x.android : x.url;
+export const quickNote = ua => /Android/i.test(ua || '') ? '앱 대신 플레이 스토어가 열리면 거기서 받거나 열기를 누르세요.' : '웹 화면에는 카메라가 없어요. 폰에 있는 앱을 직접 여세요.';
 
 export const AI_SITES = [
   { key:'gemini', label:'제미나이', url:'https://gemini.google.com/app' },
