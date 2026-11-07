@@ -13,7 +13,7 @@ import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHEC
 // 한 구간 이동 시간 한 줄: '약 15분 · 지하철' (직선거리 어림)
 const legText = (a, b) => { const segs = legSegments(a, b); return `약 ${minText(legMinutes(a, b, segs))} · ${legMode(segs)}`; };
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
-import { nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, closedOn, tripEvents, dayEvents, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf, tripCities, onlyCity, placeCity, dist } from './logic.js';
+import { datesReversed, nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, closedOn, tripEvents, dayEvents, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf, tripCities, onlyCity, placeCity, dist } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
@@ -253,8 +253,9 @@ export function vWhere(s){
     <h2>날짜</h2>
     <div class="dates">
       <label for="dstart">가는 날<input id="dstart" type="date" value="${esc(s.start)}" data-date="start"></label>
-      <label for="dend">오는 날<input id="dend" type="date" value="${esc(s.end)}"${s.start ? ` min="${esc(s.start)}"` : ''} data-date="end"></label>
+      <label for="dend">오는 날<input id="dend" type="date" value="${esc(s.end)}"${s.start && !datesReversed(s) ? ` min="${esc(s.start)}"` : ''} data-date="end"></label>
     </div>
+    ${datesReversed(s) ? '<p class="warnline">가는 날이 오는 날보다 늦어요. 오는 날을 다시 골라 주세요.</p>' : ''}
     ${days.length ? flightBox(s, days) : ''}
     ${days.length ? `<div class="box">
       <div class="row"><h2>${days.length-1}박 ${days.length}일</h2><span class="fine">${PACE[s.pace].label} 기준</span></div>

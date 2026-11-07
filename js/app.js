@@ -1,6 +1,6 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
-import { clone, buildDays, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
+import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
 import { VIEWS, SHEET, ASKSHEET, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
@@ -1282,7 +1282,7 @@ async function sendAsk(){
 function onChange(e){
   const t = e.target; const s = state;
   if(t.dataset.kid != null){ s.kids[+t.dataset.kid] = Math.min(17, Math.max(0, parseInt(t.value, 10) || 0)); }
-  else if(t.dataset.date){ if(!t.value) return; s[t.dataset.date] = t.value; s.fullDay = {}; s.assign = {}; s.dlock = {}; s.nights = {}; }
+  else if(t.dataset.date){ if(!t.value) return; setTripDate(s, t.dataset.date, t.value); s.fullDay = {}; s.assign = {}; s.dlock = {}; s.nights = {}; }
   else if(t.dataset.full){
     // 다른 '하루 종일' 장소와 날짜가 겹치면 서로 맞바꿈
     const id = t.dataset.full; const nv = +t.value; const fa = fullAssign(s, buildDays(s)); const prev = fa[id];

@@ -2,7 +2,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT, PLACES } from '../js/data.js';
-import { clone, buildDays, fullAssign, rankAreas, plan, fitScore, capacity, autoPickIds } from '../js/logic.js';
+import { clone, buildDays, setTripDate, datesReversed, fullAssign, rankAreas, plan, fitScore, capacity, autoPickIds } from '../js/logic.js';
+
+test('가는 날을 오는 날 뒤로 옮기면 여행 길이를 지켜 오는 날도 옮김', () => {
+  const s = { start:'2027-03-07', end:'2027-03-11' };
+  setTripDate(s, 'start', '2027-03-20');
+  assert.deepEqual([s.start, s.end], ['2027-03-20', '2027-03-24']);
+  setTripDate(s, 'start', '2027-03-22');
+  assert.deepEqual([s.start, s.end], ['2027-03-22', '2027-03-24']);   // 앞뒤가 맞으면 한쪽만
+  setTripDate(s, 'end', '2027-03-30');
+  assert.deepEqual([s.start, s.end], ['2027-03-22', '2027-03-30']);
+  setTripDate(s, 'start', '2027-12-30');
+  assert.equal(s.end, '2028-01-07');                                  // 해가 넘어가도
+  const r = { start:'2027-03-20', end:'2027-03-10' };                 // 이미 뒤집힌 일정을 받은 경우
+  assert.equal(datesReversed(r), true);
+  setTripDate(r, 'end', '2027-03-26');
+  assert.deepEqual([r.start, r.end, datesReversed(r)], ['2027-03-20', '2027-03-26', false]);
+  const e = { start:'', end:'' }; setTripDate(e, 'start', '2027-03-20');
+  assert.deepEqual([e.start, e.end], ['2027-03-20', '']);
+});
 
 // 지어낸 예시 일정: 가족 3명(13살), 도쿄, 2027-03-07(일) ~ 03-11(목), 디즈니랜드 필수
 // (실제 사람의 일정은 넣지 않음. 앱 기본값은 비어 있어서 여기서 채움)
