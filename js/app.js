@@ -1,13 +1,13 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { REPLIES } from './asktalk.js';
+import { REPLIES, talkWords } from './asktalk.js';
 import { VIEWS, SHEET, ASKSHEET, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
 import { esc } from './ui.js';
-import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, askOrder, askTransPrompt, hasHangul, ASK_KEY, ASK_VKEY, ASK_USE, askKeys, askKeyNow, askKeyInfo, askTargets, askErrTag, b64url, pemToDer, jwtClaims, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
+import { askPrompt, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, planPrompt, parseAiPlaces, matchPlace, aiToPick, askOrder, askTransPrompt, hasHangul, askKeysOf, askCount, askStep, askSplit, askLastList, askLastSave, ASK_LAST, ASK_KEY, ASK_VKEY, ASK_USE, askKeys, askKeyNow, askKeyInfo, askTargets, askErrTag, b64url, pemToDer, jwtClaims, geminiBody, geminiRaw, geminiText, geminiError } from './askai.js';
 import { PK_KEY, krAirport, moveKap, parkUrl, parseParking } from './parking.js';
 import { busUrl, parseBuses, findBuses, busByNo } from './airbus.js';
 import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
@@ -1067,8 +1067,8 @@ function act(a, v){
     }
     case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
     case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); if(packTick('appcal')) save(); return;
-    case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; render(); return;
-    case 'askclose': s.sh.ask.open = false; setAskPhoto(null); render(); return;
+    case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; try{ history.pushState({ ask:1 }, ''); }catch(e){} render(); return;
+    case 'askclose': if(history.state && history.state.ask){ history.back(); return; } askSheetClose(); return;
     case 'askkind': s.sh.ask.kind = v; s.sh.ask.res = null; render(); return;
     case 'askclear': setAskPhoto(null); s.sh.ask.res = null; render(); return;
     case 'asknow': askNow(); return;
@@ -1078,13 +1078,18 @@ function act(a, v){
       r.reqs = Object.assign({}, r.reqs, { [to]:a.includes(v) ? a.filter(x => x !== v) : [...a, v] }); askPick('', 0, true); return; }
     case 'asktalkcur': s.sh.ask.cur = v; render(); return;
     case 'askbig': { const [type, key] = v.split(':'); askBigShow({ type, key, hasKey:askHasKey() }); return; }
-    case 'askbigclose': askBigHide(); return;
+    case 'askbigclose': askBigClose(); return;
+    case 'askspeak': askSpeak(); return;
+    case 'asksplit': { const r = s.sh.ask.res, x = r && askSplit(r.cart, v); if(x){ r.cart = x.cart; r.reqFor = x.key; askPick('', 0, true); } return; }
+    case 'asklast': { let e = null; try{ e = askLastList(localStorage).find(x => String(x.id) === v); }catch(err){} if(e){ setAskPhoto(null); s.sh.ask.kind = 'menu'; s.sh.ask.res = { ...e, kind:'menu', restored:true }; render(); } return; }
+    case 'asklastclear': try{ localStorage.removeItem(ASK_LAST); }catch(e){} toast('읽어 둔 메뉴판을 지웠어요.'); render(); return;
     case 'askreply': { const x = REPLIES.find(y => y.key === v); if(x && askBigView){ askBigView.msg = `👉 직원 답: ${x.ko}`; askBigShow(askBigView); } return; }
-    case 'askgone': { const o = askOrder(s.sh.ask.res.data, s.sh.ask.res.cart, s.sh.ask.res), l = o.lines.find(y => y.k === v); askPick(v, -9999);
-      if(l && askBigView){ askBigView.msg = `👉 직원 답: ${l.ko}은(는) 없어요. 주문에서 뺐어요.`; if(o.lines.length > 1) askBigShow(askBigView); else askBigHide(); } if(l) toast(`${l.ko}을(를) 주문에서 뺐어요.`); return; }
+    case 'askgone': { const r = s.sh.ask.res, l = askOrder(r.data, r.cart, r).lines.find(y => y.k === v); if(!l) return;
+      const base = v.split(':').slice(0, 2).join(':'); askKeysOf(r.cart, base).forEach(k => { delete r.cart[k]; if(r.reqs) delete r.reqs[k]; }); askPick('', 0, true);   // 품절이면 나눈 줄까지 모두 뺌
+      toast(`${l.ko}은(는) 없다고 해서 주문에서 뺐어요.`); if(askOrder(r.data, r.cart, r).count && askBigView){ askBigView.msg = `👉 직원 답: ${l.ko}은(는) 없어요. 주문에서 뺐어요.`; askBigShow(askBigView); } else askBigClose(); return; }
     case 'asktrans': { const t = (document.getElementById('asktr') || {}).value || ''; if(t.trim()) askTrans(t.trim()); else toast('옮길 말을 먼저 써 주세요.'); return; }
     case 'askstaff': { const t = (document.getElementById('askstaff') || {}).value || ''; if(t.trim()) askTrans(t.trim()); return; }
-    case 'askfreeadd': { const r = s.sh.ask.res, v2 = askBigView; if(r && r.data && v2 && v2.out){ r.free = [...(r.free || []), { ko:v2.src, local:v2.out }]; askPick('', 0, true); toast('주문 문장에 넣었어요.'); } askBigHide(); return; }
+    case 'askfreeadd': { const r = s.sh.ask.res, v2 = askBigView; if(r && r.data && v2 && v2.out){ r.free = [...(r.free || []), { ko:v2.src, local:v2.out }]; askPick('', 0, true); toast('주문 문장에 넣었어요.'); } askBigClose(); return; }
     case 'askdel': askPick(v, -1); return;
     case 'askcartclear': askPick(); return;
     case 'askcartgo': { const b = document.getElementById('askorderbox'); if(b) b.scrollIntoView({ block:'start', behavior:'smooth' }); return; }
@@ -1357,21 +1362,44 @@ function askPick(k, d, same){
   const r = state.sh.ask && state.sh.ask.res; if(!r || !r.data) return;
   if(same) r.cart = r.cart || {};
   else if(!k){ r.cart = {}; r.reqs = {}; r.free = []; r.reqFor = ''; }
-  else{ const n = Math.max(0, ((r.cart || {})[k] || 0) + d); r.cart = Object.assign({}, r.cart, { [k]:n }); if(!n){ delete r.cart[k]; if(r.reqs) delete r.reqs[k]; } }
-  document.querySelectorAll('.askqty').forEach(q => { const n = r.cart[q.dataset.k] || 0; q.classList.toggle('on', n > 0); q.querySelector('b').textContent = n; });
+  else{ r.cart = askStep(r.cart, k, d); if(r.reqs) Object.keys(r.reqs).forEach(x => { if(x !== '*' && !r.cart[x]) delete r.reqs[x]; }); }
+  document.querySelectorAll('.askqty').forEach(q => { const n = askCount(r.cart, q.dataset.k); q.classList.toggle('on', n > 0); q.querySelector('b').textContent = n; });
   const box = document.getElementById('askorderbox'), bar = document.getElementById('askcartbar');
   if(box) box.innerHTML = askOrderBox(state, r);
   if(bar) bar.innerHTML = askCartBar(state, r);
+  askRemember(r);
 }
 // 크게 보여 주기: 시트 밖에 띄워서 화면을 다시 그려도 사라지지 않음
 let askBigView = null;
 const askHasKey = () => { try{ return !!askKeys(localStorage).use; }catch(e){ return false; } };
+let askLock = null;
+function askKeepOn(){ try{ if('wakeLock' in navigator && !askLock) navigator.wakeLock.request('screen').then(l => { askLock = l; l.addEventListener('release', () => { askLock = null; }); }).catch(() => {}); }catch(e){} }
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && askBigView) askKeepOn(); });
 function askBigShow(v){
+  if(!askBigView){ try{ history.pushState({ askbig:1 }, ''); }catch(e){} askKeepOn(); }
   askBigView = v; let el = document.getElementById('askbig');
   if(!el){ el = document.createElement('div'); el.id = 'askbig'; el.className = 'askbig'; el.setAttribute('role', 'dialog'); document.body.appendChild(el); }
-  el.hidden = false; el.innerHTML = askBigHtml(state, v); el.scrollTop = 0;
+  el.lang = talkWords(v.cur || askTalkCur(state)).html; el.hidden = false; el.innerHTML = askBigHtml(state, v); el.scrollTop = 0;
 }
-function askBigHide(){ askBigView = null; const el = document.getElementById('askbig'); if(el){ el.hidden = true; el.innerHTML = ''; } }
+function askBigHide(){ askBigView = null; const el = document.getElementById('askbig'); if(el){ el.hidden = true; el.innerHTML = ''; } try{ speechSynthesis.cancel(); }catch(e){} if(askLock){ askLock.release().catch(() => {}); askLock = null; } }
+function askBigClose(){ if(history.state && history.state.askbig) history.back(); else askBigHide(); }
+function askSheetClose(){ if(state.sh.ask) state.sh.ask.open = false; setAskPhoto(null); render(); }
+// 폰의 뒤로 가기: 앱이 닫히지 않고 크게 보기 → 묻기 창 차례로 닫힘
+addEventListener('popstate', () => { if(askBigView) askBigHide(); else if(state.sh.ask && state.sh.ask.open) askSheetClose(); });
+// 고른 주문까지 이 폰에 보관 (창을 닫거나 앱이 다시 열려도 그대로, 일정·공유·백업에는 들어가지 않음)
+function askRemember(r){
+  if(!r || !r.data || r.kind !== 'menu') return;
+  r.id = r.id || Date.now();
+  try{ askLastSave(localStorage, { id:r.id, note:r.note || '', data:r.data, cart:r.cart || {}, reqs:r.reqs || {}, free:r.free || [], reqFor:r.reqFor || '' }); }catch(e){}
+}
+// 소리로 들려주기: 폰에 그 말 음성이 있을 때만
+function askSpeak(){
+  const el = document.getElementById('askbig'); if(!el || !globalThis.speechSynthesis) return;
+  const lang = el.lang, text = [...el.querySelectorAll('.askbigtext,.askgone button,.askbigsub')].map(x => x.textContent.replace(/ × (\d+)/g, ' $1')).join('。');
+  const vs = speechSynthesis.getVoices(), has = !vs.length || vs.some(x => x.lang.replace('_', '-').toLowerCase() === lang.toLowerCase() || (lang === 'ja' && x.lang.startsWith('ja')));
+  if(!has){ toast('이 폰에는 이 말 음성이 없어요. 화면을 보여 주세요.'); return; }
+  speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = 0.9; speechSynthesis.speak(u);
+}
 // 직접 쓴 말 번역: 한국어면 현지어로(주문에 넣을 수 있음), 직원이 쓴 말이면 한국어로
 async function askTrans(text){
   const cur = askTalkCur(state), toKo = !hasHangul(text), base = { type:'text', cur, src:text, toKo, hasKey:true };
@@ -1405,10 +1433,10 @@ async function askNow(){
     let r;
     for(const u of askTargets(info)){ r = await fetchTimed(u, { method:'POST', headers, body }, 90000); if(r.status !== 404) break; }
     const j = await r.json().catch(() => null); const data = r.ok ? askParse(ask.kind, geminiRaw(j)) : null; const raw = r.ok && !data ? geminiText(j) : '', text = raw[0] === '{' ? '' : raw;   // 칸이 깨진 답을 그대로 보이지 않음
-    res = data ? { data, kind:ask.kind } : text ? { text } : { err:r.ok ? '답을 받지 못했어요. 사진을 다시 찍어 주세요.' : `${geminiError(r.status, j)} (구글 응답 ${askErrTag(r.status, j)})` };
+    res = data ? { data, kind:ask.kind, note:s.askNote || '' } : text ? { text } : { err:r.ok ? '답을 받지 못했어요. 사진을 다시 찍어 주세요.' : `${geminiError(r.status, j)} (구글 응답 ${askErrTag(r.status, j)})` };
   }catch(e){ res = { err:'답이 늦어요. 다시 누르거나 아래 AI 앱으로 보내기를 써 주세요.' }; }
   if(askPhoto !== photo || s.sh.ask !== ask) return;   // 기다리는 동안 사진을 바꿨거나 창을 닫음
-  ask.res = res; render(); { const a = document.getElementById('askres'); if(a) a.scrollIntoView({ block:'start' }); }
+  ask.res = res; askRemember(res); render(); { const a = document.getElementById('askres'); if(a) a.scrollIntoView({ block:'start' }); }
 }
 // 부탁 문장을 사진 위에 얹은 그림 한 장 (AI 앱이 공유 글을 빠뜨려도 그림 속 글자를 읽게). 안 되면 null → 원본 사진
 async function askComposite(f, text){
