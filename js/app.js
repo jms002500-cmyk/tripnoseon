@@ -412,8 +412,8 @@ function render(){
     : recMode
     ? `<button type="button" class="ghost" data-act="tclose">계획으로</button><button type="button" class="primary" data-act="rshare">글로 보내기</button>`
     : s.step < STEPS.length-1
-    ? `<button type="button" class="ghost" data-act="prev"${s.step === 0 ? ' disabled' : ''}>이전</button><button type="button" class="primary" data-act="next">다음 · ${STEPS[s.step+1]}</button>`
-    : `<button type="button" class="ghost" data-act="prev">이전</button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`) + ASK_BTN;
+    ? `<button type="button" class="ghost prevbtn" data-act="prev" aria-label="이전"${s.step === 0 ? ' disabled' : ''}><span class="pvi" aria-hidden="true">‹</span><span class="pvt">이전</span></button><button type="button" class="primary nextbtn" data-act="next" aria-label="다음 · ${STEPS[s.step+1]}"><small>다음</small><b>${STEPS[s.step+1]}</b></button>`
+    : `<button type="button" class="ghost prevbtn" data-act="prev" aria-label="이전"><span class="pvi" aria-hidden="true">‹</span><span class="pvt">이전</span></button><button type="button" class="primary" data-act="lfocus">지출 적기</button>`) + ASK_BTN;
   devBar();
   const rb = document.getElementById('resetBtn');   // '처음부터'는 도움 화면 맨 아래에만
   if(rb){ rb.textContent = resetArmed ? '한 번 더 누르면 지워져요' : '처음부터'; rb.classList.toggle('armed', resetArmed); }
