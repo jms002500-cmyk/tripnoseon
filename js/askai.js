@@ -99,6 +99,26 @@ export function askPrompt(s, kind, note){
 export const ASK_KEY = 'tripnoseon-askkey';
 export const ASK_KEY_PAGE = 'https://aistudio.google.com/apikey';
 export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
+// 개발자 본인용: 키 칸에 버텍스 서비스 계정 JSON이나 버텍스 키(AQ.…)를 넣으면 버텍스로 물음. 화면에는 안내하지 않음(일반 사용자는 구글 무료 키).
+//   값은 그 폰 localStorage에만 두고 코드·저장소·공유·백업에 넣지 않음. 위치는 global이어야 새 Flash 모델이 열림(2026-11-07 직접 확인).
+//   별칭 gemini-flash-latest는 버텍스에 없어서(404) 차례로 시도
+export const VERTEX_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-2.5-flash'];
+const VERTEX_HOST = 'https://aiplatform.googleapis.com';
+export function askKeyInfo(raw){
+  const t = String(raw || '').trim(); if(!t) return null;
+  if(t[0] === '{'){
+    try{ const j = JSON.parse(t); return j && j.private_key && j.client_email && j.project_id ? { kind:'sa', sa:j } : null; }catch(e){ return null; }
+  }
+  return /\s/.test(t) ? null : { kind:t.startsWith('AQ.') ? 'express' : 'gemini', key:t };
+}
+export const askModels = info => info.kind === 'gemini' ? [''] : VERTEX_MODELS;
+export const askUrl = (info, model) => info.kind === 'gemini' ? GEMINI_URL
+  : info.kind === 'sa' ? `${VERTEX_HOST}/v1/projects/${encodeURIComponent(info.sa.project_id)}/locations/global/publishers/google/models/${model}:generateContent`
+  : `${VERTEX_HOST}/v1/publishers/google/models/${model}:generateContent`;
+// 서비스 계정 토큰용 서명 재료 (서명은 app.js가 브라우저 암호 기능으로)
+export const b64url = v => { const b = typeof v === 'string' ? new TextEncoder().encode(v) : new Uint8Array(v); let t = ''; b.forEach(x => { t += String.fromCharCode(x); }); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+export const pemToDer = pem => Uint8Array.from(atob(String(pem).replace(/-----[^-]+-----/g, '').replace(/\s/g, '')), c => c.charCodeAt(0));
+export const jwtClaims = (sa, now) => ({ iss:sa.client_email, scope:'https://www.googleapis.com/auth/cloud-platform', aud:'https://oauth2.googleapis.com/token', iat:now, exp:now + 3600 });
 export const geminiBody = (prompt, mime, data, schema) => ({ contents:[{ role:'user', parts:[{ text:prompt }, { inline_data:{ mime_type:mime, data } }] }],
   ...(schema ? { generationConfig:{ responseMimeType:'application/json', responseSchema:schema } } : {}) });
 
