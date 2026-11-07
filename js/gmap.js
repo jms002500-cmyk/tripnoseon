@@ -278,6 +278,7 @@ async function findPlace({ q, name }){
   if(live()) info(`<p class="warnline">공유한 장소${nm ? ` '${esc(nm)}'` : ''}을(를) 못 찾았어요. 위 검색칸에서 이름을 고쳐 찾아 보세요.</p>`);
 }
 
+export const mapOpen = () => !!sheet && !sheet.hidden;
 export function closeMap(){
   if(!sheet) return;
   sheet.hidden = true; document.body.classList.remove('noscroll');

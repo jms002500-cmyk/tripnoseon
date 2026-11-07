@@ -69,6 +69,20 @@ test('출발 전 할 일: D-day 날짜, 지역별, 앱에서 해 둔 건 저절�
   assert.ok(ics.includes('D-2 항공사 온라인 체크인')); assert.ok(!ics.includes('여권 만료일 확인'));   // 지난 할 일은 캘린더에 안 넣음
 });
 
+test('출발 전 할 일: 말이 안 통해도 되게 — 택시 주소 카드·아이 카드·번역 앱·소리·메뉴판', () => {
+  const s = trip({ start:'2026-12-06', end:'2026-12-10', city:'hksz', cityOnly:'' });
+  const k = (x, o) => prepTasks(Object.assign({}, s, o)).find(y => y.key === x);
+  ['transapp', 'askkey', 'hotelcard', 'kidcard', 'voice'].forEach(x => assert.ok(k(x), x));
+  assert.match(k('hotelcard').why, /한자/); assert.equal(k('hotelcard').go, 'soshotel');
+  assert.ok(!k('hotelcard').done);
+  assert.ok(!k('hotelcard', { safety:{ addr:'홍콩 침사추이 1번지' } }).done);           // 한글 주소는 기사님이 못 읽음
+  assert.ok(k('hotelcard', { safety:{ addr:'九龍尖沙咀彌敦道1號' } }).auto);
+  assert.ok(k('hotelcard', { hotels:[{ id:'h', name:'호텔', addr:'香港中環1號' }] }).auto);   // 보관함 숙소 예약에 넣은 주소
+  assert.ok(k('kidcard', { sphone:'+82-10-0000-0000' }).auto);
+  assert.ok(!prepTasks(Object.assign({}, s, { who:'couple', kids:[] })).some(x => x.key === 'kidcard'));
+  assert.match(prepTasks(trip()).find(x => x.key === 'transapp').why, /일본어/);
+});
+
 test('편명 → 운항 상태 바로가기', () => {
   assert.equal(normFno('cx 411'), 'CX411'); assert.equal(normFno('KE-603'), 'KE603'); assert.equal(normFno('7C1101'), '7C1101'); assert.equal(normFno('1234'), ''); assert.equal(normFno('hello'), '');
   const o = flightLinks('CX411', 'HKG', 'out');

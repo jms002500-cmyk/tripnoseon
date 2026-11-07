@@ -2,7 +2,7 @@
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
 import { REPLIES, talkWords } from './asktalk.js';
-import { VIEWS, SHEET, ASKSHEET, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
@@ -23,7 +23,7 @@ import { suggestPacking, bulkSuggestions, seedItems, customItems, PACK_GO, KEY_I
 import { swapPlan, undoSwap } from './rain.js';
 import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, safeMapUrl, safeHttpsUrl, sharedPlace, stripShare, SHARE_KEYS, parseLines } from './gimport.js';
 import { geocode } from './geocode.js';
-import { openMap, closeMap, nearbyFood, refreshPlaces } from './gmap.js';
+import { openMap, closeMap, mapOpen, nearbyFood, refreshPlaces } from './gmap.js';
 import { mealSlots, foodKey } from './food.js';
 import { matchKnown, toCustom, staleGoogle, applyRefresh } from './gplace.js';
 import { vacantSearch, partyNote } from './rakuten.js';
@@ -407,6 +407,7 @@ function render(){
   ensureFx();
   showKrw(s);
   hydrateThumbs();
+  layersSync();
 }
 
 /* ---------- 보관함 (예약·티켓, 이 기기에만) ---------- */
@@ -484,6 +485,7 @@ async function deleteVault(id){
 }
 
 // 첨부 크게 보기: 사진은 화면 가득(QR을 보여 주기 좋게), PDF는 새 창으로. 보내기·이 첨부 지우기
+let viewerClose = null;   // 열려 있는 사진 보기 닫기 (뒤로 가기가 씀)
 async function openViewer(itemId, fid){
   const it = state.vault.find(x => x.id === itemId); const f = it && (it.files || []).find(x => x.fid === fid); if(!f) return;
   const u = await fileUrl(fid);
@@ -499,8 +501,10 @@ async function openViewer(itemId, fid){
     <div class="vbar"><button type="button" class="ghost small" data-v="close">닫기</button>
       <button type="button" class="ghost small" data-v="share">보내기</button>
       <button type="button" class="ghost small" data-v="del">이 첨부 지우기</button></div>`;
+  if(viewerClose) viewerClose();
   document.body.appendChild(v); document.body.classList.add('noscroll');
-  const close = () => { v.remove(); if(!state.sh.open) document.body.classList.remove('noscroll'); };
+  const close = () => { v.remove(); if(viewerClose === close) viewerClose = null; if(!state.sh.open) document.body.classList.remove('noscroll'); layersSync(); };
+  viewerClose = close; layersSync();
   v.addEventListener('click', async e => {
     const b = e.target.closest('[data-v]'); if(!b){ if(e.target === v) close(); return; }
     if(b.dataset.v === 'close') close();
@@ -820,7 +824,7 @@ function addHotel(){
 //   g: 구글 장소(gplace.toCustom이 받는 모양) | null(이미 담은 곳 날짜만 옮길 때, knownId)
 //   이미 있는 도쿄 장소(65곳)와 같은 곳이면 그 장소를, 전에 담은 구글 장소면 그것을 다시 씀
 function openLiveMap(query){
-  return openMap({
+  const opened = openMap({
     getState: () => state,
     getDays: () => buildDays(state).map(d => ({ i:d.i, label:`${d.i + 1}일차 · ${d.label}` })),
     onToggle: id => { const s = state; if(s.picked[id]) unpick(s, id); else s.picked[id] = true; save(); render(); },
@@ -835,6 +839,7 @@ function openLiveMap(query){
     },
     onClose: () => render()
   }, query);
+  layersSync(); return opened;
 }
 
 function importRowOf(k){ return state.imports.find(r => r.k === k); }
@@ -852,7 +857,10 @@ function act(a, v){
     case 'helpopen': s.mode = s.mode === 'help' ? null : 'help'; scroll = true; break;
     case 'helpgo': goTo(v); return;
     case 'helpjump': { const b = document.getElementById('help-' + v); if(b) b.scrollIntoView({ block:'start' }); return; }
-    case 'sbig': s.sh.sbig = v || null; if(v && s.mode !== 'sos') s.mode = 'sos'; break;   // 크게 보여 주기 (직원·택시 기사에게)
+    case 'sbig': s.sh.sbig = v || null; s.sh.sreply = null; s.sh.snum = ''; if(v && s.mode !== 'sos') s.mode = 'sos'; break;
+    case 'sreply': s.sh.sreply = s.sh.sreply === v ? null : v; render(); { const o = document.querySelector('.sosover'); if(o) o.scrollTop = 0; } return;
+    case 'snum': s.sh.snum = (document.getElementById('snumin') || {}).value || ''; render(); { const o = document.querySelector('.sosover'); if(o) o.scrollTop = 0; } return;
+    case 'sbigspeak': { const o = document.querySelector('.sosover'), x = o && o.querySelector('[data-say]'); if(x) speakIn(o.lang, x.dataset.say); return; }   // 크게 보여 주기 (직원·택시 기사에게)
     case 'tday': s.tday = +v; s.sh.lplace = null; break;
     case 'locask': s.sh.locAsk = true; s.sh.locMsg = ''; break;
     case 'loccancel': s.sh.locAsk = false; break;
@@ -1067,8 +1075,8 @@ function act(a, v){
     }
     case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
     case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); if(packTick('appcal')) save(); return;
-    case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; try{ history.pushState({ ask:1 }, ''); }catch(e){} render(); return;
-    case 'askclose': if(history.state && history.state.ask){ history.back(); return; } askSheetClose(); return;
+    case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; render(); return;
+    case 'askclose': askSheetClose(); return;
     case 'askkind': s.sh.ask.kind = v; s.sh.ask.res = null; render(); return;
     case 'askclear': setAskPhoto(null); s.sh.ask.res = null; render(); return;
     case 'asknow': askNow(); return;
@@ -1088,6 +1096,8 @@ function act(a, v){
       const base = v.split(':').slice(0, 2).join(':'); askKeysOf(r.cart, base).forEach(k => { delete r.cart[k]; if(r.reqs) delete r.reqs[k]; }); askPick('', 0, true);   // 품절이면 나눈 줄까지 모두 뺌
       toast(`${l.ko}은(는) 없다고 해서 주문에서 뺐어요.`); if(askOrder(r.data, r.cart, r).count && askBigView){ askBigView.msg = `👉 직원 답: ${l.ko}은(는) 없어요. 주문에서 뺐어요.`; askBigShow(askBigView); } else askBigClose(); return; }
     case 'asktrans': { const t = (document.getElementById('asktr') || {}).value || ''; if(t.trim()) askTrans(t.trim()); else toast('옮길 말을 먼저 써 주세요.'); return; }
+    case 'asknum': { const m = numSay(s, (document.getElementById('asknumin') || {}).value, askBigView && (askBigView.cur || askTalkCur(s))); if(m && askBigView){ askBigView.msg = m; askBigShow(askBigView); } return; }
+    case 'asktalkgo': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu', talk:true }; render(); { const d = document.getElementById('asktalk'); if(d) d.scrollIntoView({ block:'start' }); } return;
     case 'askstaff': { const t = (document.getElementById('askstaff') || {}).value || ''; if(t.trim()) askTrans(t.trim()); return; }
     case 'askfreeadd': { const r = s.sh.ask.res, v2 = askBigView; if(r && r.data && v2 && v2.out){ r.free = [...(r.free || []), { ko:v2.src, local:v2.out }]; askPick('', 0, true); toast('주문 문장에 넣었어요.'); } askBigClose(); return; }
     case 'askdel': askPick(v, -1); return;
@@ -1372,20 +1382,58 @@ function askPick(k, d, same){
 // 크게 보여 주기: 시트 밖에 띄워서 화면을 다시 그려도 사라지지 않음
 let askBigView = null;
 const askHasKey = () => { try{ return !!askKeys(localStorage).use; }catch(e){ return false; } };
-let askLock = null;
-function askKeepOn(){ try{ if('wakeLock' in navigator && !askLock) navigator.wakeLock.request('screen').then(l => { askLock = l; l.addEventListener('release', () => { askLock = null; }); }).catch(() => {}); }catch(e){} }
-document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && askBigView) askKeepOn(); });
+// 직원·기사에게 보여 주는 동안(크게 보기·긴급 카드·티켓 사진) 화면이 꺼지지 않게
+let wakeLock = null, wakeAsking = false;
+const wantAwake = () => !!askBigView || !!state.sh.sbig || !!viewerClose;
+function wakeSync(){
+  try{
+    if(wantAwake()){
+      if(wakeLock || wakeAsking || !('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+      wakeAsking = true;
+      navigator.wakeLock.request('screen').then(l => { wakeAsking = false; wakeLock = l; l.addEventListener('release', () => { if(wakeLock === l) wakeLock = null; }); if(!wantAwake()) wakeSync(); }).catch(() => { wakeAsking = false; });
+    } else if(wakeLock){ const l = wakeLock; wakeLock = null; l.release().catch(() => {}); }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') wakeSync(); });
 function askBigShow(v){
-  if(!askBigView){ try{ history.pushState({ askbig:1 }, ''); }catch(e){} askKeepOn(); }
   askBigView = v; let el = document.getElementById('askbig');
   if(!el){ el = document.createElement('div'); el.id = 'askbig'; el.className = 'askbig'; el.setAttribute('role', 'dialog'); document.body.appendChild(el); }
   el.lang = talkWords(v.cur || askTalkCur(state)).html; el.hidden = false; el.innerHTML = askBigHtml(state, v); el.scrollTop = 0;
+  layersSync();
 }
-function askBigHide(){ askBigView = null; const el = document.getElementById('askbig'); if(el){ el.hidden = true; el.innerHTML = ''; } try{ speechSynthesis.cancel(); }catch(e){} if(askLock){ askLock.release().catch(() => {}); askLock = null; } }
-function askBigClose(){ if(history.state && history.state.askbig) history.back(); else askBigHide(); }
+function askBigHide(){ askBigView = null; const el = document.getElementById('askbig'); if(el){ el.hidden = true; el.innerHTML = ''; } try{ speechSynthesis.cancel(); }catch(e){} layersSync(); }
+function askBigClose(){ askBigHide(); }
 function askSheetClose(){ if(state.sh.ask) state.sh.ask.open = false; setAskPhoto(null); render(); }
-// 폰의 뒤로 가기: 앱이 닫히지 않고 크게 보기 → 묻기 창 차례로 닫힘
-addEventListener('popstate', () => { if(askBigView) askBigHide(); else if(state.sh.ask && state.sh.ask.open) askSheetClose(); });
+// 폰의 뒤로 가기(아이폰은 밀어서 뒤로): 앱이 닫히지 않고 위에 열린 것부터 하나씩 닫힘
+//   열린 창 수만큼 방문 기록을 쌓아 두고(tnl), 버튼으로 닫으면 그만큼 되돌림. 맨 아래(계획 화면)에서 누르면 그때 앱을 나감
+const LAYERS = [
+  [() => !!viewerClose, () => viewerClose()],
+  [() => !!askBigView, () => askBigHide()],
+  [() => mapOpen(), () => closeMap()],
+  [() => !!(state.sh.ask && state.sh.ask.open), () => askSheetClose()],
+  [() => !!state.sh.open, () => { state.sh.open = false; render(); }],
+  [() => !!state.sh.sbig, () => { state.sh.sbig = null; state.sh.sreply = null; try{ speechSynthesis.cancel(); }catch(e){} render(); }],
+  [() => !!state.mode, () => { state.mode = null; save(); render(); window.scrollTo({ top:0 }); }]
+];
+const layerCount = () => LAYERS.filter(l => l[0]()).length;
+const histDepth = () => (history.state && history.state.tnl) || 0;
+let histWait = 0, histTimer = null, histPopping = false;
+function syncHistory(){
+  if(histWait || histPopping) return;
+  const want = layerCount(), have = histDepth();
+  try{
+    if(want > have){ for(let k = have + 1; k <= want; k++) history.pushState({ tnl:k }, ''); }
+    else if(want < have){ histWait++; history.go(want - have); clearTimeout(histTimer); histTimer = setTimeout(() => { if(histWait){ histWait = 0; syncHistory(); } }, 1000); }
+  }catch(e){ histWait = 0; }
+}
+function layersSync(){ syncHistory(); wakeSync(); }
+addEventListener('popstate', () => {
+  if(histWait){ histWait--; syncHistory(); wakeSync(); return; }   // 버튼으로 닫아서 앱이 되돌린 것
+  histPopping = true;
+  try{ for(let n = layerCount() - histDepth(); n > 0; n--){ const top = LAYERS.find(l => l[0]()); if(!top) break; top[1](); } }
+  finally{ histPopping = false; }
+  layersSync();
+});
 // 고른 주문까지 이 폰에 보관 (창을 닫거나 앱이 다시 열려도 그대로, 일정·공유·백업에는 들어가지 않음)
 function askRemember(r){
   if(!r || !r.data || r.kind !== 'menu') return;
@@ -1394,12 +1442,17 @@ function askRemember(r){
 }
 // 소리로 들려주기: 폰에 그 말 음성이 있을 때만
 function askSpeak(){
-  const el = document.getElementById('askbig'); if(!el || !globalThis.speechSynthesis) return;
-  const lang = el.lang, text = [...el.querySelectorAll('.askbigtext,.askgone button,.askbigsub')].map(x => x.textContent.replace(/ × (\d+)/g, ' $1')).join('。');
-  const vs = speechSynthesis.getVoices(), has = !vs.length || vs.some(x => x.lang.replace('_', '-').toLowerCase() === lang.toLowerCase() || (lang === 'ja' && x.lang.startsWith('ja')));
-  if(!has){ toast('이 폰에는 이 말 음성이 없어요. 화면을 보여 주세요.'); return; }
-  speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = 0.9; speechSynthesis.speak(u);
+  const el = document.getElementById('askbig'); if(!el) return;
+  speakIn(el.lang, [...el.querySelectorAll('.askbigtext,.askgone button,.askbigsub')].map(x => x.textContent.replace(/ × (\d+)/g, ' $1')).join('。'));
 }
+function speakIn(lang, text){
+  if(!globalThis.speechSynthesis || !text) return;
+  const L = lang.toLowerCase(), ok = v => { const x = v.lang.replace('_', '-').toLowerCase(); return x === L || (L === 'ja' && x.startsWith('ja')) || (L === 'zh-hk' && x.startsWith('yue')); };
+  const vs = speechSynthesis.getVoices();
+  if(vs.length && !vs.some(ok)){ toast('이 폰에는 이 말 음성이 없어요. 화면을 보여 주세요.'); return; }
+  speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = 0.9; const v = vs.find(ok); if(v) u.voice = v; speechSynthesis.speak(u);
+}
+
 // 직접 쓴 말 번역: 한국어면 현지어로(주문에 넣을 수 있음), 직원이 쓴 말이면 한국어로
 async function askTrans(text){
   const cur = askTalkCur(state), toKo = !hasHangul(text), base = { type:'text', cur, src:text, toKo, hasKey:true };
@@ -1618,7 +1671,7 @@ document.addEventListener('submit', onSubmit);
 {
   const j = parseJoin(location.hash);
   if(j){
-    history.replaceState(null, '', location.pathname + location.search);
+    history.replaceState(history.state, '', location.pathname + location.search);
     if(j !== state.shareId){ state.sh.pendingJoin = j; state.sh.open = true; }
     startShare();
   } else if(state.shareId) startShare();
@@ -1706,7 +1759,7 @@ if(!(await loadRegion(state.city))){ await loadRegion('tokyo'); state.sh.cityMsg
 //   쓸 게 없는 공유(이름도 구글 지도 주소도 없음)여도 주소의 st·sx·su는 지움(새로 고쳐도 또 열리지 않게, 다른 칸은 남김)
 const shareQ = new URLSearchParams(location.search);
 const sharedIn = sharedPlace(shareQ);
-if(SHARE_KEYS.some(k => shareQ.has(k))) history.replaceState(null, '', location.pathname + stripShare(location.search) + location.hash);
+if(SHARE_KEYS.some(k => shareQ.has(k))) history.replaceState(history.state, '', location.pathname + stripShare(location.search) + location.hash);
 if(sharedIn){ state.mode = null; state.step = STEPS.indexOf('장소 담기'); saveLocal(); }
 render();
 if(sharedIn) openLiveMap(sharedIn).catch(() => false).then(ok => {
@@ -1726,7 +1779,7 @@ const DEV_KEY = 'tripnoseon-dev';
 function setDev(on){ try{ if(on) localStorage.setItem(DEV_KEY, '1'); else localStorage.removeItem(DEV_KEY); }catch(e){} }
 {
   const q = new URLSearchParams(location.search).get('dev');
-  if(q === '1' || q === '0'){ setDev(q === '1'); history.replaceState(null, '', location.pathname + location.hash); }
+  if(q === '1' || q === '0'){ setDev(q === '1'); history.replaceState(history.state, '', location.pathname + location.hash); }
   let taps = [];
   document.querySelector('.brand')?.addEventListener('click', () => {
     const now = Date.now(); taps = taps.filter(t => now - t < 2500).concat(now);

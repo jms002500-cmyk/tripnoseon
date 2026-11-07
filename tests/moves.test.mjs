@@ -89,7 +89,7 @@ test('폰 캘린더: 집→공항은 한국 시각, 현지 이동은 현지 시�
     assert.ok(t.includes('SUMMARY:🚐 픽업 차량 · 홍콩 국제공항 → 숙소 (예약)'));
     assert.match(t, /DTSTART;VALUE=DATE:20270308/);                    // 시각 없는 여행 중 이동은 하루 일정
     assert.ok(t.includes('SUMMARY:🧳 숙소에서 공항으로 출발 · 택시 · 홍콩 국제공항')); assert.match(t, /DTSTART:20270309T060000Z/);
-    assert.equal((t.match(/택시/g) || []).length, 1);
+    assert.equal((t.match(/SUMMARY:[^\r\n]*택시/g) || []).filter(x => !x.includes('🗓')).length, 1);   // 이동 일정에 택시는 한 번 (출발 전 할 일 🗓 은 빼고)
   } finally { D.useRegion('tokyo'); }
 });
 

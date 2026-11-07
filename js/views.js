@@ -229,7 +229,7 @@ function askKeyBox(ks){
 export const askTalkCur = s => { const r = s.sh.ask && s.sh.ask.res, c = askTalkCurs(s); return (r && r.data && r.data.currency) || (s.sh.ask && s.sh.ask.cur) || c[0]; };
 function askTalk(s, hasKey){
   const cur = askTalkCur(s), curs = askTalkCurs(s), name = { HKD:'홍콩 말', CNY:'선전 말', JPY:'일본어' };
-  return `<details class="more"><summary>💬 말이 안 통할 때 (식당·가게)</summary>
+  return `<details class="more" id="asktalk"${s.sh.ask && s.sh.ask.talk ? ' open' : ''}><summary>💬 말이 안 통할 때 (식당·가게·택시)</summary>
     <p class="fine">누르면 현지어가 크게 떠요. 직원에게 보여 주면 직원이 답을 눌러 주고, 답이 한국어로 나와요. 인터넷이 없어도 돼요.</p>
     ${curs.length > 1 ? `<div class="chips">${curs.map(c => chip('asktalkcur', c, name[c], c === cur)).join('')}</div>` : ''}
     <h3>부탁하기</h3><div class="chips">${SAYS.map(x => chip('askbig', `say:${x.key}`, x.ko)).join('')}</div>
@@ -239,9 +239,18 @@ function askTalk(s, hasKey){
   </details>`;
 }
 // 크게 보여 주기 화면. 다시 그려도 사라지지 않게 시트 밖에 띄움 (app.js askBigShow)
+// 숫자로 답받기 (값·시간·사람 수): 숫자는 말이 달라도 통함. 키·인터넷 없이 됨
+const numBox = (w, act) => `<p class="askbighead">${esc(w.num)}</p><div class="askbigwrite"><input id="${act}in" type="text" inputmode="decimal" maxlength="12" aria-label="숫자"><button type="button" data-act="${act}">OK</button></div>`;
+// 상대가 쓴 숫자 → 한국어 안내 (그 나라 돈이면 원화 어림도)
+export function numSay(s, raw, cur){
+  const n = String(raw || '').replace(/[^\d.,]/g, '').replace(/,/g, ''); if(!n || isNaN(+n)) return '';
+  const money = cur === 'HKD' ? `HK$${n}` : cur === 'JPY' ? `${n}엔` : `${n}위안`;
+  const won = addKrw(money, ratesOf(s), s.city === 'tokyo' ? 'JPY' : 'CNY');
+  return `👉 상대가 쓴 숫자: ${n}${won !== money ? ` · 돈이면 ${won}` : ''}`;
+}
 export function askBigHtml(s, v){
   const r = s.sh.ask && s.sh.ask.res, cur = v.cur || askTalkCur(s), w = talkWords(cur);
-  const answers = `<p class="askbighead">${esc(w.reply)}</p><div class="askans">${REPLIES.map(x => `<button type="button" data-act="askreply" data-v="${x.key}">${esc(talkOf(x, cur))}</button>`).join('')}</div>`;
+  const answers = `<p class="askbighead">${esc(w.reply)}</p><div class="askans">${REPLIES.map(x => `<button type="button" data-act="askreply" data-v="${x.key}">${esc(talkOf(x, cur))}</button>`).join('')}</div>${numBox(w, 'asknum')}`;
   const write = v.hasKey ? `<p class="askbighead">${esc(w.write)}</p><div class="askbigwrite"><input id="askstaff" type="text" maxlength="300"><button type="button" data-act="askstaff">${esc(w.go)}</button></div>` : '';
   const msg = v.msg ? `<p class="askbigmsg" role="status">${esc(v.msg)}</p>` : '';
   const close = `<div class="askbigtop"><button type="button" class="askbigclose" data-act="askbigclose">닫기</button>${globalThis.speechSynthesis ? '<button type="button" data-act="askspeak">🔊 소리로 들려주기</button>' : ''}</div>`;
@@ -1824,13 +1833,13 @@ function vSafetyHKSZ(s){
     </div>
     <div class="box" id="soshotel"><h2>숙소 주소 카드<small>택시·길 묻기</small></h2>
       <div class="soscard"><p class="sosja">請帶我去這個地址 / 请带我去这个地址</p><b>${esc(hc.name || '숙소 이름을 넣어 주세요')}</b>${hc.addr ? `<span>${esc(hc.addr)}</span>` : ''}${hc.tel ? `<span>TEL ${esc(hc.tel)}</span>` : ''}</div>
-      <div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button>${otherHotelCards(s, hc.id).map(h => `<button type="button" class="ghost small" data-act="sbig" data-v="hotel:${esc(h.id)}">🏨 ${esc(h.name)}</button>`).join('')}</div>
+      ${addrWarn(s, hc)}<div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button>${otherHotelCards(s, hc.id).map(h => `<button type="button" class="ghost small" data-act="sbig" data-v="hotel:${esc(h.id)}">🏨 ${esc(h.name)}</button>`).join('')}</div>
       <label for="sfname">숙소 이름 (중국어 이름이면 더 좋아요)<input id="sfname" type="text" maxlength="80" data-sf="hname" value="${esc(sf.hname || '')}" placeholder="${esc(hc.name || '예약 확인서의 숙소 이름')}"></label>
       <label for="sfaddr">주소 (예약 확인서의 중국어 주소를 붙여 넣기)<input id="sfaddr" type="text" maxlength="120" data-sf="addr" value="${esc(sf.addr || '')}"></label>
       <label for="sftel">숙소 전화<input id="sftel" type="tel" maxlength="30" data-sf="tel" value="${esc(sf.tel || '')}" placeholder="예: +852-1234-5678"></label>
       <p class="fine">홍콩·선전 숙소를 나눠 자면 그날 밤 숙소로 바꿔 넣어 주세요. 함께 짜는 여행이면 가족 모두의 화면에 같이 보여요.</p>
     </div>
-    ${kids ? `<div class="box"><h2>아이를 잃어버렸을 때</h2>
+    ${kids ? `<div class="box" id="soskid"><h2>아이를 잃어버렸을 때</h2>
       <p class="pnote">${esc(HK.LOST[HK.LOST.length - 1].d)}</p>
       <label for="sfmeet">만날 장소 (가족이 미리 정해 두기)<input id="sfmeet" type="text" maxlength="80" data-sf="meet" value="${esc(sf.meet || '')}" placeholder="예: 들어온 출입구 앞"></label>
       <label for="sfphone">부모 연락처 (이 기기에만 저장)<input id="sfphone" type="tel" maxlength="30" data-sphone value="${esc(s.sphone || '')}" placeholder="예: +82-10-1234-5678"></label>
@@ -1840,6 +1849,7 @@ function vSafetyHKSZ(s){
     </div>` : ''}
     <div class="box"><h2>보여 주는 광둥어 (홍콩)<small>누르면 크게</small></h2>${phr(HK.PHRASES.hk, 'h')}</div>
     <div class="box"><h2>보여 주는 중국어 (선전)<small>누르면 크게</small></h2>${phr(HK.PHRASES.sz, 'z')}</div>
+    <div class="box"><h2>💬 더 많은 부탁·질문<small>식당·가게·택시</small></h2><p class="pnote">값 묻기, 여기서 세워 주세요, 영수증, 물건을 두고 내림처럼 자주 쓰는 말을 크게 보여 주고, 상대가 답을 누르거나 숫자를 쓰면 한국어로 보여 줘요. 인터넷이 없어도 돼요.</p><div><button type="button" class="ghost small" data-act="asktalkgo">문구 열기</button></div></div>
     ${infoBox('입국·국경', HK.ENTRY)}
     ${infoBox('교통', HK.TRANSPORT)}
     <div class="box"><h2>돈 내기</h2>
@@ -1854,6 +1864,20 @@ function vSafetyHKSZ(s){
     ${sosBig(s)}
   </section>`;
 }
+// 크게 보여 줄 때 쓰는 말: 도쿄 일본어 · 홍콩 광둥어(번체) · 선전 보통화(간체). 숙소·아이 카드는 그날 밤 숙소가 있는 도시 말
+// 숙소 카드 주소가 비었거나 한글이 섞이면 기사님이 못 읽음 → 미리 알림
+function addrWarn(s, hc){
+  const loc = s.city === 'hksz' ? '한자' : '일본어';
+  if(!(hc.addr || '').trim()) return `<p class="warnline">주소를 아직 안 넣었어요. 예약 확인서의 ${loc} 주소를 붙여 넣어 두면 택시에서 이 화면만 보여 주면 돼요.</p>`;
+  return /[가-힣]/.test(hc.addr) ? `<p class="warnline">주소에 한글이 섞여 있어요. 기사님이 읽을 수 있게 예약 확인서의 ${loc} 주소로 넣어 주세요.</p>` : '';
+}
+function sosCur(s, b, hc){
+  if(s.city !== 'hksz' || b[0] === 'p') return 'JPY';
+  if(b[0] === 'z') return 'CNY';
+  if(b[0] === 'h' && !b.startsWith('hotel')) return 'HKD';
+  const h = (s.hotels || []).find(x => x.id === hc.id);
+  return h && cityOfArea(h.area) === 'sz' ? 'CNY' : 'HKD';
+}
 function sosBig(s){
   const b = (s.sh || {}).sbig; if(!b) return '';
   const isHotel = b === 'hotel' || b.startsWith('hotel:'); const hk = s.city === 'hksz';
@@ -1863,9 +1887,20 @@ function sosBig(s){
   const ja = isHotel ? [hk ? '請帶我去這個地址\n请带我去这个地址' : 'この住所に行きたいです', hc.name, hc.addr, hc.tel ? `TEL ${hc.tel}` : ''].filter(Boolean).join('\n')
     : b === 'kid' ? (hk ? kidCardZh(s.sphone, hc.name) : kidCardJa(s.sphone, hc.name)) : ph ? (ph.ja || ph.local) : '';
   const ko = isHotel ? '이 주소로 가고 싶어요' : b === 'kid' ? '길을 잃었어요. 이 번호로 전화해 주세요' : ph ? `${ph.ko} · ${ph.read}` : '';
-  return `<div class="sosover" role="dialog" aria-label="크게 보기"><p class="sosja">${esc(ja).replace(/\n/g, '<br>')}</p><p class="fine">${esc(ko)}</p>
-    <button type="button" class="ghost" data-act="sbig" data-v="">닫기</button></div>`;
+  const cur = sosCur(s, b, hc), w = talkWords(cur);
+  // 소리로 읽을 말: 홍콩·선전 숙소·아이 카드는 두 글자체 가운데 그 도시 것 한 줄만, 한글 안내 줄은 빼고
+  const lines = ja.split('\n');
+  const say = lines.filter((x, i) => !(hk && (isHotel || b === 'kid') && i === (cur === 'CNY' ? 0 : 1)) && !/[가-힣]/.test(x)).map(x => x.replace(/[☎🏨]/gu, '').trim()).filter(Boolean).join('。');
+  const rp = (s.sh || {}).sreply ? REPLIES.find(x => x.key === s.sh.sreply) : null, nm = (s.sh || {}).snum ? numSay(s, s.sh.snum, cur) : '';
+  const speak = globalThis.speechSynthesis ? '<button type="button" data-act="sbigspeak">🔊 소리로 들려주기</button>' : '';
+  return `<div class="askbig sosover" role="dialog" aria-label="크게 보기" lang="${w.html}">
+    <div class="askbigtop"><button type="button" class="askbigclose" data-act="sbig" data-v="">닫기</button>${speak}</div>
+    ${rp ? `<p class="askbigmsg" role="status" lang="ko">👉 상대 답: ${esc(rp.ko)}</p>` : ''}${nm ? `<p class="askbigmsg" role="status" lang="ko">${esc(nm)}</p>` : ''}
+    <p class="sosja" data-say="${esc(say)}">${esc(ja).replace(/\n/g, '<br>')}</p><p class="askbigko" lang="ko">${esc(ko)}</p>
+    <p class="askbighead">${esc(w.reply)}</p><div class="askans">${REPLIES.map(x => `<button type="button" data-act="sreply" data-v="${x.key}">${esc(talkOf(x, cur))}</button>`).join('')}</div>${numBox(w, 'snum')}
+  </div>`;
 }
+
 
 export function vSafety(s){
   if(s.city === 'hksz') return vSafetyHKSZ(s);
@@ -1885,13 +1920,13 @@ export function vSafety(s){
     </div>
     <div class="box" id="soshotel"><h2>숙소 일본어 카드<small>택시·길 묻기</small></h2>
       <div class="soscard"><p class="sosja">この住所に行きたいです</p><b>${esc(hc.name || '숙소 이름을 넣어 주세요')}</b>${hc.addr ? `<span>${esc(hc.addr)}</span>` : ''}${hc.tel ? `<span>TEL ${esc(hc.tel)}</span>` : ''}</div>
-      <div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button>${otherHotelCards(s, hc.id).map(h => `<button type="button" class="ghost small" data-act="sbig" data-v="hotel:${esc(h.id)}">🏨 ${esc(h.name)}</button>`).join('')}${hc.mapUrl ? `<a class="link" href="${esc(hc.mapUrl)}" target="_blank" rel="noopener">지도 ↗</a>` : ''}</div>
+      ${addrWarn(s, hc)}<div class="pfoot"><button type="button" class="primary small" data-act="sbig" data-v="hotel">크게 보여 주기</button>${otherHotelCards(s, hc.id).map(h => `<button type="button" class="ghost small" data-act="sbig" data-v="hotel:${esc(h.id)}">🏨 ${esc(h.name)}</button>`).join('')}${hc.mapUrl ? `<a class="link" href="${esc(hc.mapUrl)}" target="_blank" rel="noopener">지도 ↗</a>` : ''}</div>
       <label for="sfname">숙소 이름 (일본어면 더 좋아요)<input id="sfname" type="text" maxlength="80" data-sf="hname" value="${esc(sf.hname || '')}" placeholder="${esc(hc.name || '예: ホテル○○新宿')}"></label>
       <label for="sfaddr">주소 (예약 확인서의 일본어 주소를 붙여 넣기)<input id="sfaddr" type="text" maxlength="120" data-sf="addr" value="${esc(sf.addr || '')}" placeholder="예: 東京都新宿区…"></label>
       <label for="sftel">숙소 전화<input id="sftel" type="tel" maxlength="30" data-sf="tel" value="${esc(sf.tel || '')}" placeholder="예: 03-1234-5678"></label>
       <p class="fine">함께 짜는 여행이면 가족 모두의 화면에 같이 보여요.</p>
     </div>
-    ${kids ? `<div class="box"><h2>아이를 잃어버렸을 때</h2>
+    ${kids ? `<div class="box" id="soskid"><h2>아이를 잃어버렸을 때</h2>
       <p class="pnote">${esc(LOST[LOST.length - 1].d)}</p>
       <label for="sfmeet">만날 장소 (가족이 미리 정해 두기)<input id="sfmeet" type="text" maxlength="80" data-sf="meet" value="${esc(sf.meet || '')}" placeholder="예: 신주쿠역 동쪽 출구 알타 앞"></label>
       <label for="sfphone">부모 연락처 (이 기기에만 저장)<input id="sfphone" type="tel" maxlength="30" data-sphone value="${esc(s.sphone || '')}" placeholder="예: +82-10-…"></label>
@@ -1902,6 +1937,7 @@ export function vSafety(s){
     <div class="box"><h2>보여 주는 일본어<small>누르면 크게</small></h2>
       <ul class="sosphr">${PHRASES.map((p, i) => `<li><button type="button" data-act="sbig" data-v="p${i}"><b>${esc(p.ja)}</b><span>${esc(p.ko)} · ${esc(p.read)}</span></button></li>`).join('')}</ul>
     </div>
+    <div class="box"><h2>💬 더 많은 부탁·질문<small>식당·가게·택시</small></h2><p class="pnote">값 묻기, 여기서 세워 주세요, 영수증, 물건을 두고 내림처럼 자주 쓰는 말을 크게 보여 주고, 상대가 답을 누르거나 숫자를 쓰면 한국어로 보여 줘요. 인터넷이 없어도 돼요.</p><div><button type="button" class="ghost small" data-act="asktalkgo">문구 열기</button></div></div>
     <div class="box"><h2>지진이 나면</h2>
       <ol class="sosq">${QUAKE.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
       <p class="fine">출발 전에 일본 관광청이 감수한 'Safety tips' 앱(한국어, 지진·쓰나미·기상 경보)을 설치해 두면 좋아요.</p>
