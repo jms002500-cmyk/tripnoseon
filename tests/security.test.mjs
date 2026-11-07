@@ -124,6 +124,14 @@ test('함께 짜기 창: 초대 링크가 열려 있으면 뺀 사람이 다시 
   s.sh.trip.open = false; assert.doesNotMatch(V.SHEET(s), /뺀 사람도/);
 });
 
+test('장소 목록 끝에서 다른 테마를 바로 고름', () => {
+  const s = trip(); s.sh = sh(); s.themeFilter = 'shop';
+  const end = V.vPick(s).split('id="themeend"')[1].split('id="customform"')[0];
+  assert.match(end, /data-act="themenext" data-v="kids"/);
+  assert.doesNotMatch(end, /data-v="shop"/);
+  assert.match(end, /테마 풀고 전체 보기/);
+});
+
 test('구글 지도에서 담기: 구글로 가는 것을 화면에 알림', () => {
   const s = trip(); s.sh = sh();
   assert.match(V.vPick(s), /보는 위치·검색어·고른 장소가 구글로 가요/);
