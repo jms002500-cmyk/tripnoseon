@@ -897,6 +897,8 @@ function act(a, v){
     case 'filter': s.areaFilter = v; break;
     case 'kfilter': s.kindFilter = v; break;
     case 'theme': s.themeFilter = v === 'all' || s.themeFilter === v ? 'all' : v; break;   // 같은 테마를 다시 누르면 풀림
+    // 목록 끝의 테마 버튼: 동네·종류 거르기를 풀고 새 목록의 맨 위로
+    case 'themenext': s.themeFilter = v; s.areaFilter = 'all'; s.kindFilter = 'all'; save(); render(); goTo('picklist'); return;
     case 'akind': s.anchorKind = v; break;
     case 'autopick': autoPickIds(s).forEach(id => { s.picked[id] = true; }); break;
     case 'customdel': s.custom = s.custom.filter(c => c.id !== v); unpick(s, v); break;

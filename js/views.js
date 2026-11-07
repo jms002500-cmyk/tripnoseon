@@ -413,6 +413,15 @@ function themeBox(s){
     </div>`;
 }
 
+// 목록 끝에서 바로 다른 테마로 (맨 위 테마 상자까지 다시 올라가지 않게)
+function themeEnd(s){
+  const n = themeCounts(allPlaces(s)); const cur = themeOf(s.themeFilter);
+  return `<div class="box" id="themeend"><h2>${cur ? `다른 테마 보기` : '테마로 골라 보기'}</h2>
+    <div class="chips" role="group" aria-label="다른 테마">${THEMES.filter(t => n[t.key] && (!cur || t.key !== cur.key)).map(t => chip('themenext', t.key, `${t.icon} ${t.label} ${n[t.key]}`, false)).join('')}</div>
+    ${cur ? `<div class="pfoot">${chip('themenext', 'all', '테마 풀고 전체 보기', false)}</div>` : ''}
+  </div>`;
+}
+
 function placeCard(p, s, n){
   const on = !!s.picked[p.id]; const must = !!s.must[p.id]; const f = fitScore(p, s);
   return `<article class="pcard${on ? ' on' : ''}" id="pc-${esc(p.id)}">
@@ -586,6 +595,7 @@ export function vPick(s){
     ${kindChips('kfilter', s.kindFilter, byArea)}
     ${list.length ? '' : `<p class="empty">이 조건에 맞는 곳이 없어요. 다른 동네나 종류${theme ? '·테마' : ''}를 골라 보세요.</p>`}
     <div class="list">${list.map((x, i) => placeCard(x.p, s, focus ? i + 1 : 0)).join('')}</div>
+    ${themeEnd(s)}
     ${eatsBox(s, cities)}
     <form class="box" id="customform">
       <h2>목록에 없는 곳 추가</h2>
