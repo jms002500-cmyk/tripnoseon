@@ -1618,7 +1618,7 @@ function foodSlot(sh, d, m, k){
   const list = st && st.items ? rankFood(st.items, d.wd, m.time, 8) : null;
   const near = eatsNear(EATS, m.at, { wd:d.wd, meal:true });
   return `<div class="fslot"><p><b>${ml} ${m.time}</b> · ${esc(m.why)}</p>
-    ${near.length ? `<p class="fine">앱이 고른 가족 식당 (가격·시간은 대략값)</p><ul class="implist flist">${near.map(e => eatRow(e)).join('')}</ul>` : ''}
+    ${near.length ? `<p class="fine">앱이 고른 가족 식당 (가격·시간은 대략값, 원화는 최근 환율로 계산한 참고 금액)</p><ul class="implist flist">${near.map(e => eatRow(e)).join('')}</ul>` : ''}
     ${list ? (list.length ? `<ul class="implist flist">${list.map(r => foodRow(d, k, r)).join('')}</ul>` : '<p class="fine">이 근처 500m 안에서 식당을 못 찾았어요.</p>')
       : `<div class="pfoot"><button type="button" class="primary small" data-act="ffind" data-v="${d.i}|${k}"${st && st.busy ? ' disabled' : ''}>${st && st.busy ? '찾는 중…' : `근처 ${ml} 식당 찾기`}</button></div>`}
     ${st && st.err ? `<p class="warnline">${esc(st.err)}</p>` : ''}
