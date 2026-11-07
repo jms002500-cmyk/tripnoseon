@@ -403,6 +403,18 @@ html[data-size="bigger"] #view, html[data-size="bigger"] .bar, html[data-size="b
 .askrec .askwon{max-width:none; text-align:left}
 .askrules{display:grid; gap:4px; padding:10px 12px; border-radius:10px; background:var(--paper); border:1px solid var(--rule)}
 .askgroup summary{font-weight:600}
+.askprice{display:flex; justify-content:space-between; align-items:center; gap:8px; min-height:38px; font-weight:600; font-size:var(--fs-sm); color:var(--ink)}
+.askqty{display:flex; align-items:center; gap:6px; flex:none}
+.askqty button{min-width:38px; min-height:36px; padding:0 8px; font-size:18px; line-height:1}
+.askqty b{min-width:18px; text-align:center}
+.askqty:not(.on) b,.askqty:not(.on) [data-act=askdel]{display:none}
+.askqty.on [data-act=askadd]{background:var(--accent-soft)}
+.askloc{white-space:pre-line}
+.askmeaning{white-space:pre-line}
+.asksum{font-weight:600}
+.askrow{display:flex; flex-wrap:wrap; gap:8px}
+.askbar{position:sticky; bottom:8px; display:grid}
+.askbar:empty{display:none}
 .asktags{display:flex; flex-wrap:wrap; gap:4px}
 .asktags span{padding:1px 7px; border-radius:999px; background:var(--paper); font-size:12px}
 .asktags .kid-비추천,.asktags .kid-주의{color:var(--warn)}

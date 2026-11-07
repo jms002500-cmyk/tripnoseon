@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as D from '../js/data.js';
 import { clone } from '../js/logic.js';
-import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askGroups, askKeyInfo, askKeys, askKeyNow, askTargets, askErrTag, ASK_KEY, ASK_VKEY, ASK_USE, b64url, pemToDer, jwtClaims } from '../js/askai.js';
+import { ASK_KINDS, askPrompt, partyLine, rateLine, geminiBody, geminiText, geminiError, askJsonPrompt, askSchema, askParse, receiptLine, composedPrompt, wrapText, askGroups, askOrder, askRecItem, askKeyInfo, askKeys, askKeyNow, askTargets, askErrTag, ASK_KEY, ASK_VKEY, ASK_USE, b64url, pemToDer, jwtClaims } from '../js/askai.js';
 
 test('키 칸: 구글 키·버텍스 키·서비스 계정 JSON을 구분', () => {
   const sa = { private_key:'-----BEGIN PRIVATE KEY-----\nQUJD\nREVG\n-----END PRIVATE KEY-----\n', client_email:'a@b.iam.gserviceaccount.com', project_id:'p1' };
@@ -51,6 +51,30 @@ test('메뉴 답: 분류별로 묶고, 칸이 맞아야 받음', () => {
   const s = fam({ city:'hksz' }), p = askJsonPrompt(s, 'menu', '');
   ['양고기', '수타면', '빠뜨리지', '지어내면 안 돼', '참고에 없는 요청', 'rules'].forEach(w => assert.match(p, new RegExp(w), w));
   assert.doesNotMatch(p, /최대 30개/);
+});
+
+test('메뉴 고르기: 여러 메뉴·수량으로 주문 문장을 만듦', () => {
+  const items = [
+    { ko:'계란 볶음밥', local:'蛋炒饭', prices:[{ label:'', price:18 }] },
+    { ko:'토마토 달걀 덮밥', local:'番茄炒蛋盖浇面/饭', prices:[{ label:'면', price:20 }, { label:'밥', price:18 }] },
+    { ko:'소고기 수타면', local:'牛肉拉面', prices:[{ label:'보통', price:16 }, { label:'대', price:18 }] },
+    { ko:'굴소스 볶음', local:'蚝油炒', prices:[{ label:'', price:null }] }
+  ];
+  const d = { currency:'CNY', items, request:{ ko:'땅콩 빼 주세요', local:'请不要放花生。' } };
+  const o = askOrder(d, { '0:0':1, '1:1':2, '2:1':1 });
+  assert.equal(o.count, 4); assert.equal(o.total, 72); assert.equal(o.unknown, false);
+  assert.equal(o.local, '你好，我要这些：\n蛋炒饭 × 1\n番茄炒蛋盖浇饭 × 2\n牛肉拉面（大碗） × 1\n请不要放花生。');
+  assert.equal(o.ko, '계란 볶음밥 1개, 토마토 달걀 덮밥 (밥) 2개, 소고기 수타면 (대) 1개\n땅콩 빼 주세요');
+  assert.match(askOrder({ currency:'HKD', items }, { '0:0':1 }).local, /^唔該/);
+  assert.match(askOrder({ currency:'JPY', items }, { '0:0':1 }).local, /^すみません/);
+  assert.equal(askOrder({ currency:'CNY', items }, { '1:0':1 }).lines[0].local, '番茄炒蛋盖浇面');
+  assert.equal(askOrder({ currency:'CNY', items }, { '2:0':1 }).lines[0].local, '牛肉拉面');   // 보통은 붙이지 않음
+  const u = askOrder(d, { '0:0':1, '3:0':2 }); assert.equal(u.total, 18); assert.equal(u.unknown, true);
+  assert.equal(askOrder(d, {}).count, 0); assert.equal(askOrder(d, undefined).count, 0);
+  assert.equal(askOrder(d, { '9:0':1, '0:0':0 }).count, 0);   // 없는 메뉴·0개는 넣지 않음
+  assert.equal(askRecItem(d, { name:'다른 이름', local:'牛肉拉面' }), items[2]);
+  assert.equal(askRecItem(d, { name:'계란 볶음밥' }), items[0]);
+  assert.equal(askRecItem(d, { name:'없는 메뉴', local:'无' }), null);
 });
 
 test('공개 코드에 비밀키가 없음', () => {
