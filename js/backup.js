@@ -3,6 +3,7 @@
 // 라쿠텐 키는 사용자가 고를 때만 넣음 (파일이 남에게 가면 키가 새어 나가므로 기본은 뺌).
 import { DEFAULT, STEPS } from './data.js';
 import { cleanShared } from './sharecore.js';
+import { cleanGsaved } from './gsave.js';
 
 export const BACKUP_APP = 'tripnoseon';
 export const BACKUP_V = 1;
@@ -72,6 +73,7 @@ function cleanBackup(o){
   ['sphone', 'askNote', 'idLater', 'lastBackup'].forEach(k => { if(typeof o[k] !== 'string') o[k] = DEFAULT[k]; });
   if(!['', 'big', 'bigger'].includes(o.textSize)) o.textSize = '';
   if(!(o.tdone && typeof o.tdone === 'object' && !Array.isArray(o.tdone))) o.tdone = {};
+  o.gsaved = cleanGsaved(o.gsaved);
   if(!(typeof o.shareId === 'string' && /^[A-Za-z0-9]{10,40}$/.test(o.shareId))) o.shareId = null;   // 여행 번호 모양(sharecore parseJoin)만
   return o;
 }

@@ -395,6 +395,18 @@ html[data-size="big"] .bar .prevbtn, html[data-size="bigger"] .bar .prevbtn{padd
 html[data-size="big"] .bar .prevbtn .pvi, html[data-size="bigger"] .bar .prevbtn .pvi{display:inline}
 html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn .pvt{display:none}   /* 큰 글씨 모드: 이전은 ‹ 로 줄여 다음 단계 이름 자리를 넓힘 */
 @media (max-width:380px){ .bar .in{gap:6px} .bar .ghost{padding:13px 12px} .bar .askbtn{padding:13px 7px} .bar .primary{padding:13px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0} .bar .nextbtn{padding:7px 6px} }   /* 좁은 폰: 📍·📷가 붙어도 다음 버튼 글자가 두 줄로 안 꺾이게 */
+.gsprog{margin:.2em 0 .5em}
+.gshow{margin:.3em 0 .6em;padding-left:1.3em}
+.gshow li{margin:.15em 0}
+.gsday{font-size:1em;margin:.9em 0 .3em;display:flex;align-items:center;gap:.4em}
+.gslist{list-style:none;margin:0;padding:0}
+.gsit{display:flex;flex-wrap:wrap;align-items:center;gap:.2em .6em;padding:.5em 0;border-top:1px solid var(--rule)}
+.gsit .gsn{flex:1 1 9em;min-width:0;overflow-wrap:anywhere}
+.gsit .gsacts{display:flex;gap:.6em;align-items:center}
+.gsit.ok .gsn{color:var(--muted)}
+.gslink.ok{color:var(--muted)}
+.gsnow{flex-basis:100%;margin:.1em 0 0}
+.gsdone summary{cursor:pointer;margin:.3em 0}
 .nearlist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column}
 .nearit{padding:12px 0; border-bottom:1px solid var(--rule)}
 .nearit .sbody{display:flex; flex-direction:column; gap:3px; min-width:0}

@@ -948,6 +948,9 @@ function act(a, v){
     }
     case 'anchor': if(s.must[v]) unpick(s, v); else { s.must[v] = true; s.picked[v] = true; } break;
     case 'pick': if(s.picked[v]) unpick(s, v); else s.picked[v] = true; break;
+    case 'gsave':   // ⭐ 내 구글 지도에 저장: 링크(구글 지도 앱 열기)는 그대로 가고 '저장함' 표시만 (이 기기에만). 지금 다시 그리면 누른 링크가 사라져서 조금 뒤에
+      s.gsaved = Object.assign({}, s.gsaved, { [v]:Date.now() }); s.sh.gsLast = v; saveLocal(); setTimeout(render, 400); return;
+    case 'gunsave': s.gsaved = Object.assign({}, s.gsaved); delete s.gsaved[v]; if(s.sh.gsLast === v) s.sh.gsLast = null; saveLocal(); render(); return;
     case 'must': if(s.must[v]) delete s.must[v]; else { s.must[v] = true; s.picked[v] = true; } break;
     case 'filter': s.areaFilter = v; break;
     case 'kfilter': s.kindFilter = v; break;

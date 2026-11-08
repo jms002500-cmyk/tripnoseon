@@ -4,6 +4,7 @@
 //   몰라서 못 쓰는 기능이 없게, 쓸 때가 된 날에 그 기능을 할 일로 꺼내 줌(AI 추천·주차장·공항버스·백업·끊김 확인·도움)
 import { idCopies } from './vault.js';
 import { isEmptyMove } from './moves.js';
+import { pickedPlaces } from './logic.js';
 
 const addDay = (key, n) => { const [y, m, d] = key.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
 const addrOk = a => !!(a || '').trim() && !/[가-힣]/.test(a);   // 기사님이 읽을 수 있는 현지어 주소
@@ -28,6 +29,7 @@ export function prepTasks(s){
   add(3, 'hotelcard', '택시용 숙소 주소 카드 채우기', `예약 확인서의 ${hk ? '한자' : '일본어'} 주소와 숙소 전화를 넣어 두면 택시 기사나 길을 물을 사람에게 화면만 크게 보여 주면 돼요.${hk ? ' 홍콩·선전에 나눠 자면 숙소마다 넣어요.' : ''}`, 'soshotel');
   if(kids) add(3, 'kidcard', '아이 미아 카드 만들기', '긴급 화면에 부모 연락처를 넣으면 현지어 카드가 만들어져요. 아이 폰 배경으로 캡처해 두면 아이가 혼자서도 보여 줄 수 있어요.', 'soskid');
   add(2, 'voice', '🔊 소리로 들려주기 시험', `긴급 화면의 문장을 눌러 크게 보기에서 🔊를 한 번 눌러 보세요. 소리가 안 나면 폰 설정의 '텍스트 음성 변환'에서 ${hk ? '중국어·광둥어' : '일본어'} 음성을 받아 두세요.`, 'sos');
+  add(5, 'gsave', '⭐ 담은 곳을 내 구글 지도에 저장', '일정 단계의 \'내 구글 지도에 저장\'에서 한 곳씩 누르면 구글 지도 앱이 그 장소로 열려요. \'저장\'을 눌러 여행 목록에 넣어 두면 여행 중 구글 지도 \'저장됨\'에서 바로 보여요.' + (sz ? ' 선전(중국 본토)에서는 로밍이 아니면 구글 지도가 안 열리니 한국에서 해 두세요.' : ''), 'gsavebox');
   add(7, 'packlist', '준비물 체크리스트 만들기', '추천을 담고 누구 짐인지 나눠 두세요.', 'pack');
   add(5, 'moves', '공항 오가는 길 정하기', '자가용이면 공항 주차장 남은 자리를, 공항버스면 우리 동네를 지나는 버스를 앱에서 찾아 드려요. 정한 시각이 일정에 들어가요.', 'movebox');
   add(3, 'backup', '백업 파일 만들어 두기', '폰을 잃어버리거나 바꿔도 다른 폰에서 일정·보관함을 그대로 되돌릴 수 있어요.', 'backupbox');
@@ -49,7 +51,8 @@ export function prepTasks(s){
     places:Object.keys(s.picked || {}).length >= 3,
     backup:!!s.lastBackup,
     hotelcard:addrOk((s.safety || {}).addr) || (s.hotels || []).some(h => addrOk(h.addr)),
-    kidcard:!!s.sphone
+    kidcard:!!s.sphone,
+    gsave:(ps => ps.length > 0 && ps.every(p => s.gsaved && s.gsaved[p.id]))(pickedPlaces(s))
   };
   const done = s.prep || {};
   return L.map(x => Object.assign(x, { date:addDay(s.start, -x.dday), done:!!done[x.key] || !!auto[x.key], auto:!done[x.key] && !!auto[x.key] }))

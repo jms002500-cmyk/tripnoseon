@@ -47,6 +47,7 @@ import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
+import { gsaveUrl, gsaveList, isSaved } from './gsave.js';
 
 export function partyText(s){
   if(!s.who) return '동행 미정';
@@ -645,6 +646,25 @@ function themeEnd(s){
   </div>`;
 }
 
+// ⭐ 내 구글 지도에 저장 (js/gsave.js): 구글이 바로 넣는 길을 막아 둬서, 한 곳씩 구글 지도 앱을 그 장소로 열어 '저장'을 누르게 함
+function gsLink(s, x){
+  return `<a class="link gslink${x.saved ? ' ok' : ''}" href="${esc(x.url)}" target="_blank" rel="noopener" data-act="gsave" data-v="${esc(x.key)}">${x.saved ? '✓ 내 구글 지도에 저장함 ↗' : '⭐ 내 구글 지도에 저장 ↗'}</a>`;
+}
+function gsaveBox(s, P){
+  const G = gsaveList(s, P); if(!G.total) return '';
+  const all = G.done === G.total; const list = `${REGION.name} 여행`;
+  const row = x => `<li class="gsit${x.saved ? ' ok' : ''}"><span class="gsn">${esc(x.name)}</span><span class="gsacts">${gsLink(s, x)}${x.saved ? `<button type="button" class="link" data-act="gunsave" data-v="${esc(x.key)}" aria-label="${esc(x.name)} 저장 표시 지우기">취소</button>` : ''}</span>${s.sh.gsLast === x.key ? `<p class="fine gsnow">방금 열었어요. 구글 지도에서 '저장'을 못 눌렀으면 '취소'를 누르고 다시 해 주세요.</p>` : ''}</li>`;
+  const body = G.rows.map(r => `<h3 class="gsday">${r.d ? badge(r.d.i) + ' ' : ''}${esc(r.title)}</h3><ul class="gslist">${r.items.map(row).join('')}</ul>`).join('');
+  const sz = tripCities(s).includes('sz') ? `<p class="warnline">선전(중국 본토)에서는 로밍이 아니면 구글 지도가 열리지 않아요. 한국에서 미리 저장해 두세요.</p>` : '';
+  return `<div class="box" id="gsavebox">
+      <h2>⭐ 내 구글 지도에 저장</h2>
+      <p class="gsprog"><b>${G.done}</b> / ${G.total}곳 저장${all ? ' · 모두 했어요 ✓' : ''}</p>
+      ${all ? `<p class="fine">구글 지도 앱 아래 <b>저장됨</b> → '${esc(list)}'에서 언제든 보세요. 새로 담은 곳이 생기면 여기에 다시 떠요.</p><details class="gsdone"><summary>저장한 곳 보기</summary>${body}</details>`
+        : `<ol class="gshow"><li>아래 장소를 누르면 구글 지도 앱이 그 장소로 열려요.</li><li><b>저장</b>을 누르고 목록을 골라요. 처음 한 번은 <b>새 목록</b>으로 '${esc(list)}'을 만들고, 다음부터는 그 목록만 누르면 돼요.</li><li>폰의 뒤로 가기로 트립노선에 돌아와 다음 곳을 눌러요.</li></ol>
+      <p class="fine">그러면 구글 지도 아래 <b>저장됨</b> → '${esc(list)}'에서 담은 곳이 모두 지도 위 핀으로 보여요. 그 목록을 구글 지도에서 <b>공유</b>로 가족에게 보내면 같은 목록을 같이 봐요. 구글이 다른 앱에서 바로 넣는 길을 막아 둬서 한 곳씩 눌러야 해요. 저장 표시는 이 폰에만 남아요(구글 계정이 사람마다 달라서).</p>${sz}${body}`}
+    </div>`;
+}
+
 function placeCard(p, s, n){
   const on = !!s.picked[p.id]; const must = !!s.must[p.id]; const f = fitScore(p, s);
   return `<article class="pcard${on ? ' on' : ''}${whoDim(s, p)}" id="pc-${esc(p.id)}">
@@ -658,8 +678,8 @@ function placeCard(p, s, n){
     <div class="pfoot">
       <button type="button" class="link" data-act="must" data-v="${esc(p.id)}" aria-pressed="${must}">${must ? '★ 꼭 갈 곳' : '☆ 꼭 갈 곳으로'}</button>
       ${n ? `<button type="button" class="link" data-act="mapback" data-v="${esc(p.id)}">🗺 약도에서 ${n}번 보기</button>` : ''}
-      ${safeMapUrl(p.url) ? `<a class="link" href="${esc(safeMapUrl(p.url))}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}
-      ${p.custom ? `<button type="button" class="link" data-act="customdel" data-v="${esc(p.id)}">목록에서 지우기</button>` : `<a class="link" href="${gmap(p.mapq || p.addr || p.ja)}" target="_blank" rel="noopener">구글 지도 ↗</a>${AREAS[p.area] && cityOfArea(p.area) === 'sz' ? ` <a class="link" href="${esc(eatAmapUrl({ local:p.ja }))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}`}
+      ${on ? gsLink(s, { key:p.id, url:gsaveUrl(p), saved:isSaved(s, p.id) }) : safeMapUrl(p.url) ? `<a class="link" href="${esc(safeMapUrl(p.url))}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}
+      ${p.custom ? `<button type="button" class="link" data-act="customdel" data-v="${esc(p.id)}">목록에서 지우기</button>` : `${on ? '' : `<a class="link" href="${gmap(p.mapq || p.addr || p.ja)}" target="_blank" rel="noopener">구글 지도 ↗</a>`}${AREAS[p.area] && cityOfArea(p.area) === 'sz' ? ` <a class="link" href="${esc(eatAmapUrl({ local:p.ja }))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}`}
     </div>
   </article>`;
 }
@@ -1419,6 +1439,7 @@ export function vPlan(s){
       </article>`; }).join('')}
     ${eventsBox(s, P, EV)}
     ${REGION.key === 'tokyo' ? transitBox(s, P) : ''}
+    ${gsaveBox(s, P)}
     <div class="box" id="sendbox">
       <h2>💬 가족에게 일정 보내기</h2>
       <p class="fine">날짜별 오가는 길·비행기·장소·숙소를 글 하나로 정리해서 단톡방 등에 보내요. 함께 짜기를 안 쓰는 가족(부모님 등)에게 좋아요. 예약번호는 안 넣어요.</p>
