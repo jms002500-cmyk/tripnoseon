@@ -71,3 +71,13 @@ const WORDS = {
 export const talkWords = cur => WORDS[cur] || WORDS.CNY;
 export const talkOf = (x, cur) => (x && (x[cur] || x.CNY)) || '';
 export const reqOf = key => REQS.find(x => x.key === key);
+// 소리로 들려줄 음성 고르기: 폰마다 이름이 달라서('zh_CN_#Hans', 'yue_HK_#Hant', 'zh-HK', 'cmn-Hans-CN') 말·지역 낱말로 비교
+//   lang: 'ja' | 'zh-HK'(광둥어 우선) | 'zh-CN'(보통화). 없으면 null
+const vtok = l => String(l || '').toLowerCase().replace(/_/g, '-').split('-').filter(x => x && x[0] !== '#');
+export function pickVoice(voices, lang){
+  const L = vtok(lang), list = (voices || []).map(v => ({ v, t:vtok(v.lang) })), find = f => { const x = list.find(f); return x ? x.v : null; };
+  if(L[0] === 'ja') return find(x => x.t[0] === 'ja');
+  if(L[0] === 'zh' && L.includes('hk')) return find(x => x.t[0] === 'yue') || find(x => x.t[0] === 'zh' && x.t.includes('hk') && x.t.includes('hant')) || find(x => x.t[0] === 'zh' && x.t.includes('hk'));
+  if(L[0] === 'zh') return find(x => x.t[0] === 'zh' && x.t.includes('cn')) || find(x => x.t[0] === 'cmn') || find(x => x.t[0] === 'zh' && x.t.includes('hans'));
+  return find(x => x.t[0] === L[0]);
+}

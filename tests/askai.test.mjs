@@ -253,3 +253,17 @@ test('숫자로 답받기: 상대가 쓴 숫자를 한국어로, 그 나라 돈�
   assert.equal(numSay(s, 'abc', 'HKD'), '');
   assert.match(numSay(s, '1,280', 'CNY'), /1280/);
 });
+
+test('소리 음성 고르기: 갤럭시(zh_CN_#Hans·yue_HK_#Hant)·아이폰(zh-HK)·크롬(cmn-Hans-CN) 이름을 모두 알아봄', async () => {
+  const { pickVoice } = await import('../js/asktalk.js');
+  const galaxy = ['ko_KR', 'ja_JP', 'yue_HK_#Hant', 'zh_CN_#Hans', 'zh_HK_#Hans', 'zh_HK_#Hant', 'zh_TW_#Hant'].map(lang => ({ lang }));
+  assert.equal(pickVoice(galaxy, 'zh-CN').lang, 'zh_CN_#Hans');   // 예전엔 이걸 못 알아보고 '음성이 없어요'라고 했음
+  assert.equal(pickVoice(galaxy, 'zh-HK').lang, 'yue_HK_#Hant');  // 홍콩은 광둥어 먼저
+  assert.equal(pickVoice(galaxy, 'ja').lang, 'ja_JP');
+  const iphone = [{ lang:'zh-HK' }, { lang:'zh-CN' }, { lang:'ja-JP' }];
+  assert.equal(pickVoice(iphone, 'zh-HK').lang, 'zh-HK'); assert.equal(pickVoice(iphone, 'zh-CN').lang, 'zh-CN');
+  assert.equal(pickVoice([{ lang:'cmn-Hans-CN' }, { lang:'yue-Hant-HK' }], 'zh-CN').lang, 'cmn-Hans-CN');
+  assert.equal(pickVoice([{ lang:'zh-TW' }, { lang:'zh-HK' }], 'zh-HK').lang, 'zh-HK');
+  assert.equal(pickVoice([{ lang:'ko-KR' }, { lang:'en-US' }], 'zh-HK'), null);
+  assert.equal(pickVoice([], 'ja'), null);
+});

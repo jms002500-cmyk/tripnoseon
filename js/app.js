@@ -1,7 +1,7 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, PLACES, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
-import { REPLIES, talkWords } from './asktalk.js';
+import { REPLIES, talkWords, pickVoice } from './asktalk.js';
 import { VIEWS, SHEET, ASKSHEET, NEARSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
@@ -1506,10 +1506,9 @@ function askSpeak(){
 }
 function speakIn(lang, text){
   if(!globalThis.speechSynthesis || !text) return;
-  const L = lang.toLowerCase(), ok = v => { const x = v.lang.replace('_', '-').toLowerCase(); return x === L || (L === 'ja' && x.startsWith('ja')) || (L === 'zh-hk' && x.startsWith('yue')); };
-  const vs = speechSynthesis.getVoices();
-  if(vs.length && !vs.some(ok)){ toast('이 폰에는 이 말 음성이 없어요. 화면을 보여 주세요.'); return; }
-  speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = 0.9; const v = vs.find(ok); if(v) u.voice = v; speechSynthesis.speak(u);
+  const vs = speechSynthesis.getVoices(), v = pickVoice(vs, lang);   // 음성 목록이 아직 비었으면 폰 기본 음성에 말만 맞춰 읽음
+  if(vs.length && !v){ toast('이 폰에는 이 말 음성이 없어요. 화면을 보여 주세요.'); return; }
+  speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = v ? v.lang.replace(/_#\w+$/, '').replace(/_/g, '-') : lang; u.rate = 0.9; if(v) u.voice = v; speechSynthesis.speak(u);
 }
 
 // 직접 쓴 말 번역: 한국어면 현지어로(주문에 넣을 수 있음), 직원이 쓴 말이면 한국어로
