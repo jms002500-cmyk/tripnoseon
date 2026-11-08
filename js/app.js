@@ -890,7 +890,7 @@ function act(a, v){
     case 'helpgo': goTo(v); return;
     case 'nearopen': s.sh.near = Object.assign({}, s.sh.near, { open:true }); if(s.sh.ask) s.sh.ask.open = false; s.sh.open = false;
       if(!s.sh.near.pt || Date.now() - (s.sh.near.at || 0) > 3 * 60000) nearLocate(); else render(); return;   // 3분 안에 찾은 위치는 다시 씀
-    case 'nearagain': nearLocate(); return;
+    case 'nearagain': nearLocate(true); return;
     case 'nearclose': if(s.sh.near) s.sh.near.open = false; render(); return;
     case 'nearpick': { const p = allPlaces(s).concat(PLACES).find(x => x.id === v); if(!p) return; s.picked[p.id] = true; toast(`'${p.name}'을(를) 담았어요.`); break; }
     case 'neartoday': {   // 오늘 일정에 넣기 (하루 종일 장소는 그날을 통째로)
@@ -1228,7 +1228,7 @@ document.addEventListener('keydown', e => { if(e.key !== 'Enter' && e.key !== ' 
 
 /* ---------- 📍 내 주변 (js/nearby.js) ---------- */
 // 버튼을 눌렀을 때만 위치를 한 번 받음. 좌표는 화면(s.sh.near, 저장 안 함)에서만 씀
-function nearLocate(){
+function nearLocate(fresh){   // fresh: '다시 찾기'는 1분 안에 받은 위치도 다시 쓰지 않음 (걸어서 옮긴 뒤)
   const s = state; s.sh.near = Object.assign({}, s.sh.near, { open:true, busy:true, err:'' }); render();
   if(!('geolocation' in navigator)){ s.sh.near.busy = false; s.sh.near.err = 'none'; render(); return; }
   navigator.geolocation.getCurrentPosition(pos => {
@@ -1236,7 +1236,7 @@ function nearLocate(){
     state.sh.near = n; render();
   }, err => {
     const n = state.sh.near || {}; n.busy = false; n.err = err && err.code === 1 ? 'deny' : 'fail'; state.sh.near = n; render();
-  }, { enableHighAccuracy:true, timeout:20000, maximumAge:60000 });
+  }, { enableHighAccuracy:true, timeout:20000, maximumAge:fresh ? 0 : 60000 });
 }
 
 /* ---------- 시차·내 위치 (js/clock.js) ---------- */
@@ -1504,6 +1504,8 @@ function askSpeak(){
   const el = document.getElementById('askbig'); if(!el) return;
   speakIn(el.lang, [...el.querySelectorAll('.askbigtext,.askgone button,.askbigsub')].map(x => x.textContent.replace(/ × (\d+)/g, ' $1')).join('。'));
 }
+// 폰 음성 목록은 처음 부를 때 비어 있다가 나중에 채워짐 → 앱을 열 때 미리 불러 둠 (첫 🔊부터 맞는 음성으로)
+try{ if(globalThis.speechSynthesis){ speechSynthesis.getVoices(); speechSynthesis.addEventListener('voiceschanged', () => speechSynthesis.getVoices()); } }catch(e){}
 function speakIn(lang, text){
   if(!globalThis.speechSynthesis || !text) return;
   const vs = speechSynthesis.getVoices(), v = pickVoice(vs, lang);   // 음성 목록이 아직 비었으면 폰 기본 음성에 말만 맞춰 읽음
