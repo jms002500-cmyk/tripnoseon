@@ -12,7 +12,10 @@ test('저장 주소: 장소 ID > 구글 링크 > 확인한 검색어 > 좌표 �
   try{
     const p = D.PLACES.find(x => x.mapq);
     assert.equal(gsaveUrl(p), `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.mapq)}`);   // 지도 링크와 같은 검색어
-    const q = D.PLACES.find(x => !x.mapq && x.addr);
+    const q = D.PLACES.find(x => !x.mapq && !x.gid && x.addr);
+    const w = new URL(gsaveUrl(D.PLACES.find(x => x.id === 'sz_window')));   // 검색어로는 매표소가 열려서 장소 ID로 (실제 폰에서 확인)
+    assert.equal(w.searchParams.get('query_place_id'), 'ChIJ____7_PxAzQRBuBr2pNmuIU');
+    assert.ok(D.PLACES.filter(x => x.gid).every(x => /^ChIJ[\w-]{20,}$/.test(x.gid)));
     assert.ok(gsaveUrl(q).endsWith(encodeURIComponent(q.addr)));
     const g = { id:'c1', name:'딤딤섬', gid:'ChIJabc', custom:true, lat:22.3, lng:114.17 };
     const u = new URL(gsaveUrl(g));

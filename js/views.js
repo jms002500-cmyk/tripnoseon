@@ -679,7 +679,7 @@ function placeCard(p, s, n){
       <button type="button" class="link" data-act="must" data-v="${esc(p.id)}" aria-pressed="${must}">${must ? '★ 꼭 갈 곳' : '☆ 꼭 갈 곳으로'}</button>
       ${n ? `<button type="button" class="link" data-act="mapback" data-v="${esc(p.id)}">🗺 약도에서 ${n}번 보기</button>` : ''}
       ${on ? gsLink(s, { key:p.id, url:gsaveUrl(p), saved:isSaved(s, p.id) }) : safeMapUrl(p.url) ? `<a class="link" href="${esc(safeMapUrl(p.url))}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}
-      ${p.custom ? `<button type="button" class="link" data-act="customdel" data-v="${esc(p.id)}">목록에서 지우기</button>` : `${on ? '' : `<a class="link" href="${gmap(p.mapq || p.addr || p.ja)}" target="_blank" rel="noopener">구글 지도 ↗</a>`}${AREAS[p.area] && cityOfArea(p.area) === 'sz' ? ` <a class="link" href="${esc(eatAmapUrl({ local:p.ja }))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}`}
+      ${p.custom ? `<button type="button" class="link" data-act="customdel" data-v="${esc(p.id)}">목록에서 지우기</button>` : `${on ? '' : `<a class="link" href="${esc(gsaveUrl(p))}" target="_blank" rel="noopener">구글 지도 ↗</a>`}${AREAS[p.area] && cityOfArea(p.area) === 'sz' ? ` <a class="link" href="${esc(eatAmapUrl({ local:p.ja }))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}`}
     </div>
   </article>`;
 }

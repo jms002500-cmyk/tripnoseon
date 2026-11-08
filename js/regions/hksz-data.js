@@ -1,6 +1,8 @@
 // 홍콩·선전 지역의 동네(AREAS)·장소(PLACES)·노선(LINES)·국경(BORDER) 데이터.
 // 모양은 js/data.js의 도쿄 AREAS·PLACES와 같아요(필드 설명은 그 파일 맨 위 주석).
 // addr 칸: 영어(선전은 중국어) 이름+주소. 구글 지도는 이 값으로 찾아요(현지 이름이 달라도 찾게, 2026-11-06).
+// mapq 칸: 주소로 찾으면 목록이 나오는 곳의 '한 곳으로 열리는 검색어'. gid 칸: 검색어로는 한 곳으로 안 열리는 곳의 구글 장소 ID(먼저 씀)
+//   (2026-11-08 실제 폰 구글 지도 앱에서 확인: 세계의 창은 매표소, 둥먼은 호텔이 열렸고 난터우·화창베이·웡타이신은 목록이 나와서 고침)
 // 다른 점: ja 칸은 '현지 이름'(홍콩은 번체 중문 또는 공식 영어 이름, 선전은 간체 중문)이라 구글 지도 검색어로 써요.
 //          AREAS에는 city('hk' | 'sz')가 더 있고, 장소 id는 hk_·sz_로 시작해요.
 //
@@ -154,7 +156,7 @@ export const PLACES = [
   {id:'hk_sneaker', kind:'쇼핑', indoor:'part', name:'스니커 거리 (파윤 거리)', ja:'花園街', addr:'Sneakers Street, Fa Yuen Street, Mong Kok, Hong Kong', area:'mongkok', lat:22.3180, lng:114.1714, hours:1, tags:['쇼핑'], kid:'teen', note:'운동화 가게가 줄지어 있는 거리예요.'},
   {id:'hk_goldfish', kind:'거리·시장', indoor:'part', name:'금붕어 시장', ja:'金魚街', addr:'Goldfish Market, Tung Choi Street, Mong Kok, Hong Kong', area:'mongkok', lat:22.3210, lng:114.1703, hours:0.5, tags:['관광명소'], kid:'kids', note:'비닐봉지에 담긴 금붕어가 가게 앞에 줄줄이 걸려 있어요.'},
   {id:'hk_apliu', kind:'거리·시장', indoor:'part', name:'삼수이포 압리우 거리', ja:'鴨寮街', addr:'Apliu Street, Sham Shui Po, Hong Kong', area:'mongkok', lat:22.3302, lng:114.1616, hours:1.5, tags:['쇼핑'], kid:'teen', note:'중고 전자제품·부품 노점 거리예요. 근처 원단·단추 골목도 구경거리예요. 폰 케이스·충전기가 싼 편이에요. 붐비니 소매치기를 조심하세요.'},
-  {id:'hk_wongtaisin', kind:'신사·절', indoor:false, name:'웡타이신 사원', ja:'黃大仙祠', addr:'Wong Tai Sin Temple, 2 Chuk Yuen Village, Wong Tai Sin, Hong Kong', area:'mongkok', lat:22.3426, lng:114.1936, hours:1, anchor:true, tags:['문화·역사'], kid:'all', note:'소원이 잘 이루어진다는 도교 사원이에요. MTR 웡타이신역 바로 앞이에요. 입구 쪽에서 점치는 대나무 막대를 빌릴 수 있고, 풀이는 돈을 내요. 구룡성채 공원과 묶기 좋아요. 점 풀이는 HK$30쯤이에요(책 기준).'},
+  {id:'hk_wongtaisin', kind:'신사·절', indoor:false, name:'웡타이신 사원', ja:'黃大仙祠', addr:'Wong Tai Sin Temple, 2 Chuk Yuen Village, Wong Tai Sin, Hong Kong', mapq:'嗇色園黃大仙祠', area:'mongkok', lat:22.3426, lng:114.1936, hours:1, anchor:true, tags:['문화·역사'], kid:'all', note:'소원이 잘 이루어진다는 도교 사원이에요. MTR 웡타이신역 바로 앞이에요. 입구 쪽에서 점치는 대나무 막대를 빌릴 수 있고, 풀이는 돈을 내요. 구룡성채 공원과 묶기 좋아요. 점 풀이는 HK$30쯤이에요(책 기준).'},
   {id:'hk_birdgarden', kind:'공원·정원', indoor:false, name:'위엔포 거리 새 정원·꽃시장', ja:'園圃街雀鳥花園', addr:'Yuen Po Street Bird Garden, Yuen Po Street, Mong Kok, Hong Kong', area:'mongkok', lat:22.3259, lng:114.1738, hours:0.5, tags:['관광명소','자연·산책'], kid:'all', note:'새장을 들고 나온 어르신들이 모이는 중국식 작은 정원이에요. 바로 아래 꽃시장 거리를 지나 금붕어 시장까지 걸어서 이어져요. 매일 아침 7시~밤 8시에 열어요.'},
   {id:'hk_walledcity', kind:'공원·정원', indoor:false, name:'구룡성채 공원', ja:'九龍寨城公園', addr:'Kowloon Walled City Park, Tung Tau Tsuen Road, Kowloon City, Hong Kong', area:'mongkok', lat:22.3319, lng:114.1900, hours:1, tags:['문화·역사','자연·산책'], kid:'all', note:'빌딩이 빽빽했던 옛 구룡성채 자리를 정원으로 바꾼 곳이에요. 남아 있는 옛 관청 건물에서 성채 시절 모습을 보여 줘요. 공원은 매일 아침 6시 반~밤 11시, 전시실은 수요일에 쉬어요. 무료예요. 12띠 동물 조각 정원과 옛 남문 터가 있어요.'},
   {id:'hk_chilin', kind:'공원·정원', indoor:false, name:'치린 수도원·난롄 정원', ja:'志蓮淨苑', addr:'Chi Lin Nunnery, 5 Chi Lin Drive, Diamond Hill, Hong Kong', mapq:'Chi Lin Nunnery, Hong Kong', area:'mongkok', lat:22.3407, lng:114.2052, hours:1.5, tags:['문화·역사','자연·산책'], kid:'all', note:'못을 쓰지 않고 나무로 지은 당나라 양식 절과 길 건너 정원이에요. 무료예요. 절은 오전 9시~오후 4시 반, 정원은 아침 7시~밤 9시에 열어요.'},
@@ -243,7 +245,7 @@ export const PLACES = [
   {id:'hk_aberdeen', kind:'체험·캐릭터', indoor:false, name:'애버딘 삼판선', ja:'香港仔海濱公園', addr:'Aberdeen Promenade, Aberdeen Praya Road, Aberdeen, Hong Kong', area:'south', lat:22.2473, lng:114.1543, hours:1, tags:['체험','문화·역사'], kid:'all', note:'작은 배(삼판선)를 타고 수상 마을이 있던 항구를 한 바퀴 돌아요. 배를 타지 않아도 바닷가 산책로(애버딘 프로머네이드)를 걸을 수 있어요.'},
 
   // 선전 · 화창베이
-  {id:'sz_huaqiangbei', kind:'거리·시장', indoor:'part', name:'화창베이 전자상가 거리', ja:'华强北商业街', addr:'华强北商业街, 深圳市福田区华强北路', area:'huaqiang', lat:22.5440, lng:114.0804, hours:2, anchor:true, tags:['쇼핑','체험'], kid:'teen', note:'세계 전자제품 부품이 모이는 거리예요. 드론·로봇·휴대폰 액세서리 가게가 빌딩마다 가득해요.'},
+  {id:'sz_huaqiangbei', kind:'거리·시장', indoor:'part', name:'화창베이 전자상가 거리', ja:'华强北商业街', addr:'华强北商业街, 深圳市福田区华强北路', gid:'ChIJfUACIzf0AzQR-OkaJLdm0Uk', area:'huaqiang', lat:22.5440, lng:114.0804, hours:2, anchor:true, tags:['쇼핑','체험'], kid:'teen', note:'세계 전자제품 부품이 모이는 거리예요. 드론·로봇·휴대폰 액세서리 가게가 빌딩마다 가득해요.'},
   {id:'sz_seg', kind:'쇼핑', indoor:true, name:'SEG 전자시장', ja:'赛格电子市场', addr:'SEG Plaza, Huaqiangbei, Shenzhen', area:'huaqiang', lat:22.5436, lng:114.0811, hours:1.5, tags:['쇼핑','체험'], kid:'teen', note:'1~10층이 전자부품 가게예요. 부품을 사서 직접 만드는 사람들이 찾는 곳이에요.'},
   {id:'sz_hqbmuseum', kind:'박물관·미술관', indoor:true, name:'화창베이 박물관', ja:'华强北博物馆', addr:'华强北博物馆, 深圳市福田区深南中路3006号', area:'huaqiang', lat:22.5466, lng:114.0821, hours:1, tags:['체험','문화·역사'], kid:'teen', closed:[1], note:'화창베이가 전자상가 거리로 자라 온 이야기와 옛 전자제품을 보여 줘요. 광보 현대지창 빌딩 5층이에요. 무료지만 위챗 미니프로그램 실명 예약을 받아요(여권으로 되는지 미리 확인하세요). 화~일 오전 10시~오후 6시, 월요일 휴관.'},
   // 선전 · 푸톈 CBD
@@ -253,7 +255,7 @@ export const PLACES = [
   {id:'sz_museum', kind:'박물관·미술관', indoor:true, name:'선전 박물관', ja:'深圳博物馆', addr:'深圳博物馆, 深圳市福田区福中路市民中心A区', mapq:'深圳博物馆历史民俗馆', area:'futian', lat:22.5440, lng:114.0575, hours:1.5, tags:['문화·역사'], kid:'all', closed:[1], note:'작은 어촌이던 선전이 40여 년 만에 큰 도시가 된 이야기를 보여 줘요. 시민센터 동쪽 건물(진톈루관)이에요. 월요일 휴관(공휴일은 열어요), 오전 10시~오후 6시예요.'},
   {id:'sz_mocape', kind:'박물관·미술관', indoor:true, name:'선전 현대미술·도시계획관', ja:'深圳市当代艺术与城市规划馆', addr:'深圳市当代艺术与城市规划馆, 深圳市福田区福中路184号', area:'futian', lat:22.5486, lng:114.0567, hours:1.5, tags:['문화·역사'], kid:'all', closed:[1], note:'선전의 도시 계획과 현대 미술 전시를 한 건물에서 해요. 구름 같은 지붕 건물이 멋져요. 월요일 휴관(공휴일은 열어요).'},
   // 선전 · 화교성(OCT)
-  {id:'sz_window', kind:'테마파크', indoor:false, name:'세계의 창', ja:'世界之窗', addr:'世界之窗, 深圳市南山区深南大道9037号', mapq:'Window of the World, Shenzhen', area:'oct', lat:22.5375, lng:113.9698, hours:4, anchor:true, tags:['테마파크','관광명소'], kid:'all', note:'에펠탑·피라미드 같은 세계 명소를 줄여 만든 공원이에요. 저녁엔 조명이 켜져요.'},
+  {id:'sz_window', kind:'테마파크', indoor:false, name:'세계의 창', ja:'世界之窗', addr:'世界之窗, 深圳市南山区深南大道9037号', gid:'ChIJ____7_PxAzQRBuBr2pNmuIU', area:'oct', lat:22.5375, lng:113.9698, hours:4, anchor:true, tags:['테마파크','관광명소'], kid:'all', note:'에펠탑·피라미드 같은 세계 명소를 줄여 만든 공원이에요. 저녁엔 조명이 켜져요.'},
   {id:'sz_happyvalley', kind:'테마파크', indoor:false, name:'선전 환러구 (해피밸리)', ja:'深圳欢乐谷', addr:'深圳欢乐谷, 深圳市南山区侨城西街18号', mapq:'深圳欢乐谷, Shenzhen', area:'oct', lat:22.5455, lng:113.9756, hours:5, anchor:true, tags:['테마파크'], kid:'teen', note:'롤러코스터가 많은 놀이공원이에요. 10대가 특히 좋아해요.'},
   {id:'sz_splendid', kind:'테마파크', indoor:false, name:'금수중화 민속촌', ja:'锦绣中华民俗村', addr:'锦绣中华民俗村, 深圳市南山区深南大道9003号', area:'oct', lat:22.5330, lng:113.9855, hours:3, tags:['문화·역사','테마파크'], kid:'all', note:'중국 곳곳의 명소를 줄인 모형과 소수민족 마을 공연이 있어요.'},
   {id:'sz_octloft', kind:'거리·시장', indoor:'part', name:'OCT-LOFT 창의문화원', ja:'华侨城创意文化园', addr:'华侨城创意文化园, 深圳市南山区锦绣北街', area:'oct', lat:22.5381, lng:113.9934, hours:1, tags:['문화·역사','쇼핑'], kid:'all', note:'옛 공장 건물을 고친 디자인 가게·카페 거리예요. 차오청둥역에서 걸어가요.'},
@@ -265,12 +267,12 @@ export const PLACES = [
   {id:'sz_mixcbay', kind:'쇼핑', indoor:true, name:'선전베이 만상성', ja:'深圳湾万象城', addr:'深圳湾万象城, 深圳市南山区科苑南路2888号', mapq:'深圳灣萬象城, Shenzhen', area:'nanshan', lat:22.5174, lng:113.9400, hours:1.5, tags:['쇼핑','맛집'], kid:'all', note:'화룬 본사 빌딩 아래 큰 쇼핑몰이에요. 식당이 많아 선전베이 공원·인재공원 다녀오며 밥 먹기 좋아요. 일~목 오전 10시~밤 10시, 금·토는 밤 10시 반까지 열어요.'},
   {id:'sz_safari', kind:'수족관·동물원', indoor:false, name:'선전 야생동물원', ja:'深圳野生动物园', addr:'深圳野生动物园, 深圳市南山区西丽湖路4065号', mapq:'Shenzhen Safari Park', area:'nanshan', lat:22.5999, lng:113.9658, hours:4, anchor:true, tags:['체험','자연·산책'], kid:'all', note:'시리 호수 옆 넓은 언덕에 동물이 풀려 있는 동물원이에요. 걸어서 보는 구역과 차를 타고 도는 맹수 구역, 동물 공연이 있어요. 매일 오전 9시 반~오후 6시(5시 입장 마감)이고, 지하철 7호선 시리후역에서 가까워요. 다른 곳과 떨어져 있어 반나절은 잡으세요.'},
   {id:'sz_huawei', kind:'쇼핑', indoor:true, name:'만상천지 (화웨이 매장)', ja:'深圳万象天地', addr:'深圳万象天地, 深圳市南山区深南大道9668号', area:'nanshan', lat:22.5450, lng:113.9511, hours:1.5, tags:['쇼핑','체험'], kid:'teen', note:'화웨이가 2019년 첫 글로벌 플래그십 매장을 연 쇼핑몰이에요. 둘레가 기술 기업이 모인 난산 과기원이에요. 매장은 매일 오전 10시~밤 10시에 열어요.'},
-  {id:'sz_nantou', kind:'거리·시장', indoor:'part', name:'난터우 고성', ja:'南头古城', addr:'南头古城, 深圳市南山区南头街', mapq:'Nantou Guchengyuan', area:'nanshan', lat:22.5409, lng:113.9200, hours:1.5, tags:['문화·역사','맛집'], kid:'all', note:'오래된 성 마을을 고친 골목이에요. 카페와 간식 가게가 많아요.'},
+  {id:'sz_nantou', kind:'거리·시장', indoor:'part', name:'난터우 고성', ja:'南头古城', addr:'南头古城, 深圳市南山区南头街', gid:'ChIJqTL043DuAzQRKzdae9hKRXU', area:'nanshan', lat:22.5409, lng:113.9200, hours:1.5, tags:['문화·역사','맛집'], kid:'all', note:'오래된 성 마을을 고친 골목이에요. 카페와 간식 가게가 많아요.'},
   {id:'sz_seaworld', kind:'거리·시장', indoor:'part', name:'셔커우 해상세계', ja:'海上世界', addr:'海上世界, 深圳市南山区太子路', mapq:'Sea World, Shenzhen', area:'nanshan', lat:22.4863, lng:113.9120, hours:1.5, tags:['관광명소','맛집'], kid:'all', note:'육지에 올라앉은 옛 여객선(밍화호) 둘레에 식당가가 모여 있어요. 걸어서 갈 거리에 디자인 박물관 디자인 소사이어티가 있어요.'},
   {id:'sz_bayglory', kind:'전망대', indoor:'part', name:'만취즈광 대관람차', ja:'湾区之光', addr:'湾区之光摩天轮, 深圳市宝安区欢乐港湾', area:'nanshan', lat:22.5441, lng:113.8830, hours:1, tags:['관광명소'], kid:'all', note:'바오안 바닷가 128m 대관람차예요. 해 질 녘이 좋아요. 다른 곳과 좀 떨어져 있어요.'},
   // 선전 · 뤄후
   {id:'sz_luohucc', kind:'쇼핑', indoor:true, name:'뤄후 상업성', ja:'罗湖商业城', addr:'罗湖商业城, 深圳市罗湖区人民南路', area:'luohu', lat:22.5322, lng:114.1133, hours:1.5, tags:['쇼핑'], kid:'all', note:'국경 바로 위 쇼핑몰이에요. 옷·가방·안마 가게가 많고 흥정이 기본이에요. 상표를 베낀 물건이 많아요. 호객을 따라가지 마세요.'},
-  {id:'sz_dongmen', kind:'거리·시장', indoor:'part', name:'둥먼 보행자 거리', ja:'东门步行街', addr:'东门步行街, 深圳市罗湖区东门中路', mapq:'Shenzhen Dong Men Pedestrian Street Shaibu Subway Station', area:'luohu', lat:22.5483, lng:114.1124, hours:1.5, tags:['쇼핑','맛집'], kid:'all', note:'선전에서 가장 오래된 상점가예요. 지하철 라오제역 A출구에서 가까워요. 상표를 베낀 물건이 많고 흥정이 기본이에요. 값은 여러 곳을 비교하세요.'},
+  {id:'sz_dongmen', kind:'거리·시장', indoor:'part', name:'둥먼 보행자 거리', ja:'东门步行街', addr:'东门步行街, 深圳市罗湖区东门中路', mapq:'深圳东门步行街', area:'luohu', lat:22.5483, lng:114.1124, hours:1.5, tags:['쇼핑','맛집'], kid:'all', note:'선전에서 가장 오래된 상점가예요. 지하철 라오제역 A출구에서 가까워요. 상표를 베낀 물건이 많고 흥정이 기본이에요. 값은 여러 곳을 비교하세요.'},
   // 선전 · 룽강
   {id:'sz_dafen', kind:'거리·시장', indoor:'part', name:'다펀 유화마을', ja:'大芬油画村', addr:'大芬油画村, 深圳市龙岗区布吉街道', mapq:'Dafen Oil Painting Village, Shenzhen', area:'longgang', lat:22.6125, lng:114.1365, hours:2, tags:['문화·역사','체험'], kid:'all', note:'화가 작업실 수백 곳이 모인 마을이에요. 유화 그리기 체험을 하는 가게도 있어요.'}
 ];
