@@ -46,9 +46,18 @@ export const toMin = t => { const m = /^(\d{1,2}):(\d{2})$/.exec(t || ''); retur
 // 오는 편 출발 시각(분, 마지막 날 0시 기준). 밤 비행기(NIGHT_DEP 전)는 다음 날 새벽이라 1440을 더함 (예: 00:55 → 1495)
 export const depMin = f => { const t = toMin(f && f.dep); return t != null && t < NIGHT_DEP ? t + 1440 : t; };
 export const hm = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+// 친 시각 → 'HH:MM' (24시간). '1430'·'14:30'·'14.30'·'9:5'·'930'·'9'·'14시 30분' 다 받음, 못 읽으면 ''
+export function normHHMM(v){
+  const t = String(v == null ? '' : v).trim(); if(!t) return '';
+  let h, m; const a = /^(\d{1,2})\s*[:.시h]\s*(\d{1,2})?\s*분?$/i.exec(t), b = /^(\d{1,4})$/.exec(t);
+  if(a){ h = +a[1]; m = a[2] ? +a[2] : 0; }
+  else if(b){ const d = b[1]; if(d.length <= 2){ h = +d; m = 0; } else { h = +d.slice(0, d.length - 2); m = +d.slice(-2); } }
+  else return '';
+  return h >= 0 && h < 24 && m >= 0 && m < 60 ? `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` : '';
+}
 export const minText = m => m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}`;
 // '오후 1시', '오전 9:30'
-export const koTime = m => { const h = Math.floor(m / 60) % 24, mm = m % 60; return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}${mm ? `:${String(mm).padStart(2, '0')}` : '시'}`; };
+export const koTime = m => hm(((Math.round(m) % 1440) + 1440) % 1440);   // 24시간 '14:30' (사용자 요청: 오전·오후 말고 12·13·14…) };
 
 // 편명 → 운항 상태(지연·게이트) 바로가기. 공항 공식 운항 정보 페이지(주소 확인 2026-10-31) + 구글 검색(편명이 구글로 감)
 export const FLIGHT_PAGES = {

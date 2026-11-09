@@ -566,12 +566,12 @@ function flightBox(s, days){
     ${way ? `<p class="fine">${way === 'out' ? '돌아오는 비행기가 없어요(배·기차로 다른 곳으로 가거나 아직 안 정함). 마지막 날은 반나절로 계산해요. 돌아오는 길은 일정 단계 \'오가는 길\'에 따로 넣을 수 있어요.' : '가는 비행기가 없어요(다른 곳에서 넘어오거나 배·기차로 옴). 첫날은 반나절로 계산해요.'}</p>` : ''}
     ${aps.length > 1 ? `<div class="dates">${way !== 'back' ? apSel('fap', 'ap', way ? '공항' : '도착 공항', ap1) : ''}${way !== 'out' ? apSel('fap2', 'ap2', way ? '공항' : '출발 공항', ap2) : ''}</div>` : ''}
     ${way !== 'back' ? `<div class="dates">
-      <label for="fodep">가는 편 출발 <small>한국</small><input id="fodep" type="time" value="${esc(f.odep || '')}" data-flight="odep"></label>
-      <label for="farr">첫날 도착 <small>현지</small><input id="farr" type="time" value="${esc(f.arr || '')}" data-flight="arr"></label>
+      <label for="fodep">가는 편 출발 <small>한국</small><input id="fodep" type="text" inputmode="numeric" maxlength="5" placeholder="14:30" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(f.odep || '')}" data-flight="odep"></label>
+      <label for="farr">첫날 도착 <small>현지</small><input id="farr" type="text" inputmode="numeric" maxlength="5" placeholder="14:30" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(f.arr || '')}" data-flight="arr"></label>
     </div>` : ''}
     ${way !== 'out' ? `<div class="dates">
-      <label for="fdep">마지막 날 출발 <small>현지</small><input id="fdep" type="time" value="${esc(f.dep || '')}" data-flight="dep"></label>
-      <label for="frarr">한국 도착 <small>한국</small><input id="frarr" type="time" value="${esc(f.rarr || '')}" data-flight="rarr"></label>
+      <label for="fdep">마지막 날 출발 <small>현지</small><input id="fdep" type="text" inputmode="numeric" maxlength="5" placeholder="14:30" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(f.dep || '')}" data-flight="dep"></label>
+      <label for="frarr">한국 도착 <small>한국</small><input id="frarr" type="text" inputmode="numeric" maxlength="5" placeholder="14:30" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(f.rarr || '')}" data-flight="rarr"></label>
     </div>` : ''}
     ${lines.length ? `<p class="pnote">${lines.join('<br>')}</p>` : '<p class="fine">넣으면 첫날은 입국·공항에서 숙소까지 시간을 빼고, 마지막 날은 공항 가러 나서기 전까지만 일정을 짜요. 비우면 첫날·마지막 날은 반나절로 계산해요.</p>'}
     ${f.arr || f.dep ? '<div><button type="button" class="link" data-act="flightclear">비행기 시간 지우기</button></div>' : ''}
@@ -1440,7 +1440,7 @@ function moveForm(s, m, P, ctx){
     ${parkPanel(s, m)}${busPanel(s, m)}
     ${m.k === 'etc' ? `<label class="shlabel" for="mvdate">날짜<select id="mvdate" data-mv="date">${D.map(d => `<option value="${d.key}"${m.date === d.key ? ' selected' : ''}>${d.i + 1}일차 · ${d.label}</option>`).join('')}</select></label>` : ''}
     <div class="dates">
-      <label for="mvtime">${L.timeLabel}${L.home ? ' (한국 시각)' : ''}<input id="mvtime" type="time" value="${esc(m.time || '')}" data-mv="time"></label>
+      <label for="mvtime">${L.timeLabel}${L.home ? ' (한국 시각)' : ''}<input id="mvtime" type="text" inputmode="numeric" maxlength="5" placeholder="14:30" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(m.time || '')}" data-mv="time"></label>
       <label for="mvmin">걸리는 시간(분)<input id="mvmin" type="number" inputmode="numeric" min="0" max="1440" step="5" value="${moveMin(m) || ''}" placeholder="${defMin ? `어림 ${defMin}` : '예: 60'}" data-mv="min"></label>
     </div>
     <div class="dates">
@@ -1623,6 +1623,14 @@ function vthumb(it, f){
     ? `<button type="button" class="vthumb" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}" aria-label="${esc(f.name)} 크게 보기"><img data-fid="${esc(f.fid)}" alt=""></button>`
     : `<button type="button" class="vpdf" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}">📄 ${esc(f.name)}</button>`;
 }
+// 보관함 카드의 첨부·사람별 번호는 접어 둠 (사용자 요청: 감추기). 펼친 카드는 기억해서 다시 그려도 펼친 채로(이 화면에서만)
+const VOPEN = new Set();
+if(typeof document !== 'undefined') document.addEventListener('toggle', e => { const d = e.target; if(d && d.classList && d.classList.contains('vmore')){ if(d.open) VOPEN.add(d.dataset.v); else VOPEN.delete(d.dataset.v); } }, true);
+function vmoreHtml(s, it){
+  const h = vfilesHtml(s, it); if(!h.trim()) return '';
+  const n = (it.files || []).length; const P = PAX_KINDS.includes(it.kind) ? paxOf(s, it) : null; const k = P && P.used ? P.list.filter(x => x.code || x.files.length).length : 0;
+  return `<details class="vmore" data-v="${esc(it.id)}"${VOPEN.has(it.id) ? ' open' : ''}><summary>${[n ? `📎 첨부 ${n}개` : '', k ? `👪 ${k}명 티켓` : ''].filter(Boolean).join(' · ')} <span class="vmore-o">보기</span><span class="vmore-c">감추기</span></summary>${h}</details>`;
+}
 function vfilesHtml(s, it){
   const files = it.files || []; const P = s && PAX_KINDS.includes(it.kind) ? paxOf(s, it) : null;
   if(!P || !P.used) return files.length ? `<div class="vfiles">${files.map(f => vthumb(it, f)).join('')}</div>` : '';
@@ -1672,7 +1680,7 @@ function vaultCard(s, it){
     ${it.kind === 'flight' && normFno(it.fno) ? `<span class="mvtt">🛫 ${flightLinks(it.fno, (s.flight || {}).ap || it.ap, flightDir(s, it)).map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : ''}
     ${codeRows(it)}
     ${it.memo ? `<p class="pnote">${esc(it.memo)}</p>` : ''}
-    ${vfilesHtml(s, it)}${paxMissing(s, it)}
+    ${vmoreHtml(s, it)}${paxMissing(s, it)}
     <div class="pfoot">
       ${link ? `<a class="link" href="${esc(link)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
       <button type="button" class="link" data-act="vedit" data-v="${esc(it.id)}">고치기</button>
@@ -1739,7 +1747,7 @@ export function vVault(s){
       </div>
       <label for="vtitle" class="vt-title"><span class="vl-any">이름</span><span class="vl-hotel">숙소 이름</span><input id="vtitle" type="text" maxlength="60" value="${esc(d.title || '')}" placeholder="예: 디즈니랜드 1일권 · 공항 픽업"></label>
       <div class="row2">
-        <label for="vtime"><span class="vl-any">시간</span><span class="vl-flight">출발 시각</span><span class="vl-hotel">체크인 시각</span><input id="vtime" type="time" value="${esc(d.time || '')}"></label>
+        <label for="vtime"><span class="vl-any">시간</span><span class="vl-flight">출발 시각</span><span class="vl-hotel">체크인 시각</span><input id="vtime" type="text" inputmode="numeric" maxlength="5" placeholder="14:30" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(d.time || '')}"></label>
         <label for="vcode"><span class="vl-any">예약번호</span><span class="vl-hotel">예약번호</span><span class="vl-flight">항공사 예약번호</span><input id="vcode" type="text" maxlength="40" value="${esc(d.code || '')}" spellcheck="false" placeholder="${(d.kind || 'flight') === 'flight' ? '체크인할 때 쓰는 번호 (예: QXYZAB)' : ''}"></label>
       </div>
       <label for="vcode2">예약 사이트 번호 (선택)<input id="vcode2" type="text" maxlength="40" value="${esc(d.code2 || '')}" spellcheck="false" placeholder="마이리얼트립·트립닷컴 등으로 예약했으면 그 사이트 번호 (바꾸기·취소할 때)"></label>
@@ -1802,7 +1810,7 @@ function vaultExtras(s, d){
   return `<div class="vx vx-flight">
       <div class="row2">
         <label for="vdir">가는 편·오는 편<select id="vdir">${[['', '공항·날짜로 알아서'], ['out', '가는 편'], ['back', '오는 편']].map(([k, l]) => `<option value="${k}"${(d.dir || '') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label for="vtime2">도착 시각 (도착지)<input id="vtime2" type="time" value="${esc(d.kind === 'flight' ? d.time2 || '' : '')}"></label>
+        <label for="vtime2">도착 시각 (도착지)<input id="vtime2" type="text" inputmode="numeric" maxlength="5" placeholder="14:30" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(d.kind === 'flight' ? d.time2 || '' : '')}"></label>
       </div>
       <label for="vfno">편명 (선택)<input id="vfno" type="text" maxlength="10" value="${esc(d.fno || '')}" placeholder="예: CX411 · 넣으면 지연·게이트 확인 바로가기" spellcheck="false" autocapitalize="characters"></label>
       ${(() => { const tm = /([A-Z]{3}) → ([A-Z]{3})/.exec(d.title || ''); const fr = d.from || (tm ? tm[1] : '') || (dir === 'back' ? d.ap : ''), to = d.to || (tm ? tm[2] : '') || (dir === 'out' ? d.ap || (s.flight || {}).ap : '');
@@ -1814,7 +1822,7 @@ function vaultExtras(s, d){
     <div class="vx vx-hotel">
       <div class="row2">
         <label for="vdate2">체크아웃 날짜<input id="vdate2" type="date" value="${esc(d.date2 || '')}"></label>
-        <label for="vtime2h">체크아웃 시각<input id="vtime2h" type="time" value="${esc(d.kind === 'hotel' ? d.time2 || '' : '')}"></label>
+        <label for="vtime2h">체크아웃 시각<input id="vtime2h" type="text" inputmode="numeric" maxlength="5" placeholder="14:30" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(d.kind === 'hotel' ? d.time2 || '' : '')}"></label>
       </div>
       <label for="vaddr">택시용 현지어 주소 (선택)<input id="vaddr" type="text" maxlength="120" value="${esc(d.addr || '')}" placeholder="${REGION.key === 'hksz' ? '예약 확인서의 중국어(한자) 주소 붙여 넣기' : '예약 확인서의 일본어 주소 붙여 넣기'}"></label>
       <label for="vtel">숙소 전화 (선택)<input id="vtel" type="tel" maxlength="30" value="${esc(d.tel || '')}" placeholder="${REGION.key === 'hksz' ? '예: +852-1234-5678' : '예: +81-3-1234-5678'}"></label>

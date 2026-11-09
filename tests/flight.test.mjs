@@ -9,7 +9,7 @@ const trip = extra => Object.assign(clone(D.DEFAULT), { start:'2026-12-06', end:
 
 test('시각 읽기·말하기', () => {
   assert.equal(toMin('10:30'), 630); assert.equal(toMin('24:00'), null); assert.equal(toMin(''), null);
-  assert.equal(koTime(780), '오후 1시'); assert.equal(koTime(570), '오전 9:30'); assert.equal(koTime(0), '오전 12시');
+  assert.equal(koTime(780), '13:00'); assert.equal(koTime(570), '09:30'); assert.equal(koTime(0), '00:00'); assert.equal(koTime(1500), '01:00');   // 24시간 (사용자 요청)
 });
 
 test('비행기 시간이 없으면 예전처럼 첫날·마지막 날 반나절', () => {
@@ -44,4 +44,10 @@ test('다닐 시간은 하루 기본을 넘지 않고, 일정은 그 시간 안�
   const P = plan(s);
   assert.equal(P.days[0].cap, 0); assert.equal(P.days[0].items.length, 0);
   assert.equal(P.days[4].cap, 0); assert.equal(P.days[4].items.length, 0);
+});
+
+test('시각 칸에 친 글 → 24시간 HH:MM', async () => {
+  const { normHHMM } = await import('../js/flight.js');
+  assert.deepEqual(['1430', '14:30', '14.30', '9:5', '930', '9', '14시 30분', '14시', '0', '2359', '2400', '1260', 'abc', ''].map(normHHMM),
+    ['14:30', '14:30', '14:30', '09:05', '09:30', '09:00', '14:30', '14:00', '00:00', '23:59', '', '', '', '']);
 });

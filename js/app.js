@@ -17,7 +17,7 @@ import { isEmptyMove, vaultDraft } from './moves.js';
 import { travellers, PAX_KINDS } from './pax.js';
 import { READ_SCHEMA, readPrompt, readAppPrompt, readParse, readDrafts, mergeReads } from './readdoc.js';
 import { parseDocText } from './docparse.js';
-import { AIRPORTS, aptOf } from './flight.js';
+import { AIRPORTS, aptOf, normHHMM, hm } from './flight.js';
 import { flightDir } from './bookings.js';
 import { pdfText, imageText } from './localread.js';
 import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
@@ -1891,6 +1891,11 @@ function onSubmit(e){
 }
 
 document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if(!b || b.disabled) return; act(b.dataset.act, b.dataset.v); });
+// 시각 칸(24시간): 바뀌거나 저장하기 전에 '1430' → '14:30'으로 (다른 처리보다 먼저, capture)
+{ const dl = document.createElement('datalist'); dl.id = 'hhmm'; for(let m = 0; m < 1440; m += 30) dl.appendChild(Object.assign(document.createElement('option'), { value:hm(m) })); document.body.appendChild(dl); }
+const fixHHMM = el => { if(el && el.matches && el.matches('input[data-hhmm]')){ const v = normHHMM(el.value); if(el.value && !v) toast('시각은 14:30처럼 24시간으로 넣어 주세요.'); el.value = v; } };
+document.addEventListener('change', e => fixHHMM(e.target), true);
+document.addEventListener('submit', e => { (e.target.querySelectorAll ? e.target.querySelectorAll('input[data-hhmm]') : []).forEach(fixHHMM); }, true);
 document.addEventListener('change', onChange);
 // 확인서를 끌어다 놓기 (PC): 여행지 비행기 칸·보관함 확인서 칸
 document.addEventListener('dragover', e => { if(e.target.closest && e.target.closest('[data-dropread]')) e.preventDefault(); });
