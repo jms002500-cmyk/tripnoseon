@@ -17,7 +17,7 @@ import { isEmptyMove, vaultDraft } from './moves.js';
 import { travellers, PAX_KINDS } from './pax.js';
 import { READ_SCHEMA, readPrompt, readAppPrompt, readParse, readDrafts, mergeReads } from './readdoc.js';
 import { parseDocText } from './docparse.js';
-import { AIRPORTS, aptOf, normHHMM, hm } from './flight.js';
+import { AIRPORTS, aptOf, aptLabel, normHHMM, hm } from './flight.js';
 import { flightDir } from './bookings.js';
 import { pdfText, imageText } from './localread.js';
 import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
@@ -614,6 +614,7 @@ function vaultAct(a, v){
     case 'vnew': s.vedit = null; s.vdraft = null; render(); focusVaultForm(); return;
     case 'vaddq': { const m = missingBookings(s, bookings(s.vault))[+v]; if(!m) return; s.vedit = null; s.vdraft = m; render(); focusVaultForm(); return; }
     case 'vedit': s.vedit = v; s.vdraft = null; render(); focusVaultForm(); return;
+    case 'vfill': fillFromAttached(v); return;
     case 'vcancel': s.vedit = null; s.vdraft = null; s.sh.vread = null; vreadFiles = []; render(); return;
     case 'vreadsend': sendRead(); return;
     case 'fsegdel': { const o = Object.assign({}, s.fsegs); delete o[v]; s.fsegs = o; save(); render(); return; }   // 누가 어느 편에서 한 편 지우기 (보관함 예약은 그대로)
@@ -1089,7 +1090,7 @@ function act(a, v){
       s.imports = s.imports.filter(r => !r.skip && !ready.includes(r));
       break;
     }
-    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vpcopy': case 'vview': case 'vreadsend': case 'vreadai': case 'vreadback': case 'vreadgo': case 'fsegdel': case 'vdel': case 'vdel2': vaultAct(a, v); return;
+    case 'vnew': case 'vaddq': case 'vedit': case 'vfill': case 'vcancel': case 'vcopy': case 'vpcopy': case 'vview': case 'vreadsend': case 'vreadai': case 'vreadback': case 'vreadgo': case 'fsegdel': case 'vdel': case 'vdel2': vaultAct(a, v); return;
     case 'vapply': applyVaultAll(); return;
     case 'idwipe':
       if(!s.sh.idwipe){ s.sh.idwipe = true; render(); setTimeout(() => { if(state.sh.idwipe){ state.sh.idwipe = false; render(); } }, 4000); return; }
@@ -1727,6 +1728,44 @@ function nextDraft(){
   if(r.queue.length){ s.vdraft = r.queue.shift(); const d = s.vdraft; r.msg = `다음 예약(${d.kind === 'flight' ? `${d.dir === 'back' ? '오는 편' : '가는 편'} ${d.fno || ''}` : d.title || ''})을 채웠어요. 맞는지 보고 저장해 주세요.${d.kind === 'flight' && d.paxShort ? ` 이 표에는 일행 중 ${d.paxShort}명이 없어요 — 다른 사람 표가 있으면 같이 넣거나, 아래 ‘인원별로 넣기’에서 누구 표인지 봐 주세요.` : ''}${r.queue.length ? ` (${r.queue.length}개 더)` : ''}`; render(); showReadResult(); }
   else { vreadFiles = []; const back = r.from === 'where' && r.flown; s.sh.vread = back ? { back:'항공권을 보관함에 넣고 여행지의 비행기 편·시간에도 반영했어요.' } : null; if(back){ render(); showReadResult(); } }
 }
+// 보관함 입력에 붙인(또는 이미 첨부된) 확인서로 입력 칸 중 '빈 칸만' 채움 — 이 기기 안에서 읽음, 저장은 사용자가
+async function fillFormFrom(files, what){
+  const s = state; const L = files.filter(f => f && (/^image\//.test(f.type) || f.type === 'application/pdf') && f.size <= 15 * 1048576).slice(0, READ_MAX); if(!L.length) return;
+  const g = id => document.getElementById(id);
+  const msg = m => { const p = g('vfillmsg'); if(p){ p.textContent = m; p.hidden = !m; } };
+  msg(`📄 ${what || '붙인 확인서'}를 이 기기 안에서 읽는 중…`);
+  const year = s.start ? +s.start.slice(0, 4) : new Date().getFullYear(); const got = [];
+  try{
+    for(const [k, f] of L.entries()){
+      const text = f.type === 'application/pdf' ? await pdfText(f) : await imageText(f);
+      const j = parseDocText(text, { year }); if(j.items.some(x => x.date || x.fno || x.code)) got.push({ j, k });
+    }
+  }catch(e){ msg(navigator.onLine ? '이 기기에서 읽기 도구를 쓰지 못했어요. 칸은 직접 채워 주세요.' : '처음 한 번은 읽기 도구를 받아야 해서 인터넷이 필요해요.'); return; }
+  const merged = mergeReads(got); const list = merged ? readDrafts(s, merged) : [];
+  if(!g('vaultform')) return;
+  if(!list.length){ msg(`${what || '붙인 확인서'}에서 예약 내용을 찾지 못했어요. 칸은 직접 채워 주세요.`); return; }
+  const kind = g('vkind') ? g('vkind').value : ''; const dirSel = g('vdir') ? g('vdir').value : '';
+  const d = list.find(x => x.kind === kind && (!dirSel || !x.dir || x.dir === dirSel)) || list.find(x => x.kind === kind) || list[0];
+  const done = [];
+  const put = (id, v, label) => { const e = g(id); if(e && v != null && v !== '' && !String(e.value).trim()){ e.value = v; done.push(label); } };
+  put('vdate', d.date, '날짜'); put('vtime', d.time, '시각');
+  if(d.kind === 'flight'){ put('vtime2', d.time2, '도착 시각'); put('vfrom', d.from ? aptLabel(d.from) : '', '출발 공항'); put('vto', d.to ? aptLabel(d.to) : '', '도착 공항'); put('vfno', d.fno, '편명'); if(d.dir && g('vdir') && !g('vdir').value) g('vdir').value = d.dir; }
+  if(d.kind === 'hotel'){ put('vdate2', d.date2, '체크아웃 날짜'); put('vtime2h', d.time2, '체크아웃 시각'); put('vaddr', d.addr, '주소'); put('vtel', d.tel, '전화'); }
+  if(d.kind !== 'flight') put('vtitle', d.title, '이름');
+  put('vcode', d.code, '예약번호'); put('vcode2', d.code2, '예약 사이트 번호');
+  { const before = done.length; put('vamt', d.amt, '금액'); if(done.length > before && d.cur && g('vcur')) g('vcur').value = d.cur; }
+  { const T = travellers(s); let any = false; T.forEach((t, i) => { const c = (d.pcode || {})[t.key]; if(c){ const n = done.length; put(`vpc-${i}`, c, '사람별 번호'); if(done.length > n) any = true; } }); if(any){ const det = document.querySelector('#vaultform details.vpax'); if(det) det.open = true; } }
+  put('vmemo', d.memo, '메모');
+  msg(done.length ? `📄 ${what || '붙인 확인서'}를 이 기기 안에서 읽어 빈 칸을 채웠어요: ${[...new Set(done)].join(', ')}. 맞는지 보고 저장해 주세요.` : `📄 ${what || '붙인 확인서'}를 읽었는데 더 채울 빈 칸이 없었어요.`);
+}
+// 이미 첨부만 된 예약: 고치기 화면을 열고 그 첨부로 빈 칸 채우기
+async function fillFromAttached(id){
+  const s = state; const it = s.vault.find(x => x.id === id); if(!it) return;
+  s.vedit = id; s.vdraft = null; render(); focusVaultForm();
+  const files = [];
+  for(const f of it.files || []){ try{ const r = await getFile(f.fid); if(r && r.blob) files.push(new File([r.blob], r.name || f.name || 'file', { type:r.type || f.type || r.blob.type })); }catch(e){} }
+  fillFormFrom(files, '첨부한 확인서');
+}
 // 여행지 단계 비행기 시간 칸에 넣은 확인서: 보관함으로 옮겨 바로 읽음. 저장하면 날짜·비행기 편·시간이 채워짐(bookings.js applyFlight)
 function readFromWhere(files){
   const s = state; s.mode = null; s.step = VAULT_STEP; s.vedit = null; s.vdraft = null; save();
@@ -1743,6 +1782,7 @@ async function sendRead(){
 function onChange(e){
   const t = e.target; const s = state;
   if(t.id === 'vreadfile'){ const L = Array.from(t.files || []); if(L.length) readDoc(L); return; }
+  if(t.id === 'vfiles'){ const L = Array.from(t.files || []); if(L.length) fillFormFrom(L); return; }   // 붙인 확인서로 빈 칸 채우기 (첨부는 저장할 때)
   if(t.id === 'flreadfile'){ const L = Array.from(t.files || []); if(L.length) readFromWhere(L); return; }
   if(t.dataset.kid != null){ s.kids[+t.dataset.kid] = Math.min(17, Math.max(0, parseInt(t.value, 10) || 0)); }
   else if(t.dataset.date){ if(!t.value) return; setTripDate(s, t.dataset.date, t.value); s.fullDay = {}; s.assign = {}; s.dlock = {}; s.nights = {}; }

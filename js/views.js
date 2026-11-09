@@ -1670,6 +1670,8 @@ function vReadBox(s){
     </div>`;
 }
 
+// 확인서는 붙어 있는데 날짜(항공권은 편명도)가 비어 있는 예약 → 카드에 '첨부 확인서로 빈 칸 채우기'
+const needFill = it => ['flight', 'hotel', 'ticket', 'transport'].includes(it.kind) && (it.files || []).some(f => f && (/^image\//.test(f.type || '') || f.type === 'application/pdf')) && (!it.date || (it.kind === 'flight' && (!it.fno || !it.time)));
 function vaultCard(s, it){
   const k = kindOf(it.kind); const pn = it.placeId ? placeName(s, it.placeId) : '';
   const armed = s.sh && s.sh.vdel === it.id; const link = safeHttpsUrl(it.link);
@@ -1683,6 +1685,7 @@ function vaultCard(s, it){
     ${vmoreHtml(s, it)}${paxMissing(s, it)}
     <div class="pfoot">
       ${link ? `<a class="link" href="${esc(link)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
+      ${needFill(it) ? `<button type="button" class="link" data-act="vfill" data-v="${esc(it.id)}">📄 첨부 확인서로 빈 칸 채우기</button>` : ''}
       <button type="button" class="link" data-act="vedit" data-v="${esc(it.id)}">고치기</button>
       <button type="button" class="link${armed && !linked ? ' warnlink' : ''}" data-act="vdel" data-v="${esc(it.id)}">${linked ? '취소' : armed ? '한 번 더 누르면 지워져요' : '지우기'}</button>
     </div>
@@ -1758,6 +1761,7 @@ export function vVault(s){
       ${vaultExtras(s, d)}
       <label for="vlink">예약 페이지 주소 (선택)<input id="vlink" type="url" inputmode="url" value="${esc(d.link || '')}" placeholder="https://"></label>
       <label for="vmemo">메모 (선택)<textarea id="vmemo" rows="2" maxlength="300" placeholder="예: 체크인 15시 · 짐은 프런트에 맡기기">${esc(d.memo || '')}</textarea></label>
+      <p class="pnote" id="vfillmsg" hidden></p>
       <label for="vfiles">티켓·QR 사진, PDF (선택, 여러 개)<input id="vfiles" type="file" accept="image/*,application/pdf" multiple></label>
       ${vPaxField(s, editing || (s.vdraft && s.vdraft.pcode ? s.vdraft : null))}
 
