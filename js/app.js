@@ -386,7 +386,7 @@ function shareError(e){
 
 function copyText(text, okMsg){
   const ok = () => toast(okMsg);
-  const fail = () => toast(`이 링크를 보내 주세요: ${text}`);
+  const fail = () => toast(/^https?:/.test(text) ? `이 링크를 보내 주세요: ${text}` : `복사가 안 돼요. 직접 적어 주세요: ${text}`);   // 링크가 아닌 것(예약번호 등)은 링크라고 하지 않음
   if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(ok, fail); else fail();
 }
 
@@ -517,7 +517,7 @@ async function saveVault(){
   const it = editing || { id:'v' + Date.now().toString(36), files:[] };
   const kind = g('vkind').value;
   Object.assign(it, { kind, title:title.slice(0, 60), date:g('vdate').value, time:g('vtime').value,
-    code:g('vcode').value.trim().slice(0, 40), link:safeHttpsUrl(g('vlink').value), memo:g('vmemo').value.trim().slice(0, 300),
+    code:g('vcode').value.trim().slice(0, 40), code2:g('vcode2') ? g('vcode2').value.trim().slice(0, 40) : '', link:safeHttpsUrl(g('vlink').value), memo:g('vmemo').value.trim().slice(0, 300),
     placeId:PLACE_KINDS.includes(kind) ? g('vplace').value || null : null });
   if(kind === 'flight'){
     // 출발·도착 공항(고르거나 쳐서) → 가는 편·오는 편과 여행지 공항을 알아서, 이름은 '가는 편 ICN → HKG'
@@ -620,7 +620,7 @@ function vaultAct(a, v){
     case 'vreadback': s.sh.vread = null; s.mode = null; s.step = STEPS.indexOf('여행지'); save(); render(); { const b = document.getElementById('flreadfile'); if(b) b.closest('.box').scrollIntoView({ block:'start' }); } return;
     case 'vreadai': aiRead(); return;
     case 'vreadgo': { const j = readParse((document.getElementById('vreadpaste') || {}).value); if(!j){ s.sh.vread = Object.assign({}, s.sh.vread, { err:'답에서 예약 내용을 찾지 못했어요. AI 답 전체를 복사해 붙여 넣어 주세요.' }); render(); return; } useDrafts(readDrafts(s, j)); return; }
-    case 'vcopy': { const it = s.vault.find(x => x.id === v); if(it && it.code) copyText(it.code, `예약번호 ${it.code}을(를) 복사했어요.`); return; }
+    case 'vcopy': { const [vid, w] = String(v).split('|'); const it = s.vault.find(x => x.id === vid); const c = it ? (w === '2' ? it.code2 : it.code) : ''; if(c) copyText(c, `${w === '2' ? '예약 사이트 번호' : '예약번호'} ${c}을(를) 복사했어요.`); return; }
     case 'vpcopy': { const [id, k] = v.split('|'); const it = s.vault.find(x => x.id === id); const c = it && it.pcode && it.pcode[k]; if(c) copyText(c, `번호 ${c}을(를) 복사했어요.`); return; }
     case 'vview': { const [id, fid] = v.split('|'); openViewer(id, fid); return; }
     case 'vdel': {

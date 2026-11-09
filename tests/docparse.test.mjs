@@ -71,3 +71,18 @@ test('날짜·시각 모양들, 못 찾으면 빈 목록', () => {
   assert.deepEqual(parseDocText('안녕하세요 확인서가 아니에요').items, []);
   assert.equal(parseDocText('UP TO 3000 POINTS').items.length, 0);   // 공항이 없으면 편명으로 안 봄
 });
+
+test('중개 사이트 확인서: 사이트 예약번호와 항공사 예약번호를 나눠 담음 (항공사 것이 체크인용 code)', () => {
+  const MRT = `항공권 발권이 완료되었어요!
+마이리얼트립 예약번호 AIR1234567
+항공사 예약번호 QXYZAB
+서울→홍콩 CX 417
+2026년 12월 19일 (토) 인천(ICN) 14:30 → 홍콩(HKG) 17:45
+탑승객 HONG/GILDONG MR`;
+  const r = parseDocText(MRT, { year:2026 });
+  assert.deepEqual([r.items[0].code, r.items[0].code2], ['QXYZAB', 'AIR1234567']);
+  const d = readDrafts({ city:'hksz', adults:2, kids:[10] }, r);
+  assert.deepEqual([d[0].code, d[0].code2], ['QXYZAB', 'AIR1234567']);
+  // 번호가 하나면 그대로 code (code2 없음)
+  assert.equal(parseDocText('Booking Reference: ABC123\nCX 411 20DEC ICN HKG 09:05 11:55', { year:2026 }).items[0].code2, undefined);
+});

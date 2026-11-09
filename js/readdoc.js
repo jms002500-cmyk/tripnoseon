@@ -9,7 +9,7 @@ const STR = { type:'STRING' }, NUM = { type:'NUMBER' };
 export const READ_SCHEMA = { type:'OBJECT', properties:{
   kind:{ type:'STRING', enum:['flight', 'hotel', 'ticket', 'transport', 'insurance', 'etc'] },
   items:{ type:'ARRAY', items:{ type:'OBJECT', properties:{
-    title:STR, date:STR, time:STR, date2:STR, time2:STR, fno:STR, from:STR, to:STR, code:STR, addr:STR, tel:STR, amount:NUM, currency:STR,
+    title:STR, date:STR, time:STR, date2:STR, time2:STR, fno:STR, from:STR, to:STR, code:STR, code2:STR, addr:STR, tel:STR, amount:NUM, currency:STR,
     passengers:{ type:'ARRAY', items:{ type:'OBJECT', properties:{ name:STR, ticket:STR, seat:STR } } } } } },
   unclear:STR }, required:['kind', 'items'] };
 
@@ -20,7 +20,7 @@ export function readPrompt(s){
     '- 비행기: date 출발 날짜, time 출발 시각, time2 도착 시각, fno 편명(예: CX411), from·to 출발·도착 공항 IATA 코드 세 글자, title 항공사 이름.',
     '- 숙소: title 숙소 이름, date 체크인 날짜, date2 체크아웃 날짜, time·time2 체크인·체크아웃 시각, addr 현지어(한자·현지 글자) 주소, tel 전화.',
     '- 그 밖: title 예약 이름(상품·장소), date·time 이용 날짜·시각.',
-    'code: 예약번호(PNR·확인 번호). amount·currency: 결제 총액과 통화 코드(KRW·HKD·CNY·JPY·USD 등).',
+    'code: 예약번호(비행기는 항공사 예약번호 PNR — 항공사 체크인에 쓰는 것). code2: 여행사·예약 사이트(마이리얼트립·트립닷컴·아고다 등) 예약번호가 따로 있으면. amount·currency: 결제 총액과 통화 코드(KRW·HKD·CNY·JPY·USD 등).',
     'passengers: 탑승객·이용자마다 name(확인서 그대로), ticket(그 사람의 티켓·e-티켓 번호), seat(좌석).',
     '날짜는 YYYY-MM-DD, 시각은 24시간 HH:MM(현지 시각 그대로).',
     '확인서에 없거나 확실하지 않은 칸은 지어내지 말고 비워 두고, 애매한 것은 unclear에 한국어로 적어 줘.'].join('\n');
@@ -57,7 +57,7 @@ export function mergeReads(list){
         || (j.kind !== 'flight' && code && str(y.code, 40) === code && j.kind === y._kind));
       if(!same){ out.push(Object.assign(x, { _fno:fno, _kind:j.kind, _files:[k] })); return; }
       if(!same._files.includes(k)) same._files.push(k);
-      ['title', 'date', 'time', 'date2', 'time2', 'from', 'to', 'addr', 'tel', 'code', 'currency'].forEach(f => { if(!str(same[f], 200) && str(x[f], 200)) same[f] = x[f]; });
+      ['title', 'date', 'time', 'date2', 'time2', 'from', 'to', 'addr', 'tel', 'code', 'code2', 'currency'].forEach(f => { if(!str(same[f], 200) && str(x[f], 200)) same[f] = x[f]; });
       if(code && str(same.code, 40) && code !== str(same.code, 40)){ same._codes = (same._codes || []).concat(code); }
       if(typeof x.amount === 'number' && x.amount > 0){
         if(!(typeof same.amount === 'number' && same.amount > 0)){ same.amount = x.amount; same.currency = x.currency; }
@@ -78,6 +78,7 @@ export function readDrafts(s, j){
   const T = travellers(s); const unclear = str(j.unclear, 200);
   return j.items.slice(0, 6).filter(x => x && typeof x === 'object').map(x => {
     const d = { kind, title:str(x.title, 60), date:day(x.date), time:hm(x.time), code:str(x.code, 40), files:[] };
+    if(str(x.code2, 40) && str(x.code2, 40) !== d.code) d.code2 = str(x.code2, 40);
     const memo = [];
     if(kind === 'flight'){
       const from = iata(x.from), to = iata(x.to); const fno = str(x.fno, 10).replace(/\s+/g, '').toUpperCase();

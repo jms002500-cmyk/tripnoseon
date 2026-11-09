@@ -529,7 +529,7 @@ function fsegBox(s){
     return `<li class="fseg"><div class="fsegh"><b>${x.dir === 'back' ? '🛬 오는 편' : '🛫 가는 편'} · ${esc(x.fno)}</b><button type="button" class="link" data-act="fsegdel" data-v="${esc(id)}" aria-label="${esc(x.fno)} 편 지우기">지우기</button></div>
       <span class="fsegt">${esc(dayTxt(x.date))} ${esc(x.dep || '')} ${esc(x.from || '')} → ${esc(x.arr || '')} ${esc(x.to || '')}</span>
       ${who.length ? `<span class="fine">👪 ${esc(who.join(' · '))}${who.length === T.length && T.length > 1 ? ' (일행 모두)' : ''}</span>` : ''}
-      ${mine.map(it => it.code ? `<div class="vcode"><span>예약번호</span><b>${esc(it.code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(it.id)}">복사</button></div>` : '').join('')}
+      ${mine.map(codeRows).join('')}
       ${mine.length ? docBtns(s, mine) : '<span class="fine">이 기기에는 이 편 확인서가 없어요 (예약번호·티켓은 넣은 기기에만 있어요)</span>'}
       ${links.length ? `<span class="mvtt">${links.map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : ''}
     </li>`;
@@ -1246,6 +1246,13 @@ export function moveCtx(s, P){
 // 이동 한 줄: 시각 | 수단 · 출발 → 도착 · 걸리는 시간 · 예약함 (+ 작은 글씨)
 
 // 일정 줄마다 그 일의 서류(보관함 예약) 바로가기 (js/docs.js). 누르면 서류 창(DOCSHEET)
+// 예약번호 줄: 항공사(또는 숙소) 예약번호 + 여행사·예약 사이트 번호(마이리얼트립·트립닷컴처럼 중개 사이트로 예약하면 둘)
+function codeRows(it){
+  if(!it) return '';
+  const row = (label, code, v) => `<div class="vcode"><span>${label}</span><b>${esc(code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(v)}">복사</button></div>`;
+  return (it.code ? row(it.code2 ? (it.kind === 'flight' ? '항공사 예약번호' : '예약번호') : '예약번호', it.code, it.id) : '')
+    + (it.code2 ? row('예약 사이트 번호', it.code2, `${it.id}|2`) : '');
+}
 function docBtns(s, items){
   if(!items || !items.length) return '';
   return `<span class="docbtns">${items.map(it => `<button type="button" class="docbtn" data-act="vdoc" data-v="${esc(it.id)}">${kindOf(it.kind).icon} ${esc(docLabel(it))}${items.length > 1 ? ` · ${esc(it.title.slice(0, 14))}` : ''}${(it.files || []).length ? ' 보기' : ''}</button>`).join('')}</span>`;
@@ -1653,7 +1660,7 @@ function vaultCard(s, it){
     <div class="vhead"><span class="vicon" aria-hidden="true">${k.icon}</span><div><h3>${esc(it.title)}</h3>
       <p class="meta">${esc(k.label)}${it.time ? ' · ' + esc(it.time) : ''}${pn && pn !== it.title ? ' · ' + esc(pn) : ''}${it.fno ? ' · ' + esc(normFno(it.fno) || it.fno) : ''}${it.amt > 0 ? ' · ' + lmoney(it.amt, it.cur || 'KRW') : ''}</p></div></div>
     ${it.kind === 'flight' && normFno(it.fno) ? `<span class="mvtt">🛫 ${flightLinks(it.fno, (s.flight || {}).ap || it.ap, flightDir(s, it)).map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : ''}
-    ${it.code ? `<div class="vcode"><span>예약번호</span><b>${esc(it.code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(it.id)}">복사</button></div>` : ''}
+    ${codeRows(it)}
     ${it.memo ? `<p class="pnote">${esc(it.memo)}</p>` : ''}
     ${vfilesHtml(s, it)}${paxMissing(s, it)}
     <div class="pfoot">
@@ -1723,8 +1730,9 @@ export function vVault(s){
       <label for="vtitle" class="vt-title"><span class="vl-any">이름</span><span class="vl-hotel">숙소 이름</span><input id="vtitle" type="text" maxlength="60" value="${esc(d.title || '')}" placeholder="예: 디즈니랜드 1일권 · 공항 픽업"></label>
       <div class="row2">
         <label for="vtime"><span class="vl-any">시간</span><span class="vl-flight">출발 시각</span><span class="vl-hotel">체크인 시각</span><input id="vtime" type="time" value="${esc(d.time || '')}"></label>
-        <label for="vcode">예약번호<input id="vcode" type="text" maxlength="40" value="${esc(d.code || '')}" spellcheck="false"></label>
+        <label for="vcode"><span class="vl-any">예약번호</span><span class="vl-hotel">예약번호</span><span class="vl-flight">항공사 예약번호</span><input id="vcode" type="text" maxlength="40" value="${esc(d.code || '')}" spellcheck="false" placeholder="${(d.kind || 'flight') === 'flight' ? '체크인할 때 쓰는 번호 (예: QXYZAB)' : ''}"></label>
       </div>
+      <label for="vcode2">예약 사이트 번호 (선택)<input id="vcode2" type="text" maxlength="40" value="${esc(d.code2 || '')}" spellcheck="false" placeholder="마이리얼트립·트립닷컴 등으로 예약했으면 그 사이트 번호 (바꾸기·취소할 때)"></label>
       <div class="row2">
         <label for="vamt">금액 (선택)<input id="vamt" type="number" inputmode="decimal" min="0" step="any" value="${d.amt > 0 ? esc(String(d.amt)) : ''}" placeholder="가계부 '여행 전'에"></label>
         <label for="vcur">통화<select id="vcur">${['KRW'].concat(REGION.curs || []).map(c => `<option value="${c}"${(d.cur || 'KRW') === c ? ' selected' : ''}>${esc(CURRENCY[c] ? CURRENCY[c].label : c)}</option>`).join('')}</select></label>
@@ -2189,7 +2197,7 @@ function todayVaultCard(it, s){
   const k = kindOf(it.kind); const link = safeHttpsUrl(it.link);
   return `<article class="vcard">
     <div class="vhead"><span class="vicon" aria-hidden="true">${k.icon}</span><div><h3>${esc(it.title)}</h3><p class="meta">${esc(k.label)}${it.time ? ' · ' + esc(it.time) : ''}</p></div></div>
-    ${it.code ? `<div class="vcode"><span>예약번호</span><b>${esc(it.code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(it.id)}">복사</button></div>` : ''}
+    ${codeRows(it)}
     ${vfilesHtml(s, it)}${s ? paxMissing(s, it) : ''}
     ${link ? `<a class="link" href="${esc(link)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
   </article>`;

@@ -36,7 +36,11 @@ const pick = (t, re) => { const m = re.exec(t); return m ? m[1] : ''; };
 export function parseDocText(text, o = {}){
   const t = String(text || '').replace(/ /g, ' ').replace(/[ \t]+/g, ' ');
   const U = t.toUpperCase(); const by = o.year;
-  const code = pick(U, /(?:예약\s*번호|예약번호|확인\s*번호|BOOKING\s*(?:REFERENCE|REF\.?|CODE|NO\.?|NUMBER)|RESERVATION\s*(?:CODE|NUMBER|NO\.?)|CONFIRMATION\s*(?:CODE|NUMBER|NO\.?)|PNR|항공사\s*예약\s*번호)\s*[:：#]?\s*([A-Z0-9]{5,10})\b/);
+  // 예약번호: 중개 사이트로 예약하면 둘(사이트 번호 + 항공사 예약번호). code = 항공사(PNR, 체크인용), code2 = 사이트 번호
+  const codes = []; { const R = /(?:예약\s*번호|확인\s*번호|주문\s*번호|BOOKING\s*(?:REFERENCE|REF\.?|CODE|NO\.?|NUMBER)|RESERVATION\s*(?:CODE|NUMBER|NO\.?)|CONFIRMATION\s*(?:CODE|NUMBER|NO\.?)|ORDER\s*(?:NO\.?|NUMBER)|PNR)\s*[:：#]?\s*[^\w\n]{0,3}\s*([A-Z0-9]{5,12})\b/g; let m; while((m = R.exec(U))) if(!codes.includes(m[1]) && /\d|^[A-Z]{6}$/.test(m[1])) codes.push(m[1]); }
+  const air = pick(U, /(?:항공사\s*(?:예약\s*번호|PNR)|AIRLINE\s*(?:BOOKING\s*)?(?:REFERENCE|REF\.?|PNR|CODE)|항공사\s*확인\s*번호)\s*[:：#]?\s*[^\w\n]{0,3}\s*([A-Z0-9]{5,8})\b/);
+  const code = air || (codes.length > 1 ? codes.find(c => /^[A-Z0-9]{6}$/.test(c) && /[A-Z]/.test(c)) : '') || codes[0] || '';
+  const code2 = codes.find(c => c !== code) || '';
   const tickets = []; { const R = /\b(\d{3})[- ]?(\d{10})\b/g; let m; while((m = R.exec(t))) { const v = `${m[1]}-${m[2]}`; if(!tickets.includes(v)) tickets.push(v); } }
   const names = []; { const R = /\b([A-Z]{2,}) ?\/ ?([A-Z]{2,}(?: [A-Z]{2,})??) ?(MR|MS|MRS|MSTR|MISS|CHD|INF)\b/g; /* 성/이름 호칭 (호칭이 있어야 사람으로 봄) */ let m; while((m = R.exec(U))) { const v = `${m[1]}/${m[2]}${m[3] ? ' ' + m[3] : ''}`; if(!names.includes(v) && !IATA.includes(m[1])) names.push(v); } }
   const amt = (() => { const m = /(?:총\s*(?:결제\s*)?(?:금액|액)|결제\s*금액|합계|TOTAL(?:\s*(?:AMOUNT|FARE|PRICE))?|GRAND\s*TOTAL|AMOUNT\s*PAID)\s*[:：]?\s*(KRW|HKD|CNY|JPY|USD|₩|HK\$|￥|¥|원)?\s*([\d,]+(?:\.\d{1,2})?)\s*(KRW|HKD|CNY|JPY|USD|원)?/i.exec(t);
@@ -63,7 +67,7 @@ export function parseDocText(text, o = {}){
   const flights = []; segs.forEach(x => { const same = flights.find(y => y.fno === x.fno && (!y.date || !x.date || y.date === x.date)); if(same){ ['date', 'time', 'time2'].forEach(k => { if(!same[k]) same[k] = x[k]; }); } else flights.push(x); });
   if(flights.length){
     flights.sort((a, b) => (a.date || '9').localeCompare(b.date || '9') || (a.time || '').localeCompare(b.time || ''));
-    return { kind:'flight', items:flights.map((f, i) => Object.assign({ title:'', date:f.date, time:f.time, time2:f.time2, fno:f.fno, from:f.from, to:f.to, code },
+    return { kind:'flight', items:flights.map((f, i) => Object.assign({ title:'', date:f.date, time:f.time, time2:f.time2, fno:f.fno, from:f.from, to:f.to, code }, code2 ? { code2 } : {},
       i === 0 && amt ? amt : {}, { passengers:i === 0 || passengers.some(p => p.ticket) ? passengers : [] })), unclear:flights.some(f => !f.date || !f.time) ? '날짜·시각을 다 찾지 못한 편이 있어요' : '' };
   }
   // 숙소: 체크인·체크아웃 날짜
@@ -75,7 +79,7 @@ export function parseDocText(text, o = {}){
     // 이름: 호텔·리조트 같은 말이 든 줄, 없으면 현지어 주소 바로 윗줄
     const lines = t.split('\n').map(x => x.trim()); const ai = addr ? lines.indexOf(addr) : -1;
     const title = (pick(t, /([^\n]{0,40}(?:HOTEL|호텔|INN|RESORT|리조트|HOSTEL|SUITES|APARTMENT)[^\n]{0,30})/i) || (ai > 0 ? lines[ai - 1] : '')).trim().slice(0, 60);
-    return { kind:'hotel', items:[Object.assign({ title, date:near(cin), date2:near(cout), time:tn(cin), time2:tn(cout), code, addr }, amt || {})], unclear:'' };
+    return { kind:'hotel', items:[Object.assign({ title, date:near(cin), date2:near(cout), time:tn(cin), time2:tn(cout), code, addr }, code2 ? { code2 } : {}, amt || {})], unclear:'' };
   }
   // 그 밖(입장권 등): 첫 날짜·시각과 예약번호
   const ds = findDates(t, by), ts = findTimes(t);
