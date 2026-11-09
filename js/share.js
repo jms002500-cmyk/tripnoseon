@@ -31,7 +31,7 @@ const nameOf = u => (u.displayName || '이름 없음').slice(0, 40);
 export async function watchUser(cb){
   await load();
   try{ await F.fa.getRedirectResult(F.auth); }catch(e){}   // 팝업이 막혀 다른 방식으로 로그인하고 돌아온 경우
-  return F.fa.onAuthStateChanged(F.auth, u => cb(u ? { uid:u.uid, name:nameOf(u) } : null));
+  return F.fa.onAuthStateChanged(F.auth, u => cb(u ? { uid:u.uid, name:nameOf(u), email:String(u.email || '').slice(0, 80) } : null));
 }
 
 export async function signIn(){

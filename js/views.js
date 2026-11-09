@@ -122,11 +122,14 @@ function commentList(s, cms, placeId){
 
 // 내 계정의 공유 여행 (다른 기기에서 만든 여행을 이 기기에서 열기)
 const tripSpan = t => t.start ? `${+t.start.slice(5, 7)}/${+t.start.slice(8, 10)}${t.end ? `~${+t.end.slice(5, 7)}/${+t.end.slice(8, 10)}` : ''}` : '날짜 미정';
+// 로그인한 계정: 이름이 같은 다른 구글 계정과 헷갈리지 않게 이메일까지 (이 기기 화면에만)
+const ACCOUNT = me => `<p class="fine">${esc(me.name)}${me.email ? ` · <b>${esc(me.email)}</b>` : ''} 계정으로 로그인됨 · <button type="button" class="link" data-act="logout">로그아웃</button></p>`;
 function mineBox(s){
   const sh = s.sh;
   if(sh.mineBusy && !sh.mine) return '<p class="fine">이 계정의 여행을 찾는 중…</p>';
   if(sh.mineErr) return `<p class="warnline">이 계정의 여행을 불러오지 못했어요. <button type="button" class="link" data-act="mineagain">다시 찾기</button></p>`;
-  const L = sh.mine || []; if(!L.length) return '';
+  const L = sh.mine || [];
+  if(!L.length) return sh.mine ? `<p class="pnote">${sh.user && sh.user.email ? `<b>${esc(sh.user.email)}</b> 계정` : '이 계정'}으로 함께 짜는 여행이 아직 없어요. 다른 기기(폰·PC)에서 만든 여행이 안 보이면 그 기기와 다른 구글 계정일 수 있어요 — 그 기기의 ‘함께 짜기’ 아래에 나오는 이메일과 같은지 보고, 다르면 로그아웃한 뒤 같은 계정으로 로그인하세요.</p>` : '';
   return `<div class="box" id="minebox"><h2>내 계정의 함께 짜는 여행</h2>
       <p class="fine">다른 기기(폰·PC)에서 이 구글 계정으로 만들거나 참여한 여행이에요. 열면 두 기기가 같은 여행으로 이어져서, 어느 쪽에서 고쳐도 서로 바로 보여요.</p>
       <ul class="implist">${L.map(t => `<li class="imp"><div class="sbody"><b>${esc(t.title)}</b><span>${esc([(REGIONS[t.city] || {}).name, tripSpan(t), `${t.n}명`, t.picked ? `장소 ${t.picked}곳` : ''].filter(Boolean).join(' · '))}</span></div>
@@ -154,7 +157,7 @@ export function SHEET(s){
       <label for="sharetitle" class="shlabel">여행 이름<input id="sharetitle" type="text" maxlength="40" value="${esc(defaultTitle(s))}"></label>
       <div><button type="button" class="primary small" data-act="sharestart"${sh.busy ? ' disabled' : ''}>${sh.busy ? '만드는 중…' : '공유 시작하고 초대 링크 받기'}</button></div>
       ${sh.hasBackup ? '<p class="fine">공유 여행에 참여하기 전의 내 일정이 보관돼 있어요. <button type="button" class="link" data-act="restore">그 일정으로 되돌리기</button></p>' : ''}
-      ${note}<p class="fine">${esc(me.name)}(으)로 로그인됨 · <button type="button" class="link" data-act="logout">로그아웃</button></p>`;
+      ${note}${ACCOUNT(me)}`;
   else if(!t) body = '<p class="fine">공유 여행을 불러오는 중…</p>';
   else {
     const owner = me.uid === t.ownerUid;
@@ -183,7 +186,7 @@ export function SHEET(s){
         ${owner ? `<button type="button" class="ghost small${sh.delArmed ? ' armed' : ''}" data-act="sharedel">${sh.delArmed ? '한 번 더 누르면 모두에게서 지워져요' : '공유 여행 지우기'}</button>` : '<button type="button" class="ghost small" data-act="leave">이 여행에서 나가기</button>'}
         <button type="button" class="link" data-act="unlink">이 기기에서만 공유 끊기</button>
         <button type="button" class="link" data-act="logout">로그아웃</button>
-      </div>${note}`;
+      </div>${note}${ACCOUNT(me)}`;
   }
   return `<div class="mapsheet sheet" role="dialog" aria-label="함께 짜기">${head}<div class="shbody">${sh.msg ? `<p class="warnline">${esc(sh.msg)}</p>` : ''}${body}</div></div>`;
 }
