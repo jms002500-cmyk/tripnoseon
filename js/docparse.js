@@ -6,6 +6,8 @@
 // 자주 가는 공항 (한국 출발·도착 + 이 앱 지역 + 근처). 이 목록에 있는 세 글자만 공항으로 봄(다른 대문자 세 글자와 헷갈리지 않게)
 export const IATA = ['ICN', 'GMP', 'PUS', 'CJU', 'TAE', 'CJJ', 'KWJ', 'MWX', 'RSU', 'USN', 'YNY', 'HKG', 'SZX', 'MFM', 'CAN', 'ZUH', 'PEK', 'PKX', 'PVG', 'SHA',
   'TPE', 'TSA', 'KHH', 'NRT', 'HND', 'KIX', 'ITM', 'NGO', 'FUK', 'CTS', 'OKA', 'KOJ', 'SDJ', 'BKK', 'DMK', 'SGN', 'HAN', 'DAD', 'MNL', 'CEB', 'SIN', 'KUL', 'DPS', 'GUM', 'SPN'];
+// 자주 타는 항공사 코드 (한국 출발·이 앱 지역·근처). 이 코드가 붙은 편명을 먼저 믿음
+export const AIRLINES = ['KE', 'OZ', '7C', 'LJ', 'TW', 'ZE', 'BX', 'RS', 'RF', 'YP', '4V', 'HX', 'CX', 'UO', 'NX', 'MU', 'CA', 'CZ', 'ZH', 'HU', 'FM', 'MF', '3U', 'NH', 'JL', 'MM', 'GK', 'BC', 'ZG', 'BR', 'CI', 'JX', 'IT', 'VJ', 'VN', 'QH', '5J', 'PR', 'Z2', 'TG', 'FD', 'SL', 'SQ', 'TR', 'MH', 'AK', 'D7', 'OD', 'QR', 'EK', 'EY', 'TK', 'AF', 'KL', 'LH', 'BA', 'AA', 'DL', 'UA', 'AC', 'QF', 'NZ', 'GA', 'QZ'];
 const MON = { JAN:1, FEB:2, MAR:3, APR:4, MAY:5, JUN:6, JUL:7, AUG:8, SEP:9, OCT:10, NOV:11, DEC:12 };
 const pad = n => String(n).padStart(2, '0');
 const okDay = (y, m, d) => y >= 2000 && y < 2100 && m >= 1 && m <= 12 && d >= 1 && d <= new Date(Date.UTC(y, m, 0)).getUTCDate();   // 2/31 같은 날은 버림
@@ -40,7 +42,10 @@ export function parseDocText(text, o = {}){
   const codes = []; { const R = /(?:예약\s*번호|확인\s*번호|주문\s*번호|BOOKING\s*(?:REFERENCE|REF\.?|CODE|NO\.?|NUMBER)|RESERVATION\s*(?:CODE|NUMBER|NO\.?)|CONFIRMATION\s*(?:CODE|NUMBER|NO\.?)|ORDER\s*(?:NO\.?|NUMBER)|PNR)\s*[:：#]?\s*[^\w\n]{0,3}\s*([A-Z0-9]{5,12})\b/g; let m; while((m = R.exec(U))) if(!codes.includes(m[1]) && /\d|^[A-Z]{6}$/.test(m[1])) codes.push(m[1]); }
   const air = pick(U, /(?:항공사\s*(?:예약\s*번호|PNR)|AIRLINE\s*(?:BOOKING\s*)?(?:REFERENCE|REF\.?|PNR|CODE)|항공사\s*확인\s*번호)\s*[:：#]?\s*[^\w\n]{0,3}\s*([A-Z0-9]{5,8})\b/);
   const code = air || (codes.length > 1 ? codes.find(c => /^[A-Z0-9]{6}$/.test(c) && /[A-Z]/.test(c)) : '') || codes[0] || '';
-  const code2 = codes.find(c => c !== code) || '';
+  let code2 = codes.find(c => c !== code) || '';
+  // 표 모양: '예약번호 Booking Reference'가 머리줄에 있고 값은 다음 줄 (대한항공 e-티켓). 다음 줄의 6자리(글자 섞인) 번호
+  let codeT = '';
+  if(!code){ const L = U.split('\n'); for(let i = 0; i < L.length - 1 && !codeT; i++){ if(/BOOKING\s*REF|예약\s*번호|PNR/.test(L[i])){ const c = (L[i + 1].match(/(?<![A-Z0-9])[A-Z0-9]{6}(?![A-Z0-9])/g) || []).filter(x => /[A-Z]/.test(x) && !IATA.includes(x)); if(c.length) codeT = c[c.length - 1]; } } }
   const tickets = []; { const R = /\b(\d{3})[- ]?(\d{10})\b/g; let m; while((m = R.exec(t))) { const v = `${m[1]}-${m[2]}`; if(!tickets.includes(v)) tickets.push(v); } }
   const names = []; { const R = /\b([A-Z]{2,}) ?\/ ?([A-Z]{2,}(?: [A-Z]{2,})??) ?(MR|MS|MRS|MSTR|MISS|CHD|INF)\b/g; /* 성/이름 호칭 (호칭이 있어야 사람으로 봄) */ let m; while((m = R.exec(U))) { const v = `${m[1]}/${m[2]}${m[3] ? ' ' + m[3] : ''}`; if(!names.includes(v) && !IATA.includes(m[1])) names.push(v); } }
   const amt = (() => { const m = /(?:총\s*(?:결제\s*)?(?:금액|액)|결제\s*금액|합계|TOTAL(?:\s*(?:AMOUNT|FARE|PRICE))?|GRAND\s*TOTAL|AMOUNT\s*PAID)\s*[:：]?\s*(KRW|HKD|CNY|JPY|USD|₩|HK\$|￥|¥|원)?\s*([\d,]+(?:\.\d{1,2})?)\s*(KRW|HKD|CNY|JPY|USD|원)?/i.exec(t);
@@ -52,22 +57,28 @@ export function parseDocText(text, o = {}){
 
   // 비행기: 편명 위치마다 그 앞뒤 구간에서 공항 두 개·날짜·시각
   const FN = /\b([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{2,4})\b/g; const hits = []; let m;
-  while((m = FN.exec(U))) if(!IATA.includes(m[1] + m[2]) && !/^\d+$/.test(m[1])) hits.push({ i:m.index, fno:`${m[1]}${m[2]}`, end:FN.lastIndex });
+  while((m = FN.exec(U))) if(!IATA.includes(m[1] + m[2]) && !/^\d+$/.test(m[1])) hits.push({ i:m.index, fno:`${m[1]}${String(+m[2])}`, end:FN.lastIndex });   // CX 0411 → CX411 (앞 0 빼고 같은 편끼리 맞게)
+  // 알려진 항공사 코드가 붙은 편명이 있으면 그것만 (글자 인식이 한글을 'S283'처럼 읽은 가짜 편명을 빼려고)
+  { const known = hits.filter(h => AIRLINES.includes(h.fno.slice(0, 2))); if(known.length) hits.splice(0, hits.length, ...known); }
   const segs = [];
   hits.forEach((h, k) => {
     // 구간: 편명이 있는 줄 처음부터 다음 편명이 있는 줄 앞까지 (표는 한 줄, 여행사 확인서는 다음 줄에 날짜·공항)
     const lineStart = i => U.lastIndexOf('\n', i) + 1;
     const from = Math.max(k ? hits[k - 1].end : 0, lineStart(h.i)), to = Math.min(U.length, hits[k + 1] ? Math.max(h.end, lineStart(hits[k + 1].i)) : U.length, h.end + 260);
-    const w = U.slice(from, to); const aps = []; IATA.forEach(c => { const r = new RegExp(`\\b${c}\\b`, 'g'); let x; while((x = r.exec(w))) aps.push({ i:x.index, c }); });
-    aps.sort((a, b) => a.i - b.i); const two = aps.filter((a, j) => !j || a.c !== aps[j - 1].c).slice(0, 2);
-    if(two.length < 2 || two[0].c === two[1].c) return;   // 공항 두 곳이 없으면 편명이 아님
-    const ds = findDates(t.slice(from, to), by), ts = findTimes(t.slice(from, to));
+    // 공항 두 곳: 편명 뒤 구간에서, 없으면 앞쪽까지(공항·시각이 편명 위에 있는 모양), 글자 인식이 붙여 읽은 것('MEZICN')도
+    const apsIn = (w, loose) => { const aps = []; IATA.forEach(c => { const r = new RegExp(loose ? `(?<![A-Z])[A-Z]{0,3}${c}(?![A-Z])` : `\\b${c}\\b`, 'g'); let x; while((x = r.exec(w))) aps.push({ i:x.index, c }); }); aps.sort((a, b) => a.i - b.i); return aps.filter((a, j) => !j || a.c !== aps[j - 1].c).slice(0, 2); };
+    const ok2 = A => A.length === 2 && A[0].c !== A[1].c;
+    let lo = from, two = apsIn(U.slice(from, to), false);
+    if(!ok2(two)){ lo = k ? hits[k - 1].end : 0; two = apsIn(U.slice(lo, to), false); }
+    if(!ok2(two)) two = apsIn(U.slice(lo, to), true);
+    if(!ok2(two)) return;   // 공항 두 곳이 없으면 편명이 아님
+    const ds = findDates(t.slice(lo, to), by), ts = findTimes(t.slice(lo, to));
     segs.push({ fno:h.fno, from:two[0].c, to:two[1].c, date:ds.length ? ds[0].key : '', time:ts[0] ? ts[0].hm : '', time2:ts[1] ? ts[1].hm : '' });
   });
   const flights = []; segs.forEach(x => { const same = flights.find(y => y.fno === x.fno && (!y.date || !x.date || y.date === x.date)); if(same){ ['date', 'time', 'time2'].forEach(k => { if(!same[k]) same[k] = x[k]; }); } else flights.push(x); });
   if(flights.length){
     flights.sort((a, b) => (a.date || '9').localeCompare(b.date || '9') || (a.time || '').localeCompare(b.time || ''));
-    return { kind:'flight', items:flights.map((f, i) => Object.assign({ title:'', date:f.date, time:f.time, time2:f.time2, fno:f.fno, from:f.from, to:f.to, code }, code2 ? { code2 } : {},
+    return { kind:'flight', items:flights.map((f, i) => Object.assign({ title:'', date:f.date, time:f.time, time2:f.time2, fno:f.fno, from:f.from, to:f.to, code:code || codeT }, code2 ? { code2 } : {},
       i === 0 && amt ? amt : {}, { passengers:i === 0 || passengers.some(p => p.ticket) ? passengers : [] })), unclear:flights.some(f => !f.date || !f.time) ? '날짜·시각을 다 찾지 못한 편이 있어요' : '' };
   }
   // 숙소: 체크인·체크아웃 날짜

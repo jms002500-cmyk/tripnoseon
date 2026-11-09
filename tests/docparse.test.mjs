@@ -86,3 +86,33 @@ test('중개 사이트 확인서: 사이트 예약번호와 항공사 예약번�
   // 번호가 하나면 그대로 code (code2 없음)
   assert.equal(parseDocText('Booking Reference: ABC123\nCX 411 20DEC ICN HKG 09:05 11:55', { year:2026 }).items[0].code2, undefined);
 });
+
+// 실제 확인서 모양(이름·번호는 가짜): 마이리얼트립 화면 캡처를 한글 글자 인식으로 읽은 글, 대한항공 e-티켓 PDF의 표
+const MRT_OCR = `Nyrealtrip
+탑승객
+HONG/GILDONG MR
+마이리얼트립 예약번호                               항공권 예약번호
+AIR1234567                                     8511234567890
+항공사 예약번호
+ww QXYZAB
+가는 편 직항                                                          12월 19일(토)
+MEZICN                                                                            ZZ HKG
+09:05                              (5)3시간50분 비행                              11:55
+인천국제공항 1                                                                                                홍콩 국제공항 1
+Ww S283 CX 0411 예약번호 QXYZAB`;
+const KE_PDF = `e-Ticket Itinerary & Receipt 2139 / 08NOV2026
+승객성명 Passenger Name 항공권번호 Ticket Number 예약번호 Booking Reference
+HONG/GIL DONG MR (KE11111111) 1801234567890 DABCDE
+출발 From 도착 To 편명 Flight
+SZX ICN KE 999
+26DEC2026( 토) 11:10 (Local Time) 26DEC2026( 토) 15:20 (Local Time)
+합계 Total Amount KRW 300,000`;
+
+test('실제 모양: 마이리얼트립 캡처 — 공항이 편명 위·붙어 읽힌 공항·가짜 편명 S283·한글 날짜·두 예약번호', () => {
+  const x = parseDocText(MRT_OCR, { year:2026 }).items[0];
+  assert.deepEqual([x.fno, x.from, x.to, x.date, x.time, x.time2, x.code, x.code2], ['CX411', 'ICN', 'HKG', '2026-12-19', '09:05', '11:55', 'QXYZAB', 'AIR1234567']);
+});
+test('실제 모양: 대한항공 e-티켓 표 — 예약번호가 머리줄 아래 값 줄에', () => {
+  const x = parseDocText(KE_PDF, { year:2026 }).items[0];
+  assert.deepEqual([x.fno, x.from, x.to, x.date, x.time, x.time2, x.code, x.amount], ['KE999', 'SZX', 'ICN', '2026-12-26', '11:10', '15:20', 'DABCDE', 300000]);
+});

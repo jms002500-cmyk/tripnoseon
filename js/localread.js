@@ -21,11 +21,12 @@ export async function pdfText(file){
 
 // 사진 → 글 (영문·숫자: 편명·공항·날짜·예약번호 위주). onProgress(0~1)
 let tessLoad = null;
-export async function imageText(file, onProgress){
+const OCR_LANG = 'kor+eng';   // 한글 확인서 캡처의 날짜(12월 19일)·이름표(예약번호)까지 (처음 한 번 한글 글자 자료를 더 받음)
+export async function imageText(file, onProgress, lang){
   if(!window.Tesseract){
     tessLoad = tessLoad || new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = TESS; sc.onload = ok; sc.onerror = () => { tessLoad = null; sc.remove(); no(new Error('load')); }; document.head.appendChild(sc); });
     await tessLoad;
   }
-  const w = await window.Tesseract.createWorker('eng', 1, { logger:m => { if(onProgress && m && m.status === 'recognizing text') onProgress(m.progress || 0); } });
+  const w = await window.Tesseract.createWorker(lang || OCR_LANG, 1, { logger:m => { if(onProgress && m && m.status === 'recognizing text') onProgress(m.progress || 0); } });
   try{ const { data } = await w.recognize(file); return (data && data.text) || ''; } finally { await w.terminate(); }
 }

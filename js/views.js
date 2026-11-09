@@ -1748,7 +1748,7 @@ export function vVault(s){
       <label for="vtitle" class="vt-title"><span class="vl-any">이름</span><span class="vl-hotel">숙소 이름</span><input id="vtitle" type="text" maxlength="60" value="${esc(d.title || '')}" placeholder="예: 디즈니랜드 1일권 · 공항 픽업"></label>
       <div class="row2">
         <label for="vtime"><span class="vl-any">시간</span><span class="vl-flight">출발 시각</span><span class="vl-hotel">체크인 시각</span><input id="vtime" type="text" inputmode="numeric" maxlength="5" placeholder="14:30" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(d.time || '')}"></label>
-        <label for="vcode"><span class="vl-any">예약번호</span><span class="vl-hotel">예약번호</span><span class="vl-flight">항공사 예약번호</span><input id="vcode" type="text" maxlength="40" value="${esc(d.code || '')}" spellcheck="false" placeholder="${(d.kind || 'flight') === 'flight' ? '체크인할 때 쓰는 번호 (예: QXYZAB)' : ''}"></label>
+        <label for="vcode"><span class="vl-any">예약번호</span><span class="vl-hotel">예약번호</span><span class="vl-flight">항공사 예약번호</span><input id="vcode" type="text" maxlength="40" value="${esc(d.code || '')}" spellcheck="false" placeholder="${(d.kind || 'flight') === 'flight' ? '체크인할 때 쓰는 번호 (예: ABC123)' : ''}"></label>
       </div>
       <label for="vcode2">예약 사이트 번호 (선택)<input id="vcode2" type="text" maxlength="40" value="${esc(d.code2 || '')}" spellcheck="false" placeholder="마이리얼트립·트립닷컴 등으로 예약했으면 그 사이트 번호 (바꾸기·취소할 때)"></label>
       <div class="row2">

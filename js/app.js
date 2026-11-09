@@ -1724,7 +1724,7 @@ function useDrafts(list, how){
 // 저장한 뒤: 같은 확인서의 다음 편(오는 편 등)을 이어서
 function nextDraft(){
   const s = state; const r = s.sh.vread; if(!r || !r.queue) return;
-  if(r.queue.length){ s.vdraft = r.queue.shift(); r.msg = `다음 예약을 채웠어요. 맞는지 보고 저장해 주세요.${r.queue.length ? ` (${r.queue.length}개 더)` : ''}`; render(); showReadResult(); }
+  if(r.queue.length){ s.vdraft = r.queue.shift(); const d = s.vdraft; r.msg = `다음 예약(${d.kind === 'flight' ? `${d.dir === 'back' ? '오는 편' : '가는 편'} ${d.fno || ''}` : d.title || ''})을 채웠어요. 맞는지 보고 저장해 주세요.${d.kind === 'flight' && d.paxShort ? ` 이 표에는 일행 중 ${d.paxShort}명이 없어요 — 다른 사람 표가 있으면 같이 넣거나, 아래 ‘인원별로 넣기’에서 누구 표인지 봐 주세요.` : ''}${r.queue.length ? ` (${r.queue.length}개 더)` : ''}`; render(); showReadResult(); }
   else { vreadFiles = []; const back = r.from === 'where' && r.flown; s.sh.vread = back ? { back:'항공권을 보관함에 넣고 여행지의 비행기 편·시간에도 반영했어요.' } : null; if(back){ render(); showReadResult(); } }
 }
 // 여행지 단계 비행기 시간 칸에 넣은 확인서: 보관함으로 옮겨 바로 읽음. 저장하면 날짜·비행기 편·시간이 채워짐(bookings.js applyFlight)
