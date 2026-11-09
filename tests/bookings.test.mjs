@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from '../js/data.js';
 import { clone, plan } from '../js/logic.js';
-import { flightDir, applyFlight, applyHotel, applyPlace, applyBooking, applyAll, bookingRows, addDay, bookingSpend, bookingSpendOf } from '../js/bookings.js';
+import { flightDir, applyFlight, applyHotel, applyPlace, applyBooking, applyAll, bookingRows, addDay, bookingSpend, bookingSpendOf, applyMove } from '../js/bookings.js';
+import { docsOf, docLabel } from '../js/docs.js';
 
 const trip = extra => Object.assign(clone(D.DEFAULT), { start:'2027-03-07', end:'2027-03-10', who:'family', adults:2, kids:[12],
   picked:{ sensoji:true, ameyoko:true } }, extra);
@@ -71,9 +72,13 @@ test('전부 다시 반영: 항공권 날짜가 먼저, 그다음 숙소·장소
 test('날짜 카드 예약 줄: 체크인·체크아웃·입장권, 항공권·오가는 길 예약은 뺌', () => {
   const items = [v('hotel', { title:'H', date:'2027-03-07', time:'15:00', date2:'2027-03-09', time2:'11:00' }), v('ticket', { id:'t', title:'디즈니', date:'2027-03-08', time:'09:00' }),
     v('flight', { id:'f', date:'2027-03-07' }), v('transport', { id:'m', moveId:'in', date:'2027-03-07' }), v('entry', { id:'e', date:'2027-03-07' })];
-  assert.deepEqual(bookingRows(items, '2027-03-07'), [{ time:900, icon:'🏨', text:'체크인 · H' }]);
+  const noId = L => L.map(({ id, ...r }) => r);
+  assert.deepEqual(noId(bookingRows(items, '2027-03-07')), [{ time:900, icon:'🏨', text:'체크인 · H' }]);
   assert.deepEqual(bookingRows(items, '2027-03-08').map(x => x.text), ['디즈니']);
-  assert.deepEqual(bookingRows(items, '2027-03-09'), [{ time:660, icon:'🏨', text:'체크아웃 · H' }]);
+  assert.equal(bookingRows(items, '2027-03-08')[0].id, 't');   // 줄에서 그 예약 서류를 바로 열게
+  assert.ok(!bookingRows(items, '2027-03-07', new Set(['in'])).some(x => x.id === 'm'));   // 연결한 이동이 있으면 이동 줄로
+  assert.ok(bookingRows(items, '2027-03-07', new Set()).some(x => x.id === 'm'));   // 이동을 지웠으면 예약 줄로 다시
+  assert.deepEqual(noId(bookingRows(items, '2027-03-09')), [{ time:660, icon:'🏨', text:'체크아웃 · H' }]);
 });
 
 test('이미 반영된 숙소는 다시 반영해도 바꿀 것 없음', () => {
@@ -103,4 +108,38 @@ test('예약을 지울 때: 그 예약 금액으로 만든 가계부 줄을 찾�
   assert.equal(bookingSpendOf(s, { id:'v2', amt:10 }), null);
   assert.equal(bookingSpendOf(s, null), null);
   assert.equal(bookingSpendOf({}, it), null);
+});
+
+test('교통 예약 → 오가는 길 이동 (공항 픽업·샌딩): 예약함·시각·픽업 차량, 없으면 새로', () => {
+  const s = trip({ moves:[{ id:'out', k:'out', date:'', time:'', how:'taxi', min:null, from:'', to:'', booked:false, note:'' }] });
+  const pick = v('transport', { id:'p1', title:'공항 픽업 (클룩)', date:'2027-03-07', time:'14:30' });
+  const r = applyMove(s, pick, 'k:in');
+  assert.equal(r.moveId, 'in');
+  assert.deepEqual(r.patch.moves.find(m => m.k === 'in'), { id:'in', k:'in', date:'', time:'14:30', how:'pick', min:null, from:'', to:'', booked:true, note:'' });
+  assert.match(r.msgs[0], /공항 → 숙소 14:30 예약함/);
+  const r2 = applyMove(s, v('transport', { title:'샌딩', time:'09:00' }), 'k:out');   // 이미 고른 수단(택시)은 그대로
+  assert.deepEqual([r2.patch.moves[0].how, r2.patch.moves[0].time, r2.patch.moves[0].booked], ['taxi', '09:00', true]);
+  assert.equal(r2.patch.moves.length, 1);
+  const s3 = trip({ moves:[{ id:'mx', k:'etc', date:'', time:'', how:'', min:null, from:'선전', to:'홍콩', booked:false, note:'' }] });
+  const r3 = applyMove(s3, v('transport', { title:'고속철 표', date:'2027-03-08', time:'10:15' }), 'id:mx');
+  assert.deepEqual([r3.patch.moves[0].date, r3.patch.moves[0].how, r3.moveId], ['2027-03-08', '', 'mx']);
+  assert.deepEqual(applyMove(s3, pick, 'id:없음'), { patch:{}, msgs:[], moveId:null });
+  assert.deepEqual(applyMove(s3, pick, ''), { patch:{}, msgs:[], moveId:null });
+  assert.deepEqual(applyMove(s3, pick, 'k:etc'), { patch:{}, msgs:[], moveId:null });
+  const again = applyMove(Object.assign({}, s, r.patch), pick, 'k:in');   // 이미 반영됐으면 바꿀 것 없음
+  assert.deepEqual([again.patch, again.msgs, again.moveId], [{}, [], 'in']);
+});
+
+test('일정 줄마다 서류: 장소·이동·비행기 편·예약 id로 찾고, 영수증·사진·여권 사본은 안 나옴', () => {
+  const s = trip({ vault:[
+    v('ticket', { id:'t', placeId:'disney', title:'디즈니 입장권' }), v('transport', { id:'p', moveId:'in', title:'픽업' }),
+    v('flight', { id:'fo', date:'2027-03-07', dir:'out' }), v('flight', { id:'fb', date:'2027-03-10', dir:'back' }),
+    { id:'r', kind:'receipt', placeId:'disney', files:[] }, { id:'i', kind:'idcopy', files:[] }] });
+  assert.deepEqual(docsOf(s, { place:'disney' }).map(x => x.id), ['t']);
+  assert.deepEqual(docsOf(s, { move:'in' }).map(x => x.id), ['p']);
+  assert.deepEqual(docsOf(s, { flight:'out' }).map(x => x.id), ['fo']);
+  assert.deepEqual(docsOf(s, { flight:'back' }).map(x => x.id), ['fb']);
+  assert.deepEqual(docsOf(s, { id:'r' }), []);
+  assert.deepEqual(docsOf(s, null), []);
+  assert.equal(docLabel({ kind:'flight' }), '탑승권'); assert.equal(docLabel({ kind:'모름' }), '서류');
 });

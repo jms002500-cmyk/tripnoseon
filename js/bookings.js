@@ -5,6 +5,7 @@
 // 순수 함수(테스트 대상): 상태를 고치지 않고 바꿀 칸만 돌려줌 { patch, msgs, locate }. 저장·위치 찾기는 app.js.
 import { AIRPORTS, toMin, NIGHT_DEP } from './flight.js';
 import { buildDays, allPlaces } from './logic.js';
+import { legOf } from './moves.js';
 
 const isKey = k => /^\d{4}-\d{2}-\d{2}$/.test(k || '');
 export const addDay = (key, n) => { const [y, m, d] = key.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
@@ -110,6 +111,26 @@ export function bookingSpendOf(s, it){
   return { id, e, edited };
 }
 
+// 교통 예약을 '오가는 길' 이동에 연결 (공항 픽업·샌딩 차량 등): 그 이동을 '예약함'으로, 예약 시각을 이동 시각으로,
+//   이름·메모에 픽업·샌딩이 있으면 수단을 '픽업 차량'으로. sel: 'k:go|in|out|back'(없으면 새로 만듦, id는 그 이름) | 'id:이동 id'
+//   → { patch, msgs, moveId }. 공항 오가는 길 날짜는 여행 날짜를 따름(moves.js moveDate), 여행 중 이동은 예약 날짜로
+export const PICK_RE = /픽업|샌딩|센딩|pick\s*-?\s*up|sending|drop\s*-?\s*off|transfer|기사|차량|밴/i;
+export function applyMove(s, it, sel){
+  const patch = {}, msgs = []; const moves = (s.moves || []).slice(); const v = String(sel || '');
+  let i = -1, k = '';
+  if(/^k:(go|in|out|back)$/.test(v)){ k = v.slice(2); i = moves.findIndex(m => m.k === k); }
+  else if(/^id:./.test(v)){ i = moves.findIndex(m => m.id === v.slice(3)); if(i < 0) return { patch, msgs, moveId:null }; }
+  else return { patch, msgs, moveId:null };
+  const m = i >= 0 ? Object.assign({}, moves[i]) : { id:k, k, date:'', time:'', how:'', min:null, from:'', to:'', booked:false, note:'' };
+  m.booked = true;
+  if(toMin(it.time) != null) m.time = it.time;
+  if(!m.how && PICK_RE.test(`${it.title || ''} ${it.memo || ''}`)) m.how = 'pick';
+  if(m.k === 'etc' && isKey(it.date)) m.date = it.date;
+  if(i >= 0) moves[i] = m; else moves.push(m);
+  if(JSON.stringify(moves) !== JSON.stringify(s.moves || [])){ patch.moves = moves; msgs.push(`${legOf(m.k).label}${m.time ? ` ${m.time}` : ''} 예약함`); }
+  return { patch, msgs, moveId:m.id };
+}
+
 // 예약 하나 반영. o: applyHotel에 넘길 값
 export function applyBooking(s, it, o){
   if(!it) return { patch:{}, msgs:[] };
@@ -132,14 +153,15 @@ export function applyAll(s, items, o = {}){
 
 // 날짜 카드에 같이 보일 예약 줄 [{ time(분|null), icon, text }]: 숙소 체크인·체크아웃, 그날 입장권·교통·기타
 //   항공권은 비행기 줄로, 오가는 길에서 만든 교통 예약(moveId)은 그 이동 줄로 보이니 뺌
-export function bookingRows(items, key){
+//   moveIds: 지금 있는 이동 id(Set). 주면 연결한 이동이 지워진 교통 예약은 예약 줄로 다시 보임
+export function bookingRows(items, key, moveIds){
   const out = [];
   (items || []).forEach(it => {
     if(it.kind === 'hotel'){
-      if(it.date2 === key) out.push({ time:toMin(it.time2), icon:'🏨', text:`체크아웃 · ${it.title}` });
-      if(it.date === key) out.push({ time:toMin(it.time), icon:'🏨', text:`체크인 · ${it.title}` });
-    } else if(PLACE_KINDS.includes(it.kind) && !it.moveId && it.date === key)
-      out.push({ time:toMin(it.time), icon:it.kind === 'transport' ? '🚆' : it.kind === 'ticket' ? '🎟️' : '📎', text:it.title });
+      if(it.date2 === key) out.push({ id:it.id, time:toMin(it.time2), icon:'🏨', text:`체크아웃 · ${it.title}` });
+      if(it.date === key) out.push({ id:it.id, time:toMin(it.time), icon:'🏨', text:`체크인 · ${it.title}` });
+    } else if(PLACE_KINDS.includes(it.kind) && !(it.moveId && (!moveIds || moveIds.has(it.moveId))) && it.date === key)
+      out.push({ id:it.id, time:toMin(it.time), icon:it.kind === 'transport' ? '🚆' : it.kind === 'ticket' ? '🎟️' : '📎', text:it.title });
   });
   return out.sort((a, b) => (a.time ?? 9999) - (b.time ?? 9999));
 }

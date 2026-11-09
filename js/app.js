@@ -2,7 +2,7 @@
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, PLACES, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
 import { REPLIES, talkWords, pickVoice } from './asktalk.js';
-import { VIEWS, SHEET, ASKSHEET, NEARSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, NEARSHEET, DOCSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
@@ -14,7 +14,7 @@ import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
 import { hkoWant, hkoDue, hkDates, loadHko, mergeHkoState } from './hko.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
-import { applyBooking, applyAll, applyPlace, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
+import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
 import { planText } from './agenda.js';
 import { whereOf, tzOffset, HOME_TZ, HERE_FRESH } from './clock.js';
 import { catchUp, applyCatchUp } from './catchup.js';
@@ -429,14 +429,15 @@ function render(){
   tb.hidden = phaseOf(s, s.sh.today).phase === 'none';
   tb.classList.toggle('on', todayMode); tb.setAttribute('aria-pressed', String(todayMode));
   const xb = document.getElementById('sosBtn'); xb.classList.toggle('on', sosMode); xb.setAttribute('aria-pressed', String(sosMode));
-  const anySheet = !!s.sh.open || !!(s.sh.ask && s.sh.ask.open) || !!(s.sh.near && s.sh.near.open);
+  const anySheet = !!s.sh.open || !!(s.sh.ask && s.sh.ask.open) || !!(s.sh.near && s.sh.near.open) || !!s.sh.vdoc;
   document.body.classList.toggle('noscroll', anySheet || (sosMode && !!s.sh.sbig));
   const sb = document.getElementById('shareBtn');
   sb.textContent = s.shareId && s.sh.trip ? `함께 · ${s.sh.trip.memberUids.length}명` : '함께 짜기';
   sb.classList.toggle('on', !!s.shareId);
   const sheet = document.getElementById('sheet');
   const keepScroll = sheet.querySelector('.shbody') ? sheet.querySelector('.shbody').scrollTop : 0;
-  if(s.sh.ask && s.sh.ask.open){ sheet.innerHTML = ASKSHEET(s, askPhoto); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
+  if(s.sh.vdoc){ sheet.innerHTML = DOCSHEET(s); }
+  else if(s.sh.ask && s.sh.ask.open){ sheet.innerHTML = ASKSHEET(s, askPhoto); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
   else if(s.sh.near && s.sh.near.open){ sheet.innerHTML = NEARSHEET(s); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
   else if(s.sh.open){ sheet.innerHTML = SHEET(s); const b = sheet.querySelector('.shbody'); if(b) b.scrollTop = keepScroll; }
   else sheet.innerHTML = '';
@@ -499,12 +500,16 @@ async function saveVault(){
   if(kind === 'hotel') Object.assign(it, { date2:g('vdate2').value, time2:g('vtime2h').value, addr:g('vaddr').value.trim().slice(0, 120), tel:g('vtel').value.trim().slice(0, 30) });
   Object.assign(it, { amt:+g('vamt').value > 0 ? Math.round(+g('vamt').value * 100) / 100 : 0, cur:g('vcur').value || 'KRW' });
   if(!editing && s.vdraft && s.vdraft.moveId) it.moveId = s.vdraft.moveId;
+  // 교통 예약 → 어느 이동인지 (공항 픽업·샌딩 등, js/bookings.js applyMove)
+  const mvSel = kind === 'transport' && g('vmove') ? g('vmove').value : ''; let mvMsgs = [];
+  if(mvSel){ const rm = applyMove(s, it, mvSel); Object.assign(s, rm.patch); mvMsgs = rm.msgs; if(rm.moveId) it.moveId = rm.moveId; }
+  else if(kind !== 'transport' || (editing && g('vmove'))) delete it.moveId;
   const mapRaw = kind === 'hotel' ? g('vmap').value.trim() : '';
   const skipped = await storeFiles(it, picked);
   if(!editing) s.vault.push(it);
   s.vedit = null; s.vdraft = null;
   const r = applyBooking(s, it, Object.assign({ newId:'h' + Date.now().toString(36) }, hotelPt(mapRaw || it.link)));   // 예약을 일정에 반영 (js/bookings.js)
-  Object.assign(s, r.patch);
+  Object.assign(s, r.patch); r.msgs.unshift(...mvMsgs);
   if(kind === 'flight' || kind === 'hotel') packTick('tickets');
   // 예약 금액 → 가계부 (js/bookings.js bookingSpend). 여행 전이면 '여행 전'으로
   const sp = bookingSpend(s, it, { by:defaultPayer(s), now:Date.now(), day:cat => defaultDay(s, tripClock(new Date(), REGION.tz).date, cat) });
@@ -899,6 +904,9 @@ function act(a, v){
       if(!s.sh.near.pt || Date.now() - (s.sh.near.at || 0) > 3 * 60000) nearLocate(); else render(); return;   // 3분 안에 찾은 위치는 다시 씀
     case 'nearagain': nearLocate(true); return;
     case 'nearclose': if(s.sh.near) s.sh.near.open = false; render(); return;
+    case 'vdoc': s.sh.vdoc = v; render(); return;   // 일정 줄의 서류 바로가기 (js/docs.js)
+    case 'vdocclose': s.sh.vdoc = null; render(); return;
+    case 'vdocedit': s.sh.vdoc = null; s.mode = null; s.step = VAULT_STEP; s.vedit = v; s.vdraft = null; save(); render(); focusVaultForm(); return;
     case 'nearpick': { const p = allPlaces(s).concat(PLACES).find(x => x.id === v); if(!p) return; s.picked[p.id] = true; toast(`'${p.name}'을(를) 담았어요.`); break; }
     case 'neartoday': {   // 오늘 일정에 넣기 (하루 종일 장소는 그날을 통째로)
       const p = allPlaces(s).concat(PLACES).find(x => x.id === v); const d = buildDays(s).find(x => x.key === s.sh.today); if(!p || !d) return;
@@ -1480,6 +1488,7 @@ const LAYERS = [
   [() => !!viewerClose, () => viewerClose()],
   [() => !!askBigView, () => askBigHide()],
   [() => mapOpen(), () => closeMap()],
+  [() => !!state.sh.vdoc, () => { state.sh.vdoc = null; render(); }],
   [() => !!(state.sh.ask && state.sh.ask.open), () => askSheetClose()],
   [() => !!(state.sh.near && state.sh.near.open), () => { state.sh.near.open = false; render(); }],
   [() => !!state.sh.open, () => { state.sh.open = false; render(); }],

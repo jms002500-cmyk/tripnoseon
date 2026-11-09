@@ -29,7 +29,7 @@ export function dayAgenda(s, d, ctx){
     if(!ms.some(m => m.k === 'out' && toMin(m.time) != null)) out.push({ min:z.leave, icon:'🧳', text:`숙소에서 공항으로 출발 · 약 ${minText(z.transfer)}`, sub:(ms.find(m => m.k === 'out') ? moveText(ms.find(m => m.k === 'out'), c, minText) + ' · ' : '') + '짐 챙기기', kind:'move' });
     out.push({ min:z.at, icon:'✈️', text:`${z.ap.name} 출발`, sub:`${z.at >= 1440 ? '다음 날 새벽 · ' : ''}2시간 30분 전 공항 도착 기준`, kind:'flight', dir:'back' });
   }
-  bookingRows(bookings(s.vault), d.key).forEach(b => out.push({ min:b.time, icon:b.icon, text:b.text, sub:'예약', kind:'book' }));
+  bookingRows(bookings(s.vault), d.key, new Set((s.moves || []).map(m => m.id))).forEach(b => out.push({ min:b.time, icon:b.icon, text:b.text, sub:'예약', kind:'book', vid:b.id }));
   if(z && s.flight && s.flight.itc) out.push({ min:DAY_START, icon:'🧳', text:'시내 체크인 · 홍콩역·구룡역에서 짐 부치기', sub:'참여 항공사만 · 받는 시간 확인', kind:'itc' });
   const rank = x => x.min == null ? 9999 : x.min;
   return out.sort((x, y) => rank(x) - rank(y));

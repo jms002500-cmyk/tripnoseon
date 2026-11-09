@@ -407,6 +407,9 @@ html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn
 .gslink.ok{color:var(--muted)}
 .gsnow{flex-basis:100%;margin:.1em 0 0}
 .gsdone summary{cursor:pointer;margin:.3em 0}
+.docbtns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
+.docbtn{font:inherit;font-size:var(--fs-sm);padding:6px 10px;border-radius:999px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);cursor:pointer;min-height:36px}
+.docbtn:hover{border-color:var(--muted)}
 .nearlist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column}
 .nearit{padding:12px 0; border-bottom:1px solid var(--rule)}
 .nearit .sbody{display:flex; flex-direction:column; gap:3px; min-width:0}
@@ -524,7 +527,7 @@ html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn
 #vaultform .vx, #vaultform .vl-flight, #vaultform .vl-hotel{display:none}
 #vaultform .vx{gap:10px}
 #vaultform .vx > label{display:flex; flex-direction:column; gap:6px; font-size:var(--fs-sm); color:var(--muted); min-width:0}
-#vaultform[data-kind="flight"] .vx-flight, #vaultform[data-kind="hotel"] .vx-hotel, #vaultform[data-kind="ticket"] .vx-place, #vaultform[data-kind="transport"] .vx-place, #vaultform[data-kind="etc"] .vx-place{display:grid}
+#vaultform[data-kind="flight"] .vx-flight, #vaultform[data-kind="hotel"] .vx-hotel, #vaultform[data-kind="ticket"] .vx-place, #vaultform[data-kind="transport"] .vx-place, #vaultform[data-kind="etc"] .vx-place, #vaultform[data-kind="transport"] .vx-move{display:grid}
 #vaultform[data-kind="flight"] .vl-flight, #vaultform[data-kind="hotel"] .vl-hotel{display:inline}
 #vaultform[data-kind="flight"] .vl-any, #vaultform[data-kind="hotel"] .vl-any{display:none}
 .viewer{position:fixed; inset:0; z-index:70; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center;
