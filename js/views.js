@@ -1602,14 +1602,15 @@ function vReadBox(s){
   return `<div class="box vread" id="vread">
       <h2>📄 확인서로 칸 채우기<small>항공권 e-티켓·숙소 바우처·입장권</small></h2>
       <label for="vreadfile">확인서 사진·PDF 고르기<input id="vreadfile" type="file" accept="image/*,application/pdf"></label>
-      ${r.busy ? `<p class="fine">‘${esc(r.name || '')}’ 읽는 중… (10~30초)</p>` : ''}
+      ${r.busy ? `<p class="fine">‘${esc(r.name || '')}’ ${r.local ? `이 폰 안에서 읽는 중…${r.prog ? ` ${r.prog}%` : ''} (처음 한 번은 읽기 도구를 받아요)` : 'AI로 읽는 중… (10~30초)'}</p>` : ''}
       ${r.err ? `<p class="warnline">${esc(r.err)}</p>` : ''}
       ${r.msg ? `<p class="pnote">${esc(r.msg)}</p>` : ''}
-      ${r.name && !key && !r.busy && !r.msg ? `<p class="fine">AI 키가 없어서 ‘${esc(r.name)}’을 쓰시는 AI 앱(제미나이·ChatGPT 등)으로 보내 읽어요. 앱에서 받은 답을 아래에 붙여 넣으세요.</p>
-      <div class="pfoot"><button type="button" class="primary small" data-act="vreadsend">AI 앱으로 보내기</button></div>
+      ${r.name && r.localFail && !r.busy && !r.msg ? `${key ? '<div class="pfoot"><button type="button" class="primary small" data-act="vreadai">AI로 읽기 (내 구글 키 · 확인서를 구글에 보내요)</button></div>' : ''}
+      <p class="fine">또는 ‘${esc(r.name)}’을 쓰시는 AI 앱(제미나이·ChatGPT 등)으로 보내 읽고, 받은 답을 아래에 붙여 넣어도 돼요.</p>
+      <div class="pfoot"><button type="button" class="${key ? 'ghost' : 'primary'} small" data-act="vreadsend">AI 앱으로 보내기</button></div>
       <label for="vreadpaste">AI 답 붙여 넣기<textarea id="vreadpaste" rows="3" placeholder='{"kind":"flight", …}'></textarea></label>
       <div class="pfoot"><button type="button" class="ghost small" data-act="vreadgo">답으로 칸 채우기</button></div>` : ''}
-      <p class="fine">${key ? '고르면 내 구글 AI 키로 바로 읽어요.' : 'AI 키를 넣으면(📷 묻기 창) 고르자마자 앱 안에서 읽어요.'} 날짜·시각·편명·공항·예약번호·탑승객을 아래 칸에 채우고, 확인서 파일도 그 예약에 첨부해요. 저장 전에 꼭 확인해 주세요. 보내는 것은 고른 확인서 한 장뿐이에요.</p>
+      <p class="fine">먼저 이 폰 안에서 읽어요 — 확인서는 밖으로 나가지 않아요. PDF는 바로 읽고, 사진은 글자 인식이라 덜 정확해요(처음 한 번 읽기 도구를 받아요: PDF 약 2MB, 사진 약 7MB). 날짜·시각·편명·공항·예약번호·탑승객을 아래 칸에 채우고 확인서 파일도 그 예약에 첨부해요. 저장 전에 꼭 확인해 주세요. 다 못 읽으면 그때 AI로 읽을지 고를 수 있어요.</p>
     </div>`;
 }
 
