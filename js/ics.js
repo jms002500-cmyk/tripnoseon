@@ -2,7 +2,7 @@
 // 시각은 어림: 그날 나서는 시각(보통 9:30, 첫날은 비행기 도착 뒤)부터 이동 시간(transit.js 어림)과 머무는 시간을 차례로 더함.
 // 순수 함수(테스트 대상). 파일 만들기·보내기는 app.js.
 import { legMinutes } from './transit.js';
-import { DAY_START, dayEnd, hm, toMin, depMin } from './flight.js';
+import { DAY_START, dayEnd, hm, toMin, depMin, effFlight } from './flight.js';
 import { movesOn, moveEnds, moveMin, howOf, legOf, isEmptyMove } from './moves.js';
 import { prepTasks } from './prep.js';
 import { flightDir, addDay } from './bookings.js';
@@ -16,7 +16,7 @@ const HOME_TZ = 9;                       // 집 ↔ 공항은 한국 시각
 //   자정 넘어 한국에 내려 집에 가면(현지 시각이 비행기 출발보다 이름) 다음 날(+1, min은 1440 이상). 비행기 시각을 모르면 예전처럼 그날 안에서
 export function homeTime(s, m){
   const t = toMin(m && m.time); if(t == null) return null;
-  const diff = (HOME_TZ - (TZ_OFFSET[s.city] ?? HOME_TZ)) * 60; const f = s.flight || {};
+  const diff = (HOME_TZ - (TZ_OFFSET[s.city] ?? HOME_TZ)) * 60; const f = effFlight(s.flight);
   const a = m.k === 'go' ? toMin(f.arr) : null, z = m.k === 'back' ? depMin(f) : null; const x = t - diff;   // 밤 비행기면 z는 1440 이상
   if(a != null) return x > a ? { min:x - 1440, day:-1 } : { min:x, day:0 };
   if(z != null) return x < z ? { min:x + 1440, day:1 } : { min:x, day:0 };

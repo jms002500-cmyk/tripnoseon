@@ -149,7 +149,8 @@ export function cleanShared(s){
   if(!(typeof s.country === 'string' && /^[a-z]{2}$/.test(s.country))) s.country = REGIONS[s.city].country;
   if(!['', 'hk', 'sz'].includes(s.cityOnly)) s.cityOnly = '';
   ['start', 'end'].forEach(k => { if(!(typeof s[k] === 'string' && DATE.test(s[k]))) s[k] = ''; });
-  s.flight = objOr(s.flight, DEFAULT.flight); fixStrs(s.flight, ['ap', 'arr', 'dep']);
+  s.flight = objOr(s.flight, DEFAULT.flight); fixStrs(s.flight, ['ap', 'arr', 'dep', 'ap2', 'way']);
+  if(s.flight.way != null && !['', 'out', 'back'].includes(s.flight.way)) s.flight.way = '';
   if(!(s.hotelArea === null || (typeof s.hotelArea === 'string' && safeId(s.hotelArea)))) s.hotelArea = null;
   if(!(s.hotelPick === null || typeof s.hotelPick === 'string')) s.hotelPick = null;
   if(!own(CURRENCY, s.hotelCur)) s.hotelCur = D('hotelCur');

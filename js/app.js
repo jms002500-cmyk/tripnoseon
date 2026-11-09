@@ -1138,7 +1138,8 @@ function act(a, v){
       s.moves = s.moves.filter(x => !isEmptyMove(x)); s.sh.mvEdit = null;
       s.vedit = null; s.vdraft = vaultDraft(s, m, moveCtx(s, plan(s))); s.step = VAULT_STEP; s.mode = null; save(); render(); focusVaultForm(); return;
     }
-    case 'flightclear': s.flight = { ap:(s.flight && s.flight.ap) || '', arr:'', dep:'' }; break;
+    case 'flightclear': s.flight = Object.assign({}, s.flight, { arr:'', dep:'' }); break;
+    case 'flway': s.flight = Object.assign({ ap:'', arr:'', dep:'' }, s.flight, { way:['out', 'back'].includes(v) ? v : '' }); break;   // 왕복·편도
     case 'icsshare': case 'icsfile': sendIcs(a === 'icsshare'); if(packTick('appcal')) save(); return;
     case 'askopen': s.sh.ask = { open:true, kind:(s.sh.ask && s.sh.ask.kind) || 'menu' }; render(); return;
     case 'askclose': askSheetClose(); return;

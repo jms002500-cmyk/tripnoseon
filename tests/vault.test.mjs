@@ -28,13 +28,20 @@ test('아직 없는 예약 제안: 항공권·숙소·예약 필요한 곳·입�
   const s = Object.assign(clone(DEFAULT), { start:'2027-03-07', end:'2027-03-11', picked:{ tdl:true, ghibli:true, sensoji:true },
     hotels:[{ id:'h1', name:'ホテルA' }], hotelPick:'h1' });
   const m = missingBookings(s, []);
-  assert.deepEqual(m.map(x => x.kind), ['flight', 'hotel', 'ticket', 'ticket', 'entry']);
-  assert.equal(m[1].title, 'ホテルA'); assert.equal(m[1].date, '2027-03-07');
+  assert.deepEqual(m.map(x => x.kind), ['flight', 'flight', 'hotel', 'ticket', 'ticket', 'entry']);   // 항공권은 가는 편·오는 편 한 편씩
+  assert.deepEqual(m.slice(0, 2).map(x => [x.dir, x.title]), [['out', '가는 편 항공권'], ['back', '오는 편 항공권']]);
+  const one = Object.assign({}, s, { flight:{ ap:'', arr:'', dep:'', way:'out' } });   // 편도(가는 편만)
+  assert.deepEqual(missingBookings(one, []).filter(x => x.kind === 'flight').map(x => x.title), ['가는 편 항공권 (편도)']);
+  assert.ok(!missingBookings(one, [{ id:'f', kind:'flight', dir:'out', date:'2027-03-07' }]).some(x => x.kind === 'flight'));
+  const half = missingBookings(s, [{ id:'f', kind:'flight', dir:'out', date:'2027-03-07' }]).filter(x => x.kind === 'flight');   // 왕복인데 한 편만
+  assert.deepEqual(half.map(x => x.dir), ['back']); assert.match(half[0].why, /가는 편만/);
+  assert.equal(m[2].title, 'ホテルA'); assert.equal(m[2].date, '2027-03-07');
   assert.ok(m.some(x => x.placeId === 'tdl' && /입장권/.test(x.title)));
   assert.ok(!m.some(x => x.placeId === 'sensoji'));   // 예약 필요 없는 곳은 빼고
   // 이미 넣은 것은 다시 제안하지 않음
   const m2 = missingBookings(s, [{ kind:'flight' }, { kind:'hotel' }, { kind:'ticket', placeId:'tdl' }, { kind:'entry' }]);
-  assert.deepEqual(m2.map(x => x.placeId), ['ghibli']);
+  assert.deepEqual(m2.filter(x => x.kind !== 'flight').map(x => x.placeId), ['ghibli']);
+  assert.deepEqual(m2.filter(x => x.kind === 'flight').map(x => x.dir), ['back']);   // 가는 편만 넣었으면 오는 편 제안(편도면 여행지 단계에서 고름)
 });
 
 test('사진 줄이기 크기와 용량 표시', () => {

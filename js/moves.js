@@ -31,7 +31,7 @@ export const isEmptyMove = m => !m.how && toMin(m.time) == null && !moveMin(m) &
 // 출발·도착 이름. ctx: { ap:'도착 공항 이름', inHotel, outHotel }
 export function moveEnds(m, ctx){
   const c = ctx || {}; const f = (m.from || '').trim(), t = (m.to || '').trim();
-  const def = { go:['집', '공항'], in:[c.ap || '공항', c.inHotel || '숙소'], out:[c.outHotel || '숙소', c.ap || '공항'], back:['공항', '집'], etc:['출발지', '도착지'] }[m.k] || ['출발지', '도착지'];
+  const def = { go:['집', '공항'], in:[c.ap || '공항', c.inHotel || '숙소'], out:[c.outHotel || '숙소', c.ap2 || c.ap || '공항'], back:['공항', '집'], etc:['출발지', '도착지'] }[m.k] || ['출발지', '도착지'];
   return { from:f || def[0], to:t || def[1] };
 }
 

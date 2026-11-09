@@ -3,7 +3,7 @@
 //   시각은 현지 분(0~1439). 집 ↔ 공항은 한국 시각이라 현지로 바꿔서 줄 세움(home:true, kst: 한국 시각 분, kday: 밤 비행기라 전날 -1·다음 날 +1이면 min이 음수·1440 이상)
 import { movesOn, moveText, moveMin, isEmptyMove, legOf } from './moves.js';
 import { bookingRows } from './bookings.js';
-import { AFTER_LANDING, DAY_START, hm, toMin, minText, depMin } from './flight.js';
+import { AFTER_LANDING, DAY_START, hm, toMin, minText, depMin, effFlight } from './flight.js';
 import { homeTime } from './ics.js';
 import { bookings } from './vault.js';
 
@@ -46,7 +46,7 @@ export function nextUp(list, nowMin){
 // 가족 단톡용 일정표 글. P: plan(s), ctx: moveCtx, head: '홍콩·선전 여행 · 12/6~12/10 · 가족 3명'. 예약번호는 안 넣음
 export function planText(s, P, ctx, head){
   const lines = [`🧳 ${head}`];
-  const f = s.flight || {};
+  const f = effFlight(s.flight);
   if(f.arr || f.dep) lines.push(`✈️ ${[f.arr ? `가는 날 ${f.arr} 도착` : '', f.dep ? (depMin(f) >= 1440 ? `마지막 날 밤 → 다음 날 ${f.dep} 출발` : `오는 날 ${f.dep} 출발`) : ''].filter(Boolean).join(' · ')} (현지 시각)`);
   P.days.forEach((d, i) => {
     lines.push('', `${d.i + 1}일차 ${d.label}`);

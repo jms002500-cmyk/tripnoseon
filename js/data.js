@@ -154,7 +154,8 @@ export const DAY_COLORS = ['#F39700','#E60012','#00A7DB','#009944','#9B7CB6','#B
 // 처음 연 사람의 상태. 실제 사람의 일정은 넣지 않음(공개 저장소). 입력한 값은 그 기기 localStorage에만 저장
 export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'normal',
   country:'jp', city:'tokyo', cityOnly:'', start:'', end:'',
-  flight:{ ap:'', arr:'', dep:'' },   // 비행기: 공항 코드, 첫날 도착·마지막 날 출발 현지 시각 'HH:MM' (js/flight.js, 함께 짜기로 공유)   // cityOnly: 도시가 둘인 지역에서 한 도시만 갈 때 'hk' | 'sz' (''이면 둘 다)
+  flight:{ ap:'', arr:'', dep:'', ap2:'', way:'' },   // ap2: 오는 편 공항(비우면 ap와 같음), way: '' 왕복 | 'out' 가는 편만 | 'back' 오는 편만 (js/flight.js effFlight)
+    // 비행기: 공항 코드, 첫날 도착·마지막 날 출발 현지 시각 'HH:MM' (js/flight.js, 함께 짜기로 공유)   // cityOnly: 도시가 둘인 지역에서 한 도시만 갈 때 'hk' | 'sz' (''이면 둘 다)
   moves:[],
   by:{},   // 함께 짜기: 장소 id → { u:담은 사람 uid, at, m:날짜를 바꾼 사람 uid, mt } (sharecore.js stampBy, 공유 여행에서만 채움)
   prep:{},    // 출발 전 할 일 체크 { 키:true } (js/prep.js, 함께 짜기로 공유)   // 오가는 길: 집 ↔ 공항·공항 ↔ 숙소·여행 중 예약한 이동 (js/moves.js, 함께 짜기로 공유, 예약번호는 안 넣음)

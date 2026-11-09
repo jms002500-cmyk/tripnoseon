@@ -28,8 +28,11 @@ export function flightDir(s, it){
 // 항공권: 가는 편은 도착 날짜·도착 시각(현지), 오는 편은 출발 날짜·출발 시각(현지)
 export function applyFlight(s, it){
   const patch = {}, msgs = []; const f = Object.assign({ ap:'', arr:'', dep:'' }, s.flight);
-  if(it.ap && (AIRPORTS[s.city] || []).some(a => a.code === it.ap)) f.ap = it.ap;
-  if(flightDir(s, it) === 'out'){
+  const apOk = it.ap && (AIRPORTS[s.city] || []).some(a => a.code === it.ap); const dir = flightDir(s, it);
+  // 가는 편 공항 → 도착 공항, 오는 편 공항 → 출발 공항(ap2). 편도로 해 둔 반대쪽 항공권을 넣으면 왕복으로
+  if(dir === 'out'){ if(apOk) f.ap = it.ap; if(f.way === 'back'){ f.way = ''; msgs.push('왕복으로'); } }
+  else { if(apOk) f.ap2 = it.ap === f.ap ? '' : it.ap; if(f.way === 'out'){ f.way = ''; msgs.push('왕복으로'); } }
+  if(dir === 'out'){
     const dep = toMin(it.time), arr = toMin(it.time2);
     const day = isKey(it.date) ? (arr != null && dep != null && arr < dep - 60 ? addDay(it.date, 1) : it.date) : '';   // 밤 비행기는 다음 날 도착
     if(day && day !== s.start){ patch.start = day; msgs.push(`가는 날 ${md(day)}`); }

@@ -23,7 +23,7 @@ test('가는 편·오는 편 짐작', () => {
 test('항공권: 가는 편은 도착 날짜·시각, 오는 편은 출발 날짜·시각', () => {
   const s = trip();
   const a = applyFlight(s, v('flight', { date:'2027-03-06', time:'09:00', time2:'11:20', ap:'HND', dir:'out' }));
-  assert.equal(a.patch.start, '2027-03-06'); assert.deepEqual(a.patch.flight, { ap:'HND', arr:'11:20', dep:'' });
+  assert.equal(a.patch.start, '2027-03-06'); assert.deepEqual(a.patch.flight, { ap:'HND', arr:'11:20', dep:'', ap2:'', way:'' });
   const night = applyFlight(s, v('flight', { date:'2027-03-05', time:'23:30', time2:'02:10', dir:'out' }));
   assert.equal(night.patch.start, '2027-03-06');                            // 밤 비행기는 다음 날 도착
   const b = applyFlight(s, v('flight', { date:'2027-03-11', time:'18:30', dir:'back' }));
@@ -142,4 +142,25 @@ test('일정 줄마다 서류: 장소·이동·비행기 편·예약 id로 찾�
   assert.deepEqual(docsOf(s, { id:'r' }), []);
   assert.deepEqual(docsOf(s, null), []);
   assert.equal(docLabel({ kind:'flight' }), '탑승권'); assert.equal(docLabel({ kind:'모름' }), '서류');
+});
+
+test('편도: 가는 편만이면 마지막 날 출발 시각을, 오는 편만이면 첫날 도착 시각을 안 씀 · 오는 편 공항 따로', async () => {
+  const F = await import('../js/flight.js');
+  assert.deepEqual(F.effFlight({ ap:'HKG', arr:'12:00', dep:'18:00', way:'out' }), { ap:'HKG', arr:'12:00', dep:'', ap2:'', way:'out' });
+  assert.equal(F.effFlight({ ap:'HKG', arr:'12:00', dep:'18:00', way:'back' }).arr, '');
+  assert.equal(F.effFlight(null).way, '');
+  assert.equal(F.depAp({ ap:'HKG', ap2:'SZX' }), 'SZX'); assert.equal(F.depAp({ ap:'HKG', ap2:'' }), 'HKG');
+  assert.equal(F.departInfo({ ap:'HKG', dep:'18:00', way:'out' }, 'hksz', 'hk', 'standard'), null);
+  assert.equal(F.arriveInfo({ ap:'HKG', arr:'12:00', way:'back' }, 'hksz', 'hk', 'standard'), null);
+  assert.equal(F.departInfo({ ap:'HKG', ap2:'SZX', dep:'18:00' }, 'hksz', 'sz', 'standard').ap.code, 'SZX');   // 홍콩 도착·선전 출발
+  assert.equal(F.arriveInfo({ ap:'HKG', ap2:'SZX', arr:'12:00' }, 'hksz', 'hk', 'standard').ap.code, 'HKG');
+  // 편도로 해 둔 반대쪽 항공권을 넣으면 왕복으로, 오는 편 공항은 ap2로
+  const s = trip({ flight:{ ap:'NRT', arr:'', dep:'', ap2:'', way:'out' } });
+  const r = applyFlight(s, v('flight', { date:'2027-03-10', time:'18:30', dir:'back', ap:'HND' }));
+  assert.deepEqual([r.patch.flight.way, r.patch.flight.ap, r.patch.flight.ap2, r.patch.flight.dep], ['', 'NRT', 'HND', '18:30']);
+  assert.ok(r.msgs.includes('왕복으로'));
+  // 함께 짜기로 온 이상한 값은 바로잡음
+  const { cleanShared } = await import('../js/sharecore.js');
+  const o = { flight:{ ap:'HKG', arr:'', dep:'', way:'편도', ap2:5 } }; cleanShared(o);
+  assert.deepEqual([o.flight.way, o.flight.ap2], ['', '5']);
 });

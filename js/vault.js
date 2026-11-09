@@ -2,6 +2,7 @@
 // 예약번호·여권·QR은 민감한 정보라 보관함은 그 기기에만 둠 — 함께 짜기(SHARED_KEYS)에 넣지 않음.
 // 첨부 파일(사진·PDF)은 vaultdb.js가 IndexedDB에 저장 (인터넷 없이 열림).
 import { allPlaces, pickedPlaces } from './logic.js';
+import { flightDir } from './bookings.js';
 
 export const VAULT_KINDS = [
   { key:'flight', label:'항공권', icon:'✈️' },
@@ -54,7 +55,11 @@ export function missingBookings(s, items){
   const has = k => v.some(x => x.kind === k);
   const linked = new Set(v.map(x => x.placeId).filter(Boolean));
   const out = [];
-  if(!has('flight')) out.push({ kind:'flight', title:'왕복 항공권', why:'탑승권·예약번호를 넣어 두면 공항에서 바로 꺼내 볼 수 있어요.' });
+  // 항공권은 한 편씩: 왕복이면 가는 편·오는 편, 편도면 그 편만 (s.flight.way)
+  const way = (s.flight || {}).way || ''; const dirs = new Set(v.filter(x => x.kind === 'flight').map(x => flightDir(s, x)));
+  (way === 'out' ? ['out'] : way === 'back' ? ['back'] : ['out', 'back']).filter(d => !dirs.has(d)).forEach(d => out.push({ kind:'flight', dir:d,
+    title:`${d === 'out' ? '가는 편' : '오는 편'} 항공권${way ? ' (편도)' : ''}`,
+    why:!way && dirs.size ? '편도라면 여행지 단계 “비행기 시간”에서 “가는 편만”이나 “오는 편만”을 고르면 이 제안이 사라져요.' : '탑승권·예약번호를 넣어 두면 공항에서 바로 꺼내 볼 수 있어요.' }));
   const h = (s.hotels || []).find(x => x.id === s.hotelPick);
   if(!has('hotel')) out.push({ kind:'hotel', title:h ? h.name : '숙소', date:s.start || '', why:h ? '정한 숙소의 예약 확인서를 넣어 두세요.' : '숙소 예약 확인서를 넣어 두세요.' });
   pickedPlaces(s).filter(p => p.book && !linked.has(p.id)).forEach(p =>

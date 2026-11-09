@@ -28,7 +28,7 @@ import { mapSVG } from './map.js';
 import { REQS, SAYS, ASKS, REPLIES, talkOf, talkWords } from './asktalk.js';
 import { nearbyOf, googleNearUrl, amapNearUrl, nearDirUrl, amapDirUrl, WALK_KM } from './nearby.js';
 import { ASK_KINDS, askKindOf, askGroups, askOrder, askRecItem, askTalkCurs, askCount, askLastList, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
-import { AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
+import { FLIGHT_WAYS, effFlight, depAp, AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
 import { dayAgenda, nextUp } from './agenda.js';
@@ -512,6 +512,9 @@ export function vWhere(s){
 // 비행기 시간 (js/flight.js): 넣으면 첫날·마지막 날 쓸 수 있는 시간을 비행기에 맞춤
 function flightBox(s, days){
   const f = s.flight || {}; const aps = AIRPORTS[s.city] || []; const first = days[0], last = days[days.length - 1];
+  const way = ['out', 'back'].includes(f.way) ? f.way : '';
+  const apSel = (id, key, label, cur) => `<label for="${id}">${label}<select id="${id}" data-flight="${key}">${aps.map(x => `<option value="${x.code}"${cur === x.code ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>`;
+  const ap1 = f.ap || (aps[0] || {}).code, ap2 = f.ap2 || ap1;
   const a = first.arrive, z = last.depart;
   const lines = [];
   if(a) lines.push(a.cap > 0
@@ -525,12 +528,12 @@ function flightBox(s, days){
     : `마지막 날 ${koTime(z.at)}${nightTag(z.at)} 출발 → 2시간 30분 전 공항 도착, 숙소에서 공항까지 약 ${fminText(z.transfer)} → <b>${koTime(z.leave)}에 숙소에서 나가요</b>.${last.cap > 0 ? ` 그 전에 약 ${last.cap}시간 다닐 수 있어요.` : ' 이날은 짐 싸고 공항 가는 날로 둘게요.'}`);
   return `<div class="box">
     <h2>비행기 시간<small>현지 시각 · 몰라도 돼요</small></h2>
+    <div class="chips" role="group" aria-label="항공권 종류">${FLIGHT_WAYS.map(([k, l]) => chip('flway', k, l, way === k)).join('')}</div>
+    ${way ? `<p class="fine">${way === 'out' ? '돌아오는 비행기가 없어요(배·기차로 다른 곳으로 가거나 아직 안 정함). 마지막 날은 반나절로 계산해요. 돌아오는 길은 일정 단계 \'오가는 길\'에 따로 넣을 수 있어요.' : '가는 비행기가 없어요(다른 곳에서 넘어오거나 배·기차로 옴). 첫날은 반나절로 계산해요.'}</p>` : ''}
+    ${aps.length > 1 ? `<div class="dates">${way !== 'back' ? apSel('fap', 'ap', way ? '공항' : '도착 공항', ap1) : ''}${way !== 'out' ? apSel('fap2', 'ap2', way ? '공항' : '출발 공항', ap2) : ''}</div>` : ''}
     <div class="dates">
-      ${aps.length > 1 ? `<label for="fap">공항<select id="fap" data-flight="ap">${aps.map(x => `<option value="${x.code}"${(f.ap || aps[0].code) === x.code ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}
-    </div>
-    <div class="dates">
-      <label for="farr">첫날 도착<input id="farr" type="time" value="${esc(f.arr || '')}" data-flight="arr"></label>
-      <label for="fdep">마지막 날 출발<input id="fdep" type="time" value="${esc(f.dep || '')}" data-flight="dep"></label>
+      ${way !== 'back' ? `<label for="farr">첫날 도착<input id="farr" type="time" value="${esc(f.arr || '')}" data-flight="arr"></label>` : ''}
+      ${way !== 'out' ? `<label for="fdep">마지막 날 출발<input id="fdep" type="time" value="${esc(f.dep || '')}" data-flight="dep"></label>` : ''}
     </div>
     ${lines.length ? `<p class="pnote">${lines.join('<br>')}</p>` : '<p class="fine">넣으면 첫날은 입국·공항에서 숙소까지 시간을 빼고, 마지막 날은 공항 가러 나서기 전까지만 일정을 짜요. 비우면 첫날·마지막 날은 반나절로 계산해요.</p>'}
     ${f.arr || f.dep ? '<div><button type="button" class="link" data-act="flightclear">비행기 시간 지우기</button></div>' : ''}
@@ -1133,7 +1136,7 @@ function transitBox(s, P){
 // 보관함 항공권 편명 → 운항 상태 바로가기 (dir 'out' 가는 편 / 'back' 오는 편)
 function flightRowLinks(s, dir){
   const L = bookings(s.vault).filter(it => it.kind === 'flight' && normFno(it.fno) && flightDir(s, it) === dir)
-    .flatMap(it => flightLinks(it.fno, (s.flight || {}).ap || it.ap, dir));
+    .flatMap(it => flightLinks(it.fno, (dir === 'back' ? depAp(s.flight) : (s.flight || {}).ap) || it.ap, dir));
   return L.length ? `<span class="mvtt">🛫 ${L.map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : '';
 }
 function agendaBox(s, d, P, live){
@@ -1205,8 +1208,8 @@ function prepBox(s, where){
 /* ---------- 오가는 길 (js/moves.js) ---------- */
 // 기본 이름: 도착 공항, 첫날 가는 숙소, 마지막 날 나서는 숙소
 export function moveCtx(s, P){
-  const ap = s.flight && (s.flight.arr || s.flight.dep) ? airportOf(s.city, s.flight.ap) : null; const D = P.days;
-  return { ap:ap ? ap.name : '', inHotel:D.length && D[0].to ? D[0].to.name : '', outHotel:D.length && D[D.length - 1].from ? D[D.length - 1].from.name : '' };
+  const ef = effFlight(s.flight); const on = !!(ef.arr || ef.dep); const ap = on ? airportOf(s.city, ef.ap) : null, ap2 = on ? airportOf(s.city, depAp(ef)) : null; const D = P.days;
+  return { ap:ap ? ap.name : '', ap2:ap2 ? ap2.name : '', inHotel:D.length && D[0].to ? D[0].to.name : '', outHotel:D.length && D[D.length - 1].from ? D[D.length - 1].from.name : '' };
 }
 // 이동 한 줄: 시각 | 수단 · 출발 → 도착 · 걸리는 시간 · 예약함 (+ 작은 글씨)
 

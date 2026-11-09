@@ -12,6 +12,16 @@ export const AIRPORTS = {
   hksz:[{ code:'HKG', name:'홍콩 국제공항', min:{ hk:50, sz:120 } }, { code:'SZX', name:'선전 바오안 공항', min:{ hk:130, sz:50 } }]   // 다른 도시로 가면 국경 포함
 };
 
+// 편도: way 'out'(가는 편만 비행기)이면 마지막 날 출발 시각을, 'back'(오는 편만)이면 첫날 도착 시각을 안 씀.
+//   돌아올 때 배·기차·육로로 가거나 다른 여행으로 이어 가는 경우. 값은 지우지 않아서 왕복으로 되돌리면 다시 쓰임
+export const FLIGHT_WAYS = [['', '왕복'], ['out', '가는 편만'], ['back', '오는 편만']];
+export function effFlight(f){
+  const x = Object.assign({ ap:'', arr:'', dep:'', ap2:'', way:'' }, f || {});
+  if(x.way === 'out') x.dep = ''; else if(x.way === 'back') x.arr = '';
+  return x;
+}
+// 오는 편 공항 (따로 안 골랐으면 도착 공항과 같음 — 홍콩 도착, 선전 출발처럼 다를 수 있음)
+export const depAp = f => (f && (f.ap2 || f.ap)) || '';
 export const toMin = t => { const m = /^(\d{1,2}):(\d{2})$/.exec(t || ''); return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null; };
 // 오는 편 출발 시각(분, 마지막 날 0시 기준). 밤 비행기(NIGHT_DEP 전)는 다음 날 새벽이라 1440을 더함 (예: 00:55 → 1495)
 export const depMin = f => { const t = toMin(f && f.dep); return t != null && t < NIGHT_DEP ? t + 1440 : t; };
@@ -50,7 +60,7 @@ export const capBetween = (from, to, base) => Math.max(0, Math.min(base, Math.ro
 //   o: 오가는 길(js/moves.js legOverride)에 넣은 공항 → 숙소 { time:타는 시각(분), min:걸리는 시간 } — 있으면 어림 대신 씀
 //   예약한 차가 입국·짐 찾기(1시간)보다 이르면 early: 비행기가 늦으면 기사님께 알려야 함
 export function arriveInfo(f, region, city, base, o){
-  const t = toMin(f && f.arr); if(t == null) return null;
+  f = effFlight(f); const t = toMin(f.arr); if(t == null) return null;
   const ap = airportOf(region, f.ap); const tr = o && o.min ? o.min : transferMin(ap, city);
   const pick = o && o.time != null && o.time >= t ? o.time : null;   // 도착보다 이른 시각은 날짜를 잘못 넣은 것으로 보고 무시
   const ready = Math.max(t + AFTER_LANDING, pick || 0) + tr + HOTEL_DROP;
@@ -60,8 +70,8 @@ export function arriveInfo(f, region, city, base, o){
 // 마지막 날: 출발 → 숙소에서 나서야 하는 시각(leave)·다닐 시간 (짐 찾으러 숙소에 들르는 30분 빼고)
 //   o: 숙소 → 공항 { time, min } — 시각을 넣었으면 그 시각에 나섬. 출발 1시간 30분 전에도 공항에 못 닿으면 late
 export function departInfo(f, region, city, base, o){
-  const t = depMin(f); if(t == null) return null;
-  const ap = airportOf(region, f.ap); const tr = o && o.min ? o.min : transferMin(ap, city);
+  f = effFlight(f); const t = depMin(f); if(t == null) return null;
+  const ap = airportOf(region, depAp(f)); const tr = o && o.min ? o.min : transferMin(ap, city);
   const set = !!(o && o.time != null && o.time < t); const leave = set ? o.time : t - EARLY - tr;
   return { at:t, leave, transfer:tr, ap, cap:capBetween(DAY_START, leave - (f.itc ? 0 : BAG_PICKUP), base),   // 시내 체크인(f.itc)이면 짐은 아침에 미리 부침
     ...(set ? { set:true } : {}), ...(set && leave + tr > t - 90 ? { late:true } : {}) };
