@@ -534,6 +534,7 @@ async function saveVault(){
   if(r.locate) findHotelLocations();
   if(r.msgs.length) toast(`일정에 반영했어요: ${r.msgs.join(' · ')}`);
   if(skipped.length) toast(`${skipped.join(', ')}은(는) 너무 크거나 저장 공간이 모자라 넣지 못했어요 (파일 하나 15MB까지).`);
+  if(fromRead && kind === 'flight' && s.sh.vread) s.sh.vread.flown = true;
   if(fromRead) nextDraft();
   else { const card = document.getElementById('v-' + it.id); if(card) card.scrollIntoView({ block:'center' }); }
 }
@@ -589,6 +590,7 @@ function vaultAct(a, v){
     case 'vedit': s.vedit = v; s.vdraft = null; render(); focusVaultForm(); return;
     case 'vcancel': s.vedit = null; s.vdraft = null; s.sh.vread = null; vreadFile = null; render(); return;
     case 'vreadsend': sendRead(); return;
+    case 'vreadback': s.sh.vread = null; s.mode = null; s.step = STEPS.indexOf('여행지'); save(); render(); { const b = document.getElementById('flreadfile'); if(b) b.closest('.box').scrollIntoView({ block:'start' }); } return;
     case 'vreadai': aiRead(); return;
     case 'vreadgo': { const j = readParse((document.getElementById('vreadpaste') || {}).value); if(!j){ s.sh.vread = Object.assign({}, s.sh.vread, { err:'답에서 예약 내용을 찾지 못했어요. AI 답 전체를 복사해 붙여 넣어 주세요.' }); render(); return; } useDrafts(readDrafts(s, j)); return; }
     case 'vcopy': { const it = s.vault.find(x => x.id === v); if(it && it.code) copyText(it.code, `예약번호 ${it.code}을(를) 복사했어요.`); return; }
@@ -1058,7 +1060,7 @@ function act(a, v){
       s.imports = s.imports.filter(r => !r.skip && !ready.includes(r));
       break;
     }
-    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vpcopy': case 'vview': case 'vreadsend': case 'vreadai': case 'vreadgo': case 'vdel': case 'vdel2': vaultAct(a, v); return;
+    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vpcopy': case 'vview': case 'vreadsend': case 'vreadai': case 'vreadback': case 'vreadgo': case 'vdel': case 'vdel2': vaultAct(a, v); return;
     case 'vapply': applyVaultAll(); return;
     case 'idwipe':
       if(!s.sh.idwipe){ s.sh.idwipe = true; render(); setTimeout(() => { if(state.sh.idwipe){ state.sh.idwipe = false; render(); } }, 4000); return; }
@@ -1623,8 +1625,8 @@ async function sendAsk(){
 /* ---------- 📄 확인서로 보관함 칸 채우기 (js/readdoc.js) ---------- */
 let vreadFile = null;   // 고른 확인서 (메모리에만, 저장할 때 그 예약에 첨부)
 const fileB64 = f => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => { const u = String(fr.result); ok({ mime:f.type || 'application/pdf', data:u.slice(u.indexOf(',') + 1) }); }; fr.onerror = no; fr.readAsDataURL(f); });
-async function readDoc(f){
-  const s = state; vreadFile = f; s.sh.vread = { name:f.name.slice(0, 60) };
+async function readDoc(f, from){
+  const s = state; vreadFile = f; s.sh.vread = { name:f.name.slice(0, 60), from:from || '' };
   if(!/^image\//.test(f.type) && f.type !== 'application/pdf'){ s.sh.vread.err = '사진이나 PDF만 읽을 수 있어요.'; vreadFile = null; render(); return; }
   if(f.size > 15 * 1048576){ s.sh.vread.err = '파일이 너무 커요 (15MB까지).'; vreadFile = null; render(); return; }
   // 먼저 이 폰 안에서: 글자를 꺼내(PDF는 pdf.js, 사진은 글자 인식) 규칙으로 칸을 찾음 (js/localread.js·docparse.js). 확인서는 밖으로 안 나감
@@ -1662,18 +1664,24 @@ async function aiRead(){
   }catch(e){ if(state.sh.vread === mine){ Object.assign(mine, { busy:false, err:'답이 늦어요. 다시 골라 주세요.' }); render(); } }
 }
 function useDrafts(list, how){
-  const s = state; const name = (s.sh.vread || {}).name || '';
-  if(!list.length){ s.sh.vread = { name, err:'확인서에서 예약 내용을 찾지 못했어요.' }; render(); return; }
+  const s = state; const name = (s.sh.vread || {}).name || '', from = (s.sh.vread || {}).from || '';
+  if(!list.length){ s.sh.vread = { name, from, err:'확인서에서 예약 내용을 찾지 못했어요.' }; render(); return; }
   const [first, ...rest] = list.map(d => Object.assign(d, { fromRead:true }));
   s.vedit = null; s.vdraft = first;
-  s.sh.vread = { name, queue:rest, msg:`${how ? how + ' ' : ''}확인서를 읽어 아래 칸을 채웠어요. 맞는지 보고 '보관함에 넣기'를 눌러 주세요.${list.length > 1 ? ` 이 확인서에 예약이 ${list.length}개 있어요 — 저장하면 다음 것을 이어서 채워요.` : ''}` };
+  s.sh.vread = { name, from, queue:rest, msg:`${how ? how + ' ' : ''}확인서를 읽어 아래 칸을 채웠어요. 맞는지 보고 '보관함에 넣기'를 눌러 주세요.${list.some(d => d.kind === 'flight') ? ' 넣으면 여행지의 비행기 시간·날짜도 채워져요.' : ''}${list.length > 1 ? ` 이 확인서에 예약이 ${list.length}개 있어요 — 저장하면 다음 것을 이어서 채워요.` : ''}` };
   render(); focusVaultForm();
 }
 // 저장한 뒤: 같은 확인서의 다음 편(오는 편 등)을 이어서
 function nextDraft(){
   const s = state; const r = s.sh.vread; if(!r || !r.queue) return;
   if(r.queue.length){ s.vdraft = r.queue.shift(); r.msg = `다음 예약을 채웠어요. 맞는지 보고 저장해 주세요.${r.queue.length ? ` (${r.queue.length}개 더)` : ''}`; render(); focusVaultForm(); }
-  else { s.sh.vread = null; vreadFile = null; }
+  else { vreadFile = null; const back = r.from === 'where' && r.flown; s.sh.vread = back ? { back:'항공권을 보관함에 넣고 여행지의 날짜·비행기 시간에도 반영했어요.' } : null; if(back) render(); }
+}
+// 여행지 단계 비행기 시간 칸에 넣은 확인서: 보관함으로 옮겨 바로 읽음. 저장하면 날짜·비행기 시간이 채워짐(bookings.js applyFlight)
+function readFromWhere(f){
+  const s = state; s.mode = null; s.step = VAULT_STEP; s.vedit = null; s.vdraft = null; save();
+  readDoc(f, 'where');
+  const b = document.getElementById('vread'); if(b) b.scrollIntoView({ block:'start' });
 }
 async function sendRead(){
   const s = state; if(!vreadFile) return; const text = readAppPrompt(s); const copied = clipText(text);
@@ -1685,6 +1693,7 @@ async function sendRead(){
 function onChange(e){
   const t = e.target; const s = state;
   if(t.id === 'vreadfile'){ const f = t.files && t.files[0]; if(f) readDoc(f); return; }
+  if(t.id === 'flreadfile'){ const f = t.files && t.files[0]; if(f) readFromWhere(f); return; }
   if(t.dataset.kid != null){ s.kids[+t.dataset.kid] = Math.min(17, Math.max(0, parseInt(t.value, 10) || 0)); }
   else if(t.dataset.date){ if(!t.value) return; setTripDate(s, t.dataset.date, t.value); s.fullDay = {}; s.assign = {}; s.dlock = {}; s.nights = {}; }
   else if(t.dataset.full){
@@ -1833,6 +1842,13 @@ function onSubmit(e){
 
 document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if(!b || b.disabled) return; act(b.dataset.act, b.dataset.v); });
 document.addEventListener('change', onChange);
+// 확인서를 끌어다 놓기 (PC): 여행지 비행기 칸·보관함 확인서 칸
+document.addEventListener('dragover', e => { if(e.target.closest && e.target.closest('[data-dropread]')) e.preventDefault(); });
+document.addEventListener('drop', e => {
+  const z = e.target.closest && e.target.closest('[data-dropread]'); if(!z) return;
+  e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(!f) return;
+  if(z.dataset.dropread === 'where') readFromWhere(f); else readDoc(f);
+});
 document.addEventListener('submit', onSubmit);
 {
   const j = parseJoin(location.hash);

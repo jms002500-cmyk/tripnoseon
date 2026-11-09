@@ -501,7 +501,7 @@ export function vWhere(s){
       <label for="dend">오는 날<input id="dend" type="date" value="${esc(s.end)}"${s.start && !datesReversed(s) ? ` min="${esc(s.start)}"` : ''} data-date="end"></label>
     </div>
     ${datesReversed(s) ? '<p class="warnline">가는 날이 오는 날보다 늦어요. 오는 날을 다시 골라 주세요.</p>' : ''}
-    ${days.length ? flightBox(s, days) : ''}
+    ${days.length ? flightBox(s, days) : `<div class="box"><h2>비행기 표가 있나요?<small>있으면 넣어 주세요</small></h2>${FLREAD}<p class="fine">항공권 확인서를 넣으면 보관함으로 옮겨 이 폰 안에서 바로 읽고, 저장하면 가는 날·오는 날과 비행기 시간을 채워요.</p></div>`}
     ${days.length ? `<div class="box">
       <div class="row"><h2>${days.length-1}박 ${days.length}일</h2><span class="fine">${PACE[s.pace].label} 기준</span></div>
       <ol class="daystrip">${days.map(d => `<li>${badge(d.i)}<div><b>${d.label}</b><span>${kindLabel(d.kind)} · 쓸 수 있는 시간 약 ${d.cap}시간${d.arrive ? ` · ${koTime(d.arrive.ready)}부터` : ''}${d.depart && d.depart.leave >= 0 ? ` · ${koTime(d.depart.leave)} 숙소에서 공항으로` : ''}</span></div></li>`).join('')}</ol>
@@ -511,6 +511,8 @@ export function vWhere(s){
   </section>`;
 }
 
+// 📄 항공권 확인서 넣기 (여행지 단계): 고르거나 끌어다 놓으면 보관함으로 옮겨 이 기기 안에서 바로 읽음 (app.js readFromWhere)
+const FLREAD = `<label class="flread" for="flreadfile" data-dropread="where">📄 항공권 확인서 넣기 <small>사진·PDF · 넣으면 보관함에서 바로 읽어요</small><input id="flreadfile" type="file" accept="image/*,application/pdf"></label>`;
 // 비행기 시간 (js/flight.js): 넣으면 첫날·마지막 날 쓸 수 있는 시간을 비행기에 맞춤
 function flightBox(s, days){
   const f = s.flight || {}; const aps = AIRPORTS[s.city] || []; const first = days[0], last = days[days.length - 1];
@@ -530,6 +532,7 @@ function flightBox(s, days){
     : `마지막 날 ${koTime(z.at)}${nightTag(z.at)} 출발 → 2시간 30분 전 공항 도착, 숙소에서 공항까지 약 ${fminText(z.transfer)} → <b>${koTime(z.leave)}에 숙소에서 나가요</b>.${last.cap > 0 ? ` 그 전에 약 ${last.cap}시간 다닐 수 있어요.` : ' 이날은 짐 싸고 공항 가는 날로 둘게요.'}`);
   return `<div class="box">
     <h2>비행기 시간<small>현지 시각 · 몰라도 돼요</small></h2>
+    ${FLREAD}
     <div class="chips" role="group" aria-label="항공권 종류">${FLIGHT_WAYS.map(([k, l]) => chip('flway', k, l, way === k)).join('')}</div>
     ${way ? `<p class="fine">${way === 'out' ? '돌아오는 비행기가 없어요(배·기차로 다른 곳으로 가거나 아직 안 정함). 마지막 날은 반나절로 계산해요. 돌아오는 길은 일정 단계 \'오가는 길\'에 따로 넣을 수 있어요.' : '가는 비행기가 없어요(다른 곳에서 넘어오거나 배·기차로 옴). 첫날은 반나절로 계산해요.'}</p>` : ''}
     ${aps.length > 1 ? `<div class="dates">${way !== 'back' ? apSel('fap', 'ap', way ? '공항' : '도착 공항', ap1) : ''}${way !== 'out' ? apSel('fap2', 'ap2', way ? '공항' : '출발 공항', ap2) : ''}</div>` : ''}
@@ -1599,12 +1602,13 @@ function vPaxField(s, editing){
 // 📄 확인서로 칸 채우기 (js/readdoc.js): 키가 있으면 앱 안에서 바로, 없으면 AI 앱으로 보내고 답 붙여 넣기
 function vReadBox(s){
   const r = s.sh.vread || {}; let key = false; try{ key = !!askKeyNow(askKeys(localStorage)); }catch(e){}
-  return `<div class="box vread" id="vread">
+  return `<div class="box vread" id="vread" data-dropread="vault">
       <h2>📄 확인서로 칸 채우기<small>항공권 e-티켓·숙소 바우처·입장권</small></h2>
       <label for="vreadfile">확인서 사진·PDF 고르기<input id="vreadfile" type="file" accept="image/*,application/pdf"></label>
       ${r.busy ? `<p class="fine">‘${esc(r.name || '')}’ ${r.local ? `이 폰 안에서 읽는 중…${r.prog ? ` ${r.prog}%` : ''} (처음 한 번은 읽기 도구를 받아요)` : 'AI로 읽는 중… (10~30초)'}</p>` : ''}
       ${r.err ? `<p class="warnline">${esc(r.err)}</p>` : ''}
       ${r.msg ? `<p class="pnote">${esc(r.msg)}</p>` : ''}
+      ${r.back ? `<p class="pnote">${esc(r.back)}</p><div class="pfoot"><button type="button" class="primary small" data-act="vreadback">✈️ 여행지에서 비행기 시간 보기</button></div>` : ''}
       ${r.name && r.localFail && !r.busy && !r.msg ? `${key ? '<div class="pfoot"><button type="button" class="primary small" data-act="vreadai">AI로 읽기 (내 구글 키 · 확인서를 구글에 보내요)</button></div>' : ''}
       <p class="fine">또는 ‘${esc(r.name)}’을 쓰시는 AI 앱(제미나이·ChatGPT 등)으로 보내 읽고, 받은 답을 아래에 붙여 넣어도 돼요.</p>
       <div class="pfoot"><button type="button" class="${key ? 'ghost' : 'primary'} small" data-act="vreadsend">AI 앱으로 보내기</button></div>
