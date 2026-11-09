@@ -117,6 +117,21 @@ function commentList(s, cms, placeId){
     </div>`;
 }
 
+// 내 계정의 공유 여행 (다른 기기에서 만든 여행을 이 기기에서 열기)
+const tripSpan = t => t.start ? `${+t.start.slice(5, 7)}/${+t.start.slice(8, 10)}${t.end ? `~${+t.end.slice(5, 7)}/${+t.end.slice(8, 10)}` : ''}` : '날짜 미정';
+function mineBox(s){
+  const sh = s.sh;
+  if(sh.mineBusy && !sh.mine) return '<p class="fine">이 계정의 여행을 찾는 중…</p>';
+  if(sh.mineErr) return `<p class="warnline">이 계정의 여행을 불러오지 못했어요. <button type="button" class="link" data-act="mineagain">다시 찾기</button></p>`;
+  const L = sh.mine || []; if(!L.length) return '';
+  return `<div class="box" id="minebox"><h2>내 계정의 함께 짜는 여행</h2>
+      <p class="fine">다른 기기(폰·PC)에서 이 구글 계정으로 만들거나 참여한 여행이에요. 열면 두 기기가 같은 여행으로 이어져서, 어느 쪽에서 고쳐도 서로 바로 보여요.</p>
+      <ul class="implist">${L.map(t => `<li class="imp"><div class="sbody"><b>${esc(t.title)}</b><span>${esc([(REGIONS[t.city] || {}).name, tripSpan(t), `${t.n}명`, t.picked ? `장소 ${t.picked}곳` : ''].filter(Boolean).join(' · '))}</span></div>
+        <button type="button" class="primary small" data-act="mineopen" data-v="${esc(t.id)}">이 기기에서 열기</button></li>`).join('')}</ul>
+    </div>`;
+}
+const DEVICE_TIP = '<p class="fine">📱💻 폰과 PC를 같이 쓰려면 두 기기에서 같은 구글 계정으로 로그인하세요. 다른 기기의 \'함께 짜기\'에 이 여행이 떠서 한 번에 열리고, 그 뒤로는 어느 쪽에서 고쳐도 서로 바로 보여요.</p>';
+
 // 함께 짜기 창
 export function SHEET(s){
   const sh = s.sh; const me = sh.user; const t = sh.trip;
@@ -126,11 +141,13 @@ export function SHEET(s){
   if(!sh.authReady) body = '<p class="fine">불러오는 중…</p>';
   else if(!me) body = `<h2>가족·친구와 일정을 함께 짜요</h2>
       <p class="pnote">${sh.pendingJoin ? '초대받은 여행에 참여하려면 구글로 로그인해 주세요.' : '구글로 로그인하고 이 여행을 공유하면, 초대 링크를 받은 사람이 함께 장소를 담고 숙소를 고르고 의견을 남길 수 있어요. 바꾼 내용은 서로의 화면에 바로 보여요.'}</p>
-      <div><button type="button" class="primary small" data-act="login">구글로 로그인</button></div>${note}`;
-  else if(sh.pendingJoin && sh.pendingJoin !== s.shareId) body = `<h2>초대받은 여행에 참여할까요?</h2>
+      <div><button type="button" class="primary small" data-act="login">구글로 로그인</button></div>${sh.pendingJoin ? '' : '<p class="fine">📱💻 다른 기기(폰·PC)에서 짜던 여행이 있으면, 그 기기와 같은 구글 계정으로 로그인하세요. 그 여행을 이 기기에서 바로 열 수 있어요.</p>'}${note}`;
+  else if(sh.pendingJoin && sh.pendingJoin !== s.shareId){ const mt = (sh.mine || []).find(x => x.id === sh.pendingJoin); body = `${mt ? `<h2>'${esc(mt.title)}'을(를) 이 기기에서 열까요?</h2>
+      <p class="pnote">이 기기의 일정이 그 여행 일정(${esc(tripSpan(mt))}${mt.picked ? `, 장소 ${mt.picked}곳` : ''})으로 바뀌고, 그 뒤로는 다른 기기와 서로 바로 이어져요. 지금 이 기기의 일정은 따로 보관해 두니, 나중에 되돌릴 수 있어요.</p>
+      <div class="pfoot"><button type="button" class="primary small" data-act="joinok"${sh.busy ? ' disabled' : ''}>${sh.busy ? '여는 중…' : '이 기기에서 열기'}</button>` : `<h2>초대받은 여행에 참여할까요?</h2>
       <p class="pnote">참여하면 이 기기의 일정이 공유 여행 일정으로 바뀌어요. 지금 일정은 따로 보관해 두니, 나중에 되돌릴 수 있어요.</p>
-      <div class="pfoot"><button type="button" class="primary small" data-act="joinok"${sh.busy ? ' disabled' : ''}>${sh.busy ? '참여하는 중…' : `${esc(me.name)}(으)로 참여하기`}</button><button type="button" class="ghost small" data-act="joincancel">취소</button></div>${note}`;
-  else if(!s.shareId) body = `<h2>이 여행을 공유해요</h2>
+      <div class="pfoot"><button type="button" class="primary small" data-act="joinok"${sh.busy ? ' disabled' : ''}>${sh.busy ? '참여하는 중…' : `${esc(me.name)}(으)로 참여하기`}</button>`}<button type="button" class="ghost small" data-act="joincancel">취소</button></div>${note}`; }
+  else if(!s.shareId) body = `${mineBox(s)}<h2>${(sh.mine || []).length ? '또는 이 기기의 일정을 새로 공유해요' : '이 여행을 공유해요'}</h2>
       <label for="sharetitle" class="shlabel">여행 이름<input id="sharetitle" type="text" maxlength="40" value="${esc(defaultTitle(s))}"></label>
       <div><button type="button" class="primary small" data-act="sharestart"${sh.busy ? ' disabled' : ''}>${sh.busy ? '만드는 중…' : '공유 시작하고 초대 링크 받기'}</button></div>
       ${sh.hasBackup ? '<p class="fine">공유 여행에 참여하기 전의 내 일정이 보관돼 있어요. <button type="button" class="link" data-act="restore">그 일정으로 되돌리기</button></p>' : ''}
@@ -148,6 +165,7 @@ export function SHEET(s){
         <div class="pfoot"><button type="button" class="primary small" data-act="sendlink">링크 보내기</button><button type="button" class="ghost small" data-act="copylink">복사</button>
           ${owner ? `<button type="button" class="link" data-act="linkopen">${t.open ? '초대 링크 닫기' : '초대 링크 다시 열기'}</button>` : ''}</div>
         <p class="fine">이 링크를 받은 사람은 구글로 로그인해 참여할 수 있어요. 다 모이면 링크를 닫아 두세요.</p>
+        ${DEVICE_TIP}
       </div>
       <div class="box"><h2>참여자 ${members.length}명</h2>
         <ul class="implist">${members.map(m => `<li class="imp"><div class="sbody"><b>${esc(m.name)}${m.uid === me.uid ? ' (나)' : ''}</b><span>${m.uid === t.ownerUid ? '여행 주인' : '참여자'}</span></div>

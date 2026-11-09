@@ -178,12 +178,19 @@ async function startShare(){
   try{
     await SH.watchUser(u => {
       const sh = state.sh; sh.user = u; sh.authReady = true;
-      if(u && state.shareId) watchTrip(); else if(!u) unwatch();
+      if(u && state.shareId) watchTrip(); else if(!u){ unwatch(); sh.mine = null; } else loadMine();
       render();
     });
   }catch(e){ userWatching = false; state.sh.msg = '함께 짜기를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요.'; state.sh.authReady = true; render(); }
 }
 
+// 이 계정의 공유 여행 (이 기기에 공유 여행이 없을 때): 폰에서 만든 여행을 PC에서 같은 계정으로 로그인해 바로 열게
+async function loadMine(){
+  const sh = state.sh; if(!sh.user || state.shareId || sh.mineBusy) return;
+  sh.mineBusy = true; sh.mineErr = false; render();
+  try{ sh.mine = await SH.myTrips(sh.user.uid); }catch(e){ sh.mine = null; sh.mineErr = true; }
+  sh.mineBusy = false; render();
+}
 function unwatch(){ unsubs.forEach(f => { try{ f(); }catch(e){} }); unsubs = []; }
 
 // 서버가 받아 준 마지막 공유 일정을 이 기기에도 남김(BASE_KEY). 지하철처럼 끊긴 곳에서 고치고 앱을 닫았다가
@@ -240,7 +247,7 @@ function stopShare(msg){
   state.locOn = false; stopGeo(); state.sh.locs = [];
   unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();
   const s = state; s.shareId = null; s.sh.trip = null; s.sh.votes = {}; s.sh.comments = []; s.sh.log = []; s.sh.cmPlace = null; s.sh.msg = msg || '';
-  saveLocal(); render();
+  s.sh.mine = null; saveLocal(); render(); loadMine();   // 공유를 끊으면 이 계정의 다른 여행을 다시 보여 줌
 }
 
 // 남이 내 장소를 빼거나 날짜를 옮김 → 장소 담기·일정 위에 알림(되돌리기). 이 기기 화면에만, 최근 10개
@@ -312,7 +319,7 @@ async function shareAct(a, v){
         try{ await SH.joinTrip(jid, u); }catch(e){ /* 이미 참여한 여행이면 규칙상 거절됨 → 그대로 열어 봄 */ }
         unwatch(); clearTimeout(pushTimer); forgetSync();   // 첫 일정은 서버 것을 그대로 받음
         s.shareId = jid; sh.pendingJoin = null; sh.busy = false; sh.hasBackup = true; saveLocal(); watchTrip();
-        SH.addLog(jid, u, '여행에 참여함').catch(() => {});
+        SH.addLog(jid, u, (sh.mine || []).some(x => x.id === jid) ? '다른 기기에서 열었음' : '여행에 참여함').catch(() => {});
         break;
       }
       case 'joincancel': sh.pendingJoin = null; break;
@@ -1080,7 +1087,9 @@ function act(a, v){
     case 'bkrestore': doRestore(); return;
     case 'bkcancel': s.sh.restore = null; render(); return;
     case 'bkundo': undoRestore(); return;
-    case 'shareopen': s.sh.open = true; startShare(); render(); return;
+    case 'shareopen': s.sh.open = true; startShare(); if(s.sh.user && !s.shareId) loadMine(); render(); return;
+    case 'mineopen': s.sh.pendingJoin = v; render(); return;   // 내 계정의 여행을 이 기기에서 열기 → 참여 확인(지금 일정은 백업)과 같은 길
+    case 'mineagain': loadMine(); return;
     case 'shareclose': s.sh.open = false; render(); return;
     case 'cumove': case 'cuall': {   // 늦었을 때 남은 일정 옮기기 (오늘 남기는 곳은 오늘에 고정)
       const P = plan(s); const di = P.days.findIndex(d => d.key === s.sh.today); if(di < 0) return;

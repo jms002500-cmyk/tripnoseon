@@ -2,7 +2,7 @@
 // Firebase는 '함께 짜기'를 열거나 공유 여행이 있을 때만 불러옴 (혼자 쓰는 사람은 아무것도 안 받음).
 // 접근 규칙은 firestore.rules (참여자만 읽고 고침).
 import { firebaseConfig } from './firebase-config.js';
-import { DELETE, tripSnap } from './sharecore.js';
+import { DELETE, tripSnap, tripCard, sortTrips } from './sharecore.js';
 import { withTimeout } from './net.js';
 
 const V = '12.19.0';
@@ -65,6 +65,14 @@ export async function createTrip(user, title, shared){
     createdAt:F.fs.serverTimestamp(), updatedAt:F.fs.serverTimestamp(), updatedBy:{ uid:user.uid, name:user.name }
   });
   return ref.id;
+}
+
+// 이 계정이 참여한 공유 여행 목록 (규칙상 참여자만 볼 수 있어서 memberUids로 거름. 정렬은 기기에서 — 색인이 필요 없게)
+export async function myTrips(uid){
+  await load();
+  const q = F.fs.query(F.fs.collection(F.db, 'trips'), F.fs.where('memberUids', 'array-contains', uid), F.fs.limit(20));
+  const snap = await withTimeout(F.fs.getDocs(q), 20000);
+  return sortTrips(snap.docs.map(d => { const x = d.data(); const t = x.updatedAt && x.updatedAt.toMillis ? x.updatedAt.toMillis() : 0; return tripCard(d.id, x, uid, t); }));
 }
 
 export async function joinTrip(id, user){

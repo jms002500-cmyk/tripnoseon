@@ -282,6 +282,18 @@ export function othersChanged(before, after, me, changer){
 //   끊긴 채로 열면 Firestore가 서버에 묻지 못하고 '이 기기 사본엔 없음'(exists:false, fromCache:true)을 먼저 줌.
 //   그걸 '지워졌어요'로 보면 공유가 끊기고 끊긴 동안 고친 것도 못 올림 → 서버가 답할 때까지 기다림
 export function tripSnap(exists, fromCache){ return exists ? 'data' : fromCache ? 'wait' : 'gone'; }
+// 내 계정의 공유 여행 한 줄 (폰·PC 등 다른 기기에서 같은 계정으로 로그인했을 때 '이 기기에서 열기'용)
+//   data: 서버 여행 문서, at: 마지막으로 고친 때(ms) — 서버 시각 객체는 share.js가 숫자로 바꿔 넘김
+export function tripCard(id, data, uid, at){
+  const d = data && typeof data === 'object' ? data : {}; const p = d.p && typeof d.p === 'object' ? d.p : {};
+  const str = v => typeof v === 'string' ? v : '';
+  return { id:String(id), title:str(d.title).slice(0, 40) || '함께 짜는 여행', city:str(p.city), start:str(p.start), end:str(p.end),
+    n:Array.isArray(d.memberUids) ? d.memberUids.length : 0, owner:!!uid && d.ownerUid === uid,
+    picked:p.picked && typeof p.picked === 'object' ? Object.values(p.picked).filter(Boolean).length : 0, at:Number.isFinite(at) ? at : 0 };
+}
+// 최근에 고친 여행부터
+export const sortTrips = list => (list || []).slice().sort((a, b) => b.at - a.at);
+
 export function inviteLink(base, tripId){ return `${base.split('#')[0]}#join=${tripId}`; }
 export function parseJoin(hash){ const m = String(hash || '').match(/^#join=([A-Za-z0-9]{10,40})$/); return m ? m[1] : null; }
 

@@ -281,3 +281,13 @@ test('누가 담았는지: 새로 담은 곳·날짜 바꾼 곳은 이 기기 �
   // 기록 한 줄에는 '일정 수정'이 끼지 않음
   assert.equal(describeChange(sharedOf(base()), sharedOf(Object.assign(base(), { by:{ tdl:{ u:'A', at:1 } } }))), '');
 });
+
+test('내 계정의 여행 목록: 한 줄 모양·최근 고친 순', async () => {
+  const { tripCard, sortTrips } = await import('../js/sharecore.js');
+  const c = tripCard('t1', { title:'홍콩 가족', ownerUid:'u1', memberUids:['u1', 'u2'], p:{ city:'hksz', start:'2026-12-20', end:'2026-12-26', picked:{ a:true, b:true, c:false } } }, 'u1', 5);
+  assert.deepEqual(c, { id:'t1', title:'홍콩 가족', city:'hksz', start:'2026-12-20', end:'2026-12-26', n:2, owner:true, picked:2, at:5 });
+  const bad = tripCard('t2', { title:'<b>'.repeat(30), p:'x', memberUids:'u1' }, 'u9');
+  assert.equal(bad.title.length, 40); assert.equal(bad.n, 0); assert.equal(bad.picked, 0); assert.equal(bad.owner, false); assert.equal(bad.at, 0);
+  assert.equal(tripCard('t3', null, 'u1').title, '함께 짜는 여행');
+  assert.deepEqual(sortTrips([{ id:'a', at:1 }, { id:'b', at:9 }, { id:'c', at:5 }]).map(x => x.id), ['b', 'c', 'a']);
+});
