@@ -50,6 +50,7 @@ import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 import { gsaveUrl, gsaveList, isSaved } from './gsave.js';
 import { docsOf, docLabel } from './docs.js';
 import { travellers, paxOf, PAX_KINDS } from './pax.js';
+import { askKeyNow } from './askai.js';
 
 export function partyText(s){
   if(!s.who) return '동행 미정';
@@ -1595,6 +1596,23 @@ function vPaxField(s, editing){
     </details>`;
 }
 
+// 📄 확인서로 칸 채우기 (js/readdoc.js): 키가 있으면 앱 안에서 바로, 없으면 AI 앱으로 보내고 답 붙여 넣기
+function vReadBox(s){
+  const r = s.sh.vread || {}; let key = false; try{ key = !!askKeyNow(askKeys(localStorage)); }catch(e){}
+  return `<div class="box vread" id="vread">
+      <h2>📄 확인서로 칸 채우기<small>항공권 e-티켓·숙소 바우처·입장권</small></h2>
+      <label for="vreadfile">확인서 사진·PDF 고르기<input id="vreadfile" type="file" accept="image/*,application/pdf"></label>
+      ${r.busy ? `<p class="fine">‘${esc(r.name || '')}’ 읽는 중… (10~30초)</p>` : ''}
+      ${r.err ? `<p class="warnline">${esc(r.err)}</p>` : ''}
+      ${r.msg ? `<p class="pnote">${esc(r.msg)}</p>` : ''}
+      ${r.name && !key && !r.busy && !r.msg ? `<p class="fine">AI 키가 없어서 ‘${esc(r.name)}’을 쓰시는 AI 앱(제미나이·ChatGPT 등)으로 보내 읽어요. 앱에서 받은 답을 아래에 붙여 넣으세요.</p>
+      <div class="pfoot"><button type="button" class="primary small" data-act="vreadsend">AI 앱으로 보내기</button></div>
+      <label for="vreadpaste">AI 답 붙여 넣기<textarea id="vreadpaste" rows="3" placeholder='{"kind":"flight", …}'></textarea></label>
+      <div class="pfoot"><button type="button" class="ghost small" data-act="vreadgo">답으로 칸 채우기</button></div>` : ''}
+      <p class="fine">${key ? '고르면 내 구글 AI 키로 바로 읽어요.' : 'AI 키를 넣으면(📷 묻기 창) 고르자마자 앱 안에서 읽어요.'} 날짜·시각·편명·공항·예약번호·탑승객을 아래 칸에 채우고, 확인서 파일도 그 예약에 첨부해요. 저장 전에 꼭 확인해 주세요. 보내는 것은 고른 확인서 한 장뿐이에요.</p>
+    </div>`;
+}
+
 function vaultCard(s, it){
   const k = kindOf(it.kind); const pn = it.placeId ? placeName(s, it.placeId) : '';
   const armed = s.sh && s.sh.vdel === it.id; const link = safeHttpsUrl(it.link);
@@ -1663,6 +1681,7 @@ export function vVault(s){
     ${items.some(it => it.kind === 'flight' || it.kind === 'hotel' || (PLACE_KINDS.includes(it.kind) && it.placeId)) ? `<div><button type="button" class="ghost small" data-act="vapply">↻ 보관함 예약을 일정에 다시 반영</button></div>` : ''}
     ${groups.length ? groups.map(g => `<h2 class="vday">${esc(vaultDay(s, g.date))}</h2><div class="list">${g.items.map(it => vaultCard(s, it)).join('')}</div>`).join('')
       : '<p class="empty">아직 넣은 예약이 없어요. 아래에서 첫 예약을 넣어 보세요.</p>'}
+    ${editing ? '' : vReadBox(s)}
     <form class="box" id="vaultform" autocomplete="off" data-kind="${esc(d.kind || 'flight')}">
       <h2>${editing ? '예약 고치기' : '보관함에 넣기'}</h2>
       <div class="row2">
@@ -1682,7 +1701,7 @@ export function vVault(s){
       <label for="vlink">예약 페이지 주소 (선택)<input id="vlink" type="url" inputmode="url" value="${esc(d.link || '')}" placeholder="https://"></label>
       <label for="vmemo">메모 (선택)<textarea id="vmemo" rows="2" maxlength="300" placeholder="예: 체크인 15시 · 짐은 프런트에 맡기기">${esc(d.memo || '')}</textarea></label>
       <label for="vfiles">티켓·QR 사진, PDF (선택, 여러 개)<input id="vfiles" type="file" accept="image/*,application/pdf" multiple></label>
-      ${vPaxField(s, editing)}
+      ${vPaxField(s, editing || (s.vdraft && s.vdraft.pcode ? s.vdraft : null))}
 
       ${editing && (editing.files || []).length ? `<p class="fine">이미 넣은 첨부 ${editing.files.length}개는 그대로 둬요. 새로 고른 파일은 더해져요.</p>` : ''}
       <div class="pfoot"><button type="submit" class="primary small">${editing ? '고친 내용 저장' : '보관함에 넣기'}</button>

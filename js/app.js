@@ -15,6 +15,7 @@ import { hkoWant, hkoDue, hkDates, loadHko, mergeHkoState } from './hko.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
 import { travellers, PAX_KINDS } from './pax.js';
+import { READ_SCHEMA, readPrompt, readAppPrompt, readParse, readDrafts } from './readdoc.js';
 import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
 import { planText } from './agenda.js';
 import { whereOf, tzOffset, HOME_TZ, HERE_FRESH } from './clock.js';
@@ -491,6 +492,8 @@ async function saveVault(){
   const s = state, g = id => document.getElementById(id);
   const title = g('vtitle').value.trim(); if(!title) return;
   const picked = Array.from(g('vfiles').files || []);
+  const fromRead = !s.vedit && s.vdraft && s.vdraft.fromRead;   // 확인서로 채운 예약이면 그 확인서도 첨부
+  if(fromRead && vreadFile && !picked.some(f => f.name === vreadFile.name && f.size === vreadFile.size)) picked.push(vreadFile);
   const editing = s.vedit ? s.vault.find(x => x.id === s.vedit) : null;
   const it = editing || { id:'v' + Date.now().toString(36), files:[] };
   const kind = g('vkind').value;
@@ -529,7 +532,8 @@ async function saveVault(){
   if(r.locate) findHotelLocations();
   if(r.msgs.length) toast(`일정에 반영했어요: ${r.msgs.join(' · ')}`);
   if(skipped.length) toast(`${skipped.join(', ')}은(는) 너무 크거나 저장 공간이 모자라 넣지 못했어요 (파일 하나 15MB까지).`);
-  const card = document.getElementById('v-' + it.id); if(card) card.scrollIntoView({ block:'center' });
+  if(fromRead) nextDraft();
+  else { const card = document.getElementById('v-' + it.id); if(card) card.scrollIntoView({ block:'center' }); }
 }
 
 async function deleteVault(id){
@@ -581,7 +585,9 @@ function vaultAct(a, v){
     case 'vnew': s.vedit = null; s.vdraft = null; render(); focusVaultForm(); return;
     case 'vaddq': { const m = missingBookings(s, bookings(s.vault))[+v]; if(!m) return; s.vedit = null; s.vdraft = m; render(); focusVaultForm(); return; }
     case 'vedit': s.vedit = v; s.vdraft = null; render(); focusVaultForm(); return;
-    case 'vcancel': s.vedit = null; s.vdraft = null; render(); return;
+    case 'vcancel': s.vedit = null; s.vdraft = null; s.sh.vread = null; vreadFile = null; render(); return;
+    case 'vreadsend': sendRead(); return;
+    case 'vreadgo': { const j = readParse((document.getElementById('vreadpaste') || {}).value); if(!j){ s.sh.vread = Object.assign({}, s.sh.vread, { err:'답에서 예약 내용을 찾지 못했어요. AI 답 전체를 복사해 붙여 넣어 주세요.' }); render(); return; } useDrafts(readDrafts(s, j)); return; }
     case 'vcopy': { const it = s.vault.find(x => x.id === v); if(it && it.code) copyText(it.code, `예약번호 ${it.code}을(를) 복사했어요.`); return; }
     case 'vpcopy': { const [id, k] = v.split('|'); const it = s.vault.find(x => x.id === id); const c = it && it.pcode && it.pcode[k]; if(c) copyText(c, `번호 ${c}을(를) 복사했어요.`); return; }
     case 'vview': { const [id, fid] = v.split('|'); openViewer(id, fid); return; }
@@ -1049,7 +1055,7 @@ function act(a, v){
       s.imports = s.imports.filter(r => !r.skip && !ready.includes(r));
       break;
     }
-    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vpcopy': case 'vview': case 'vdel': case 'vdel2': vaultAct(a, v); return;
+    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vpcopy': case 'vview': case 'vreadsend': case 'vreadgo': case 'vdel': case 'vdel2': vaultAct(a, v); return;
     case 'vapply': applyVaultAll(); return;
     case 'idwipe':
       if(!s.sh.idwipe){ s.sh.idwipe = true; render(); setTimeout(() => { if(state.sh.idwipe){ state.sh.idwipe = false; render(); } }, 4000); return; }
@@ -1611,8 +1617,55 @@ async function sendAsk(){
   } else { await copied; toast('이 브라우저에서는 사진을 바로 보낼 수 없어요. 부탁 문장을 복사해 뒀으니 AI를 열고 사진을 붙여 주세요.'); }
 }
 
+/* ---------- 📄 확인서로 보관함 칸 채우기 (js/readdoc.js) ---------- */
+let vreadFile = null;   // 고른 확인서 (메모리에만, 저장할 때 그 예약에 첨부)
+const fileB64 = f => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => { const u = String(fr.result); ok({ mime:f.type || 'application/pdf', data:u.slice(u.indexOf(',') + 1) }); }; fr.onerror = no; fr.readAsDataURL(f); });
+async function readDoc(f){
+  const s = state; vreadFile = f; s.sh.vread = { name:f.name.slice(0, 60) };
+  if(!/^image\//.test(f.type) && f.type !== 'application/pdf'){ s.sh.vread.err = '사진이나 PDF만 읽을 수 있어요.'; vreadFile = null; render(); return; }
+  if(f.size > 15 * 1048576){ s.sh.vread.err = '파일이 너무 커요 (15MB까지).'; vreadFile = null; render(); return; }
+  let info = null; try{ info = askKeyNow(askKeys(localStorage)); }catch(e){}
+  if(!info){ render(); return; }   // 키가 없으면 AI 앱으로 보내기 (vreadsend)
+  if(!navigator.onLine){ s.sh.vread.err = '인터넷이 끊겨 있어요. 연결되면 다시 골라 주세요.'; render(); return; }
+  s.sh.vread.busy = true; render();
+  const mine = s.sh.vread;
+  try{
+    const doc = f.type === 'application/pdf' ? await fileB64(f) : await askImage(f);
+    const token = info.kind === 'sa' ? await vertexToken(info.sa) : '';
+    if(info.kind === 'sa' && !token){ Object.assign(mine, { busy:false, err:'키가 맞지 않아요. 키를 다시 넣어 주세요.' }); render(); return; }
+    const body = JSON.stringify(geminiBody(readPrompt(s), doc.mime, doc.data, READ_SCHEMA));
+    const headers = Object.assign({ 'Content-Type':'application/json' }, token ? { Authorization:`Bearer ${token}` } : { 'x-goog-api-key':info.key });
+    let r; for(const u of askTargets(info)){ r = await fetchTimed(u, { method:'POST', headers, body }, 90000); if(r.status !== 404) break; }
+    const j = await r.json().catch(() => null); const data = r.ok ? readParse(geminiRaw(j)) : null;
+    if(state.sh.vread !== mine) return;   // 기다리는 동안 다른 파일을 고름
+    if(!data){ Object.assign(mine, { busy:false, err:r.ok ? '확인서에서 예약 내용을 찾지 못했어요. 더 선명한 사진이나 PDF로 다시 해 주세요.' : `${geminiError(r.status, j)} (구글 응답 ${askErrTag(r.status, j)})` }); render(); return; }
+    useDrafts(readDrafts(s, data));
+  }catch(e){ if(state.sh.vread === mine){ Object.assign(mine, { busy:false, err:'답이 늦어요. 다시 골라 주세요.' }); render(); } }
+}
+function useDrafts(list){
+  const s = state; const name = (s.sh.vread || {}).name || '';
+  if(!list.length){ s.sh.vread = { name, err:'확인서에서 예약 내용을 찾지 못했어요.' }; render(); return; }
+  const [first, ...rest] = list.map(d => Object.assign(d, { fromRead:true }));
+  s.vedit = null; s.vdraft = first;
+  s.sh.vread = { name, queue:rest, msg:`확인서를 읽어 아래 칸을 채웠어요. 맞는지 보고 '보관함에 넣기'를 눌러 주세요.${list.length > 1 ? ` 이 확인서에 예약이 ${list.length}개 있어요 — 저장하면 다음 것을 이어서 채워요.` : ''}` };
+  render(); focusVaultForm();
+}
+// 저장한 뒤: 같은 확인서의 다음 편(오는 편 등)을 이어서
+function nextDraft(){
+  const s = state; const r = s.sh.vread; if(!r || !r.queue) return;
+  if(r.queue.length){ s.vdraft = r.queue.shift(); r.msg = `다음 예약을 채웠어요. 맞는지 보고 저장해 주세요.${r.queue.length ? ` (${r.queue.length}개 더)` : ''}`; render(); focusVaultForm(); }
+  else { s.sh.vread = null; vreadFile = null; }
+}
+async function sendRead(){
+  const s = state; if(!vreadFile) return; const text = readAppPrompt(s); const copied = clipText(text);
+  if(navigator.canShare && navigator.canShare({ files:[vreadFile] })){
+    try{ await navigator.share({ files:[vreadFile], text }); }catch(e){ if(!e || e.name !== 'AbortError') toast('보내기가 안 됐어요. 부탁 문장을 복사해 뒀으니 AI 앱에 확인서와 함께 붙여 주세요.'); }
+  } else { await copied; toast('이 브라우저에서는 파일을 바로 보낼 수 없어요. 부탁 문장을 복사해 뒀으니 AI 앱에 확인서와 함께 붙여 주세요.'); }
+}
+
 function onChange(e){
   const t = e.target; const s = state;
+  if(t.id === 'vreadfile'){ const f = t.files && t.files[0]; if(f) readDoc(f); return; }
   if(t.dataset.kid != null){ s.kids[+t.dataset.kid] = Math.min(17, Math.max(0, parseInt(t.value, 10) || 0)); }
   else if(t.dataset.date){ if(!t.value) return; setTripDate(s, t.dataset.date, t.value); s.fullDay = {}; s.assign = {}; s.dlock = {}; s.nights = {}; }
   else if(t.dataset.full){

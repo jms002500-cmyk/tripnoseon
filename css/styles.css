@@ -407,6 +407,7 @@ html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn
 .gslink.ok{color:var(--muted)}
 .gsnow{flex-basis:100%;margin:.1em 0 0}
 .gsdone summary{cursor:pointer;margin:.3em 0}
+.vread label{display:grid;gap:6px}
 .vpaxlist{display:flex;flex-direction:column;gap:10px;margin:8px 0}
 .vpaxrow{border-top:1px solid var(--rule);padding-top:8px}
 .vpaxhd{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
