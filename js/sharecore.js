@@ -5,11 +5,11 @@ import { allPlaces } from './logic.js';
 import { money } from './ledger.js';
 import { budgetOf } from './budget.js';
 
-export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'cityOnly', 'start', 'end', 'flight', 'moves',
+export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'cityOnly', 'start', 'end', 'flight', 'fsegs', 'moves',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
   'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights', 'prep', 'by'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
-export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights', 'prep', 'by'];
+export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights', 'prep', 'by', 'fsegs'];
 // id가 있는 객체 배열(오가는 길·직접 담은 곳·숙소 후보·나누는 사람). 서버에는 배열 대신
 //   p.<칸>Items {id: 항목} + p.<칸>Order [id 순서]로 둬서 항목 하나씩 따로 보냄 → 두 사람이 다른 항목을 동시에 더하고·고치고·지워도 둘 다 남음.
 //   순서는 통째로 보내지만 순서에 없는 항목도 버리지 않고 뒤에 붙여서(id 순), 순서끼리 덮어써도 항목은 안 사라짐.
@@ -151,6 +151,11 @@ export function cleanShared(s){
   ['start', 'end'].forEach(k => { if(!(typeof s[k] === 'string' && DATE.test(s[k]))) s[k] = ''; });
   s.flight = objOr(s.flight, DEFAULT.flight); fixStrs(s.flight, ['ap', 'arr', 'dep', 'ap2', 'way']);
   if(s.flight.way != null && !['', 'out', 'back'].includes(s.flight.way)) s.flight.way = '';
+  { const o = {}; const v = isMap(s.fsegs) ? s.fsegs : {};   // 비행기 편: 칸 이름·글자만, 12편까지
+    Object.keys(v).filter(safeId).slice(0, 12).forEach(id => { const x = v[id]; if(!isMap(x)) return; const S = (k, n) => typeof x[k] === 'string' ? x[k].slice(0, n) : '';
+      o[id] = { dir:x.dir === 'back' ? 'back' : 'out', fno:S('fno', 10), date:DATE.test(S('date', 10)) ? S('date', 10) : '', from:S('from', 3), to:S('to', 3), dep:S('dep', 5), arr:S('arr', 5),
+        who:(Array.isArray(x.who) ? x.who : []).filter(k => typeof k === 'string' && k.length <= 40).slice(0, 20) }; });
+    s.fsegs = o; }
   if(!(s.hotelArea === null || (typeof s.hotelArea === 'string' && safeId(s.hotelArea)))) s.hotelArea = null;
   if(!(s.hotelPick === null || typeof s.hotelPick === 'string')) s.hotelPick = null;
   if(!own(CURRENCY, s.hotelCur)) s.hotelCur = D('hotelCur');
@@ -323,6 +328,7 @@ export function describeChange(prev, next){
   if((next.hotels || []).length > (prev.hotels || []).length) parts.push('숙소 후보 추가');
   if(!same(prev.assign, next.assign)) parts.push('일정 순서 조정');
   if(!same(prev.flight, next.flight)) parts.push('비행기 시간 고침');
+  if(!same(prev.fsegs || {}, next.fsegs || {})) parts.push('비행기 편 고침');
   if(!same(prev.moves, next.moves)) parts.push('오가는 길 고침');
   { const pd = Object.keys(next.prep || {}).filter(k => next.prep[k] && !(prev.prep || {})[k]).length; if(pd) parts.push(`출발 전 할 일 ${pd}개 함`); }
   const ps = prev.spend || {}, ns = next.spend || {};

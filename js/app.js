@@ -15,7 +15,7 @@ import { hkoWant, hkoDue, hkDates, loadHko, mergeHkoState } from './hko.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
 import { travellers, PAX_KINDS } from './pax.js';
-import { READ_SCHEMA, readPrompt, readAppPrompt, readParse, readDrafts } from './readdoc.js';
+import { READ_SCHEMA, readPrompt, readAppPrompt, readParse, readDrafts, mergeReads } from './readdoc.js';
 import { parseDocText } from './docparse.js';
 import { pdfText, imageText } from './localread.js';
 import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
@@ -508,7 +508,8 @@ async function saveVault(){
   const title = g('vtitle').value.trim(); if(!title) return;
   const picked = Array.from(g('vfiles').files || []);
   const fromRead = !s.vedit && s.vdraft && s.vdraft.fromRead;   // 확인서로 채운 예약이면 그 확인서도 첨부
-  if(fromRead && vreadFile && !picked.some(f => f.name === vreadFile.name && f.size === vreadFile.size)) picked.push(vreadFile);
+  // 확인서로 채운 예약: 그 예약이 나온 확인서들(rf)을 따로 붙이고, 한 사람 표인 파일은 그 사람 것으로(rwho)
+  const readAtt = fromRead ? (Array.isArray(s.vdraft.rf) ? s.vdraft.rf : vreadFiles.map((f, k) => k)).map(k => ({ f:vreadFiles[k], who:(s.vdraft.rwho || {})[k] || '' })).filter(x => x.f && !picked.some(g => g.name === x.f.name && g.size === x.f.size)) : [];
   const editing = s.vedit ? s.vault.find(x => x.id === s.vedit) : null;
   const it = editing || { id:'v' + Date.now().toString(36), files:[] };
   const kind = g('vkind').value;
@@ -516,6 +517,7 @@ async function saveVault(){
     code:g('vcode').value.trim().slice(0, 40), link:safeHttpsUrl(g('vlink').value), memo:g('vmemo').value.trim().slice(0, 300),
     placeId:PLACE_KINDS.includes(kind) ? g('vplace').value || null : null });
   if(kind === 'flight') Object.assign(it, { dir:g('vdir').value, time2:g('vtime2').value, ap:g('vap') ? g('vap').value : '', fno:g('vfno').value.trim().toUpperCase().slice(0, 10) });
+  if(kind === 'flight' && fromRead){ ['from', 'to'].forEach(k => { if(/^[A-Z]{3}$/.test(s.vdraft[k] || '')) it[k] = s.vdraft[k]; }); }   // 확인서에서 읽은 출발·도착 공항 (편 정보에)
   if(kind === 'hotel') Object.assign(it, { date2:g('vdate2').value, time2:g('vtime2h').value, addr:g('vaddr').value.trim().slice(0, 120), tel:g('vtel').value.trim().slice(0, 30) });
   Object.assign(it, { amt:+g('vamt').value > 0 ? Math.round(+g('vamt').value * 100) / 100 : 0, cur:g('vcur').value || 'KRW' });
   if(!editing && s.vdraft && s.vdraft.moveId) it.moveId = s.vdraft.moveId;
@@ -525,6 +527,7 @@ async function saveVault(){
   else if(kind !== 'transport' || (editing && g('vmove'))) delete it.moveId;
   const mapRaw = kind === 'hotel' ? g('vmap').value.trim() : '';
   const skipped = await storeFiles(it, picked);
+  for(const x of readAtt){ const before = it.files.length; skipped.push(...await storeFiles(it, [x.f])); if(x.who && it.files.length > before) it.files[before].who = x.who; }
   // 인원별 티켓 (js/pax.js): 사람마다 번호·사진. 숙소 확인서는 한 장이라 안 받음
   if(PAX_KINDS.includes(kind)){
     const pc = Object.assign({}, it.pcode);
@@ -601,8 +604,9 @@ function vaultAct(a, v){
     case 'vnew': s.vedit = null; s.vdraft = null; render(); focusVaultForm(); return;
     case 'vaddq': { const m = missingBookings(s, bookings(s.vault))[+v]; if(!m) return; s.vedit = null; s.vdraft = m; render(); focusVaultForm(); return; }
     case 'vedit': s.vedit = v; s.vdraft = null; render(); focusVaultForm(); return;
-    case 'vcancel': s.vedit = null; s.vdraft = null; s.sh.vread = null; vreadFile = null; render(); return;
+    case 'vcancel': s.vedit = null; s.vdraft = null; s.sh.vread = null; vreadFiles = []; render(); return;
     case 'vreadsend': sendRead(); return;
+    case 'fsegdel': { const o = Object.assign({}, s.fsegs); delete o[v]; s.fsegs = o; save(); render(); return; }   // 누가 어느 편에서 한 편 지우기 (보관함 예약은 그대로)
     case 'vreadback': s.sh.vread = null; s.mode = null; s.step = STEPS.indexOf('여행지'); save(); render(); { const b = document.getElementById('flreadfile'); if(b) b.closest('.box').scrollIntoView({ block:'start' }); } return;
     case 'vreadai': aiRead(); return;
     case 'vreadgo': { const j = readParse((document.getElementById('vreadpaste') || {}).value); if(!j){ s.sh.vread = Object.assign({}, s.sh.vread, { err:'답에서 예약 내용을 찾지 못했어요. AI 답 전체를 복사해 붙여 넣어 주세요.' }); render(); return; } useDrafts(readDrafts(s, j)); return; }
@@ -1075,7 +1079,7 @@ function act(a, v){
       s.imports = s.imports.filter(r => !r.skip && !ready.includes(r));
       break;
     }
-    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vpcopy': case 'vview': case 'vreadsend': case 'vreadai': case 'vreadback': case 'vreadgo': case 'vdel': case 'vdel2': vaultAct(a, v); return;
+    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vpcopy': case 'vview': case 'vreadsend': case 'vreadai': case 'vreadback': case 'vreadgo': case 'fsegdel': case 'vdel': case 'vdel2': vaultAct(a, v); return;
     case 'vapply': applyVaultAll(); return;
     case 'idwipe':
       if(!s.sh.idwipe){ s.sh.idwipe = true; render(); setTimeout(() => { if(state.sh.idwipe){ state.sh.idwipe = false; render(); } }, 4000); return; }
@@ -1638,77 +1642,98 @@ async function sendAsk(){
 }
 
 /* ---------- 📄 확인서로 보관함 칸 채우기 (js/readdoc.js) ---------- */
-let vreadFile = null;   // 고른 확인서 (메모리에만, 저장할 때 그 예약에 첨부)
+// 여러 장을 한 번에 골라도 됨(가족 표를 한 사람이 다 올리거나 사람마다 따로 받은 e-티켓): 같은 편끼리 합쳐 사람별 번호·파일로
+let vreadFiles = [];   // 고른 확인서들 (메모리에만, 저장할 때 그 예약에 첨부)
+const READ_MAX = 8;
 const fileB64 = f => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => { const u = String(fr.result); ok({ mime:f.type || 'application/pdf', data:u.slice(u.indexOf(',') + 1) }); }; fr.onerror = no; fr.readAsDataURL(f); });
-async function readDoc(f, from){
-  const s = state; vreadFile = f; s.sh.vread = { name:f.name.slice(0, 60), from:from || '' };
-  if(!/^image\//.test(f.type) && f.type !== 'application/pdf'){ s.sh.vread.err = '사진이나 PDF만 읽을 수 있어요.'; vreadFile = null; render(); return; }
-  if(f.size > 15 * 1048576){ s.sh.vread.err = '파일이 너무 커요 (15MB까지).'; vreadFile = null; render(); return; }
-  // 먼저 이 폰 안에서: 글자를 꺼내(PDF는 pdf.js, 사진은 글자 인식) 규칙으로 칸을 찾음 (js/localread.js·docparse.js). 확인서는 밖으로 안 나감
+const readName = L => L.length > 1 ? `${L[0].name.slice(0, 40)} 외 ${L.length - 1}개` : L.length ? L[0].name.slice(0, 60) : '';
+async function readDoc(input, from){
+  const s = state; const all = Array.from(input && typeof input.length === 'number' ? input : [input]).filter(Boolean);
+  const files = all.filter(f => (/^image\//.test(f.type) || f.type === 'application/pdf') && f.size <= 15 * 1048576).slice(0, READ_MAX);
+  vreadFiles = files; s.sh.vread = { name:readName(files.length ? files : all), from:from || '', n:files.length };
+  if(!files.length){ s.sh.vread.err = all.length ? '사진이나 PDF(한 장 15MB까지)만 읽을 수 있어요.' : ''; render(); return; }
+  const left = all.length - files.length;
+  // 먼저 이 기기 안에서: 글자를 꺼내(PDF는 pdf.js, 사진은 글자 인식) 규칙으로 칸을 찾음 (js/localread.js·docparse.js). 확인서는 밖으로 안 나감
   const mine = s.sh.vread; Object.assign(mine, { busy:true, local:true }); render();
-  let lastPct = 0;
+  const year = s.start ? +s.start.slice(0, 4) : new Date().getFullYear(); const got = []; let anyText = false;
   try{
-    const text = f.type === 'application/pdf' ? await pdfText(f)
-      : await imageText(f, p => { const pct = Math.round(p * 100); if(pct - lastPct >= 10 && state.sh.vread === mine){ lastPct = pct; mine.prog = pct; render(); } });
+    for(const [k, f] of files.entries()){
+      if(state.sh.vread !== mine) return;
+      mine.part = files.length > 1 ? `${k + 1}/${files.length}장` : ''; mine.prog = 0; render();
+      let lastPct = 0;
+      const text = f.type === 'application/pdf' ? await pdfText(f)
+        : await imageText(f, p => { const pct = Math.round(p * 100); if(pct - lastPct >= 10 && state.sh.vread === mine){ lastPct = pct; mine.prog = pct; render(); } });
+      if(text.trim()) anyText = true;
+      const j = parseDocText(text, { year });
+      if(j.items.some(x => x.date || x.fno || x.code)) got.push({ j, k });
+    }
     if(state.sh.vread !== mine) return;
-    const j = parseDocText(text, { year:s.start ? +s.start.slice(0, 4) : new Date().getFullYear() });
-    const good = j.items.some(x => x.date || x.fno || x.code);
-    if(good){ useDrafts(readDrafts(s, j), '이 기기 안에서 읽었어요 (확인서는 밖으로 보내지 않았어요).'); return; }
-    Object.assign(mine, { busy:false, local:false, localFail:true, err:text.trim() ? '이 기기 안에서는 예약 내용을 다 찾지 못했어요. 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' : '이 파일에서 글자를 꺼내지 못했어요(스캔한 사진 PDF일 수 있어요). 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' });
+    const merged = mergeReads(got);
+    const miss = files.length - got.length;
+    if(merged){ useDrafts(readDrafts(s, merged), `이 기기 안에서 읽었어요 (확인서는 밖으로 보내지 않았어요).${files.length > 1 ? ` ${files.length}장을 합쳤어요.` : ''}${miss ? ` ${miss}장은 못 읽었어요 — 그 사람 번호는 직접 넣어 주세요.` : ''}${left ? ` ${left}개는 너무 크거나 사진·PDF가 아니라 뺐어요.` : ''}`); return; }
+    Object.assign(mine, { busy:false, local:false, localFail:true, err:anyText ? '이 기기 안에서는 예약 내용을 다 찾지 못했어요. 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' : '이 파일에서 글자를 꺼내지 못했어요(스캔한 사진 PDF일 수 있어요). 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' });
   }catch(e){ if(state.sh.vread !== mine) return; Object.assign(mine, { busy:false, local:false, localFail:true, err:navigator.onLine ? '이 기기에서 읽기 도구를 쓰지 못했어요. 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' : '처음 한 번은 읽기 도구를 받아야 해서 인터넷이 필요해요. 연결되면 다시 골라 주세요.' }); }
   render();
 }
-// AI로 읽기 (사용자가 누를 때만): 키가 있으면 그 폰에서 구글에 바로
+// AI로 읽기 (사용자가 누를 때만): 키가 있으면 그 기기에서 구글에 바로. 여러 장이면 한 장씩 물어 합침
 async function aiRead(){
-  const s = state; const f = vreadFile; if(!f) return;
+  const s = state; const files = vreadFiles.slice(); if(!files.length) return;
   let info = null; try{ info = askKeyNow(askKeys(localStorage)); }catch(e){}
   if(!info) return;
   if(!navigator.onLine){ s.sh.vread = Object.assign({}, s.sh.vread, { err:'인터넷이 끊겨 있어요. 연결되면 다시 눌러 주세요.' }); render(); return; }
-  const mine = s.sh.vread = Object.assign({}, s.sh.vread, { busy:true, local:false, err:'' }); render();
+  const mine = s.sh.vread = Object.assign({}, s.sh.vread, { busy:true, local:false, err:'', part:'' }); render();
   try{
-    const doc = f.type === 'application/pdf' ? await fileB64(f) : await askImage(f);
     const token = info.kind === 'sa' ? await vertexToken(info.sa) : '';
     if(info.kind === 'sa' && !token){ Object.assign(mine, { busy:false, err:'키가 맞지 않아요. 키를 다시 넣어 주세요.' }); render(); return; }
-    const body = JSON.stringify(geminiBody(readPrompt(s), doc.mime, doc.data, READ_SCHEMA));
     const headers = Object.assign({ 'Content-Type':'application/json' }, token ? { Authorization:`Bearer ${token}` } : { 'x-goog-api-key':info.key });
-    let r; for(const u of askTargets(info)){ r = await fetchTimed(u, { method:'POST', headers, body }, 90000); if(r.status !== 404) break; }
-    const j = await r.json().catch(() => null); const data = r.ok ? readParse(geminiRaw(j)) : null;
+    const got = []; let lastErr = '';
+    for(const [k, f] of files.entries()){
+      if(state.sh.vread !== mine) return;
+      if(files.length > 1){ mine.part = `${k + 1}/${files.length}장`; render(); }
+      const doc = f.type === 'application/pdf' ? await fileB64(f) : await askImage(f);
+      const body = JSON.stringify(geminiBody(readPrompt(s), doc.mime, doc.data, READ_SCHEMA));
+      let r; for(const u of askTargets(info)){ r = await fetchTimed(u, { method:'POST', headers, body }, 90000); if(r.status !== 404) break; }
+      const j = await r.json().catch(() => null); const data = r.ok ? readParse(geminiRaw(j)) : null;
+      if(data) got.push({ j:data, k }); else lastErr = r.ok ? '' : `${geminiError(r.status, j)} (구글 응답 ${askErrTag(r.status, j)})`;
+    }
     if(state.sh.vread !== mine) return;   // 기다리는 동안 다른 파일을 고름
-    if(!data){ Object.assign(mine, { busy:false, err:r.ok ? '확인서에서 예약 내용을 찾지 못했어요. 더 선명한 사진이나 PDF로 다시 해 주세요.' : `${geminiError(r.status, j)} (구글 응답 ${askErrTag(r.status, j)})` }); render(); return; }
-    useDrafts(readDrafts(s, data));
+    const merged = mergeReads(got);
+    if(!merged){ Object.assign(mine, { busy:false, err:lastErr || '확인서에서 예약 내용을 찾지 못했어요. 더 선명한 사진이나 PDF로 다시 해 주세요.' }); render(); return; }
+    useDrafts(readDrafts(s, merged), files.length - got.length ? `${files.length - got.length}장은 못 읽었어요.` : '');
   }catch(e){ if(state.sh.vread === mine){ Object.assign(mine, { busy:false, err:'답이 늦어요. 다시 골라 주세요.' }); render(); } }
 }
 function useDrafts(list, how){
-  const s = state; const name = (s.sh.vread || {}).name || '', from = (s.sh.vread || {}).from || '';
+  const s = state; const r0 = s.sh.vread || {}; const name = r0.name || '', from = r0.from || '';
   if(!list.length){ s.sh.vread = { name, from, err:'확인서에서 예약 내용을 찾지 못했어요.' }; render(); return; }
   const [first, ...rest] = list.map(d => Object.assign(d, { fromRead:true }));
   s.vedit = null; s.vdraft = first;
-  s.sh.vread = { name, from, queue:rest, msg:`${how ? how + ' ' : ''}확인서를 읽어 아래 칸을 채웠어요. 맞는지 보고 '보관함에 넣기'를 눌러 주세요.${list.some(d => d.kind === 'flight') ? ' 넣으면 여행지의 비행기 시간·날짜도 채워져요.' : ''}${list.length > 1 ? ` 이 확인서에 예약이 ${list.length}개 있어요 — 저장하면 다음 것을 이어서 채워요.` : ''}` };
+  const short = first.kind === 'flight' && first.paxShort ? ` 이 표에는 일행 중 ${first.paxShort}명이 없어요 — 아래 ‘인원별로 넣기’에서 누구 표인지 맞는지 봐 주세요(따로 예약한 사람은 그 사람이 자기 폰에서 넣으면 돼요).` : '';
+  s.sh.vread = { name, from, queue:rest, msg:`${how ? how + ' ' : ''}확인서를 읽어 아래 칸을 채웠어요. 맞는지 보고 '보관함에 넣기'를 눌러 주세요.${list.some(d => d.kind === 'flight') ? ' 넣으면 여행지의 비행기 편·시간도 채워져요.' : ''}${short}${list.length > 1 ? ` 예약이 ${list.length}개 있어요 — 저장하면 다음 것을 이어서 채워요.` : ''}` };
   render(); showReadResult();
 }
 // 저장한 뒤: 같은 확인서의 다음 편(오는 편 등)을 이어서
 function nextDraft(){
   const s = state; const r = s.sh.vread; if(!r || !r.queue) return;
   if(r.queue.length){ s.vdraft = r.queue.shift(); r.msg = `다음 예약을 채웠어요. 맞는지 보고 저장해 주세요.${r.queue.length ? ` (${r.queue.length}개 더)` : ''}`; render(); showReadResult(); }
-  else { vreadFile = null; const back = r.from === 'where' && r.flown; s.sh.vread = back ? { back:'항공권을 보관함에 넣고 여행지의 날짜·비행기 시간에도 반영했어요.' } : null; if(back){ render(); showReadResult(); } }
+  else { vreadFiles = []; const back = r.from === 'where' && r.flown; s.sh.vread = back ? { back:'항공권을 보관함에 넣고 여행지의 비행기 편·시간에도 반영했어요.' } : null; if(back){ render(); showReadResult(); } }
 }
-// 여행지 단계 비행기 시간 칸에 넣은 확인서: 보관함으로 옮겨 바로 읽음. 저장하면 날짜·비행기 시간이 채워짐(bookings.js applyFlight)
-function readFromWhere(f){
+// 여행지 단계 비행기 시간 칸에 넣은 확인서: 보관함으로 옮겨 바로 읽음. 저장하면 날짜·비행기 편·시간이 채워짐(bookings.js applyFlight)
+function readFromWhere(files){
   const s = state; s.mode = null; s.step = VAULT_STEP; s.vedit = null; s.vdraft = null; save();
-  readDoc(f, 'where');
+  readDoc(files, 'where');
   const b = document.getElementById('vread'); if(b) b.scrollIntoView({ block:'start' });
 }
 async function sendRead(){
-  const s = state; if(!vreadFile) return; const text = readAppPrompt(s); const copied = clipText(text);
-  if(navigator.canShare && navigator.canShare({ files:[vreadFile] })){
-    try{ await navigator.share({ files:[vreadFile], text }); }catch(e){ if(!e || e.name !== 'AbortError') toast('보내기가 안 됐어요. 부탁 문장을 복사해 뒀으니 AI 앱에 확인서와 함께 붙여 주세요.'); }
+  const s = state; const files = vreadFiles.slice(); if(!files.length) return; const text = readAppPrompt(s); const copied = clipText(text);
+  if(navigator.canShare && navigator.canShare({ files })){
+    try{ await navigator.share({ files, text }); }catch(e){ if(!e || e.name !== 'AbortError') toast('보내기가 안 됐어요. 부탁 문장을 복사해 뒀으니 AI 앱에 확인서와 함께 붙여 주세요.'); }
   } else { await copied; toast('이 브라우저에서는 파일을 바로 보낼 수 없어요. 부탁 문장을 복사해 뒀으니 AI 앱에 확인서와 함께 붙여 주세요.'); }
 }
 
 function onChange(e){
   const t = e.target; const s = state;
-  if(t.id === 'vreadfile'){ const f = t.files && t.files[0]; if(f) readDoc(f); return; }
-  if(t.id === 'flreadfile'){ const f = t.files && t.files[0]; if(f) readFromWhere(f); return; }
+  if(t.id === 'vreadfile'){ const L = Array.from(t.files || []); if(L.length) readDoc(L); return; }
+  if(t.id === 'flreadfile'){ const L = Array.from(t.files || []); if(L.length) readFromWhere(L); return; }
   if(t.dataset.kid != null){ s.kids[+t.dataset.kid] = Math.min(17, Math.max(0, parseInt(t.value, 10) || 0)); }
   else if(t.dataset.date){ if(!t.value) return; setTripDate(s, t.dataset.date, t.value); s.fullDay = {}; s.assign = {}; s.dlock = {}; s.nights = {}; }
   else if(t.dataset.full){
@@ -1861,8 +1886,8 @@ document.addEventListener('change', onChange);
 document.addEventListener('dragover', e => { if(e.target.closest && e.target.closest('[data-dropread]')) e.preventDefault(); });
 document.addEventListener('drop', e => {
   const z = e.target.closest && e.target.closest('[data-dropread]'); if(!z) return;
-  e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(!f) return;
-  if(z.dataset.dropread === 'where') readFromWhere(f); else readDoc(f);
+  e.preventDefault(); const L = Array.from((e.dataTransfer && e.dataTransfer.files) || []); if(!L.length) return;
+  if(z.dataset.dropread === 'where') readFromWhere(L); else readDoc(L);
 });
 document.addEventListener('submit', onSubmit);
 {

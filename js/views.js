@@ -515,7 +515,30 @@ export function vWhere(s){
 }
 
 // 📄 항공권 확인서 넣기 (여행지 단계): 고르거나 끌어다 놓으면 보관함으로 옮겨 이 기기 안에서 바로 읽음 (app.js readFromWhere)
-const FLREAD = `<label class="flread" for="flreadfile" data-dropread="where">📄 항공권 확인서 넣기 <small>사진·PDF · 넣으면 보관함에서 바로 읽어요</small><input id="flreadfile" type="file" accept="image/*,application/pdf"></label>`;
+const FLREAD = `<label class="flread" for="flreadfile" data-dropread="where">📄 항공권 확인서 넣기 <small>사진·PDF 여러 장 한 번에 · 일행 표를 한 사람이 다 넣어도, 각자 자기 폰에서 넣어도 돼요</small><input id="flreadfile" type="file" accept="image/*,application/pdf" multiple></label>`;
+// 누가 어느 편 (s.fsegs, 함께 짜기로 공유) + 이 기기 보관함의 그 편 예약(예약번호·서류·사람별 티켓)
+function fsegBox(s){
+  const segs = Object.entries(s.fsegs || {}).filter(([, x]) => x && x.fno).sort(([, a], [, b]) => (a.date + a.dep).localeCompare(b.date + b.dep));
+  if(!segs.length) return '';
+  const T = travellers(s); const nm = k => (T.find(t => t.key === k) || {}).name || '';
+  const dayTxt = k => { const d = parseDate(k); return d ? `${d.getMonth() + 1}/${d.getDate()}(${['일','월','화','수','목','금','토'][d.getDay()]})` : ''; };
+  const row = ([id, x]) => {
+    const mine = (s.vault || []).filter(it => it.kind === 'flight' && normFno(it.fno) === x.fno && it.date === x.date);
+    const who = (x.who || []).map(nm).filter(Boolean);
+    const links = flightLinks(x.fno, x.dir === 'back' ? x.from : x.to, x.dir);
+    return `<li class="fseg"><div class="fsegh"><b>${x.dir === 'back' ? '🛬 오는 편' : '🛫 가는 편'} · ${esc(x.fno)}</b><button type="button" class="link" data-act="fsegdel" data-v="${esc(id)}" aria-label="${esc(x.fno)} 편 지우기">지우기</button></div>
+      <span class="fsegt">${esc(dayTxt(x.date))} ${esc(x.dep || '')} ${esc(x.from || '')} → ${esc(x.arr || '')} ${esc(x.to || '')}</span>
+      ${who.length ? `<span class="fine">👪 ${esc(who.join(' · '))}${who.length === T.length && T.length > 1 ? ' (일행 모두)' : ''}</span>` : ''}
+      ${mine.map(it => it.code ? `<div class="vcode"><span>예약번호</span><b>${esc(it.code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(it.id)}">복사</button></div>` : '').join('')}
+      ${mine.length ? docBtns(s, mine) : '<span class="fine">이 기기에는 이 편 확인서가 없어요 (예약번호·티켓은 넣은 기기에만 있어요)</span>'}
+      ${links.length ? `<span class="mvtt">${links.map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : ''}
+    </li>`;
+  };
+  const left = dir => { const on = new Set(segs.filter(([, x]) => x.dir === dir).flatMap(([, x]) => x.who || [])); return on.size ? T.filter(t => !on.has(t.key)).map(t => t.name) : []; };
+  const miss = ['out', 'back'].map(d => [d, left(d)]).filter(([, L]) => L.length);
+  return `<ul class="fsegs">${segs.map(row).join('')}</ul>
+    ${miss.map(([d, L]) => `<p class="fine">${d === 'back' ? '오는' : '가는'} 편이 아직 없는 사람: <b>${esc(L.join(', '))}</b> — 따로 예약했으면 그 사람 폰에서 확인서를 넣거나 여기서 넣어 주세요.</p>`).join('')}`;
+}
 // 비행기 시간 (js/flight.js): 넣으면 첫날·마지막 날 쓸 수 있는 시간을 비행기에 맞춤
 function flightBox(s, days){
   const f = s.flight || {}; const aps = AIRPORTS[s.city] || []; const first = days[0], last = days[days.length - 1];
@@ -534,7 +557,8 @@ function flightBox(s, days){
   if(z) lines.push(z.leave < 0 ? '출발이 새벽이에요. 자정을 넘기는 비행기면 오는 날을 하루 앞당겨 주세요.'
     : `마지막 날 ${koTime(z.at)}${nightTag(z.at)} 출발 → 2시간 30분 전 공항 도착, 숙소에서 공항까지 약 ${fminText(z.transfer)} → <b>${koTime(z.leave)}에 숙소에서 나가요</b>.${last.cap > 0 ? ` 그 전에 약 ${last.cap}시간 다닐 수 있어요.` : ' 이날은 짐 싸고 공항 가는 날로 둘게요.'}`);
   return `<div class="box">
-    <h2>비행기 시간<small>현지 시각 · 몰라도 돼요</small></h2>
+    <h2>비행기<small>편·예약·시간 · 몰라도 돼요</small></h2>
+    ${fsegBox(s)}
     ${FLREAD}
     <div class="chips" role="group" aria-label="항공권 종류">${FLIGHT_WAYS.map(([k, l]) => chip('flway', k, l, way === k)).join('')}</div>
     ${way ? `<p class="fine">${way === 'out' ? '돌아오는 비행기가 없어요(배·기차로 다른 곳으로 가거나 아직 안 정함). 마지막 날은 반나절로 계산해요. 돌아오는 길은 일정 단계 \'오가는 길\'에 따로 넣을 수 있어요.' : '가는 비행기가 없어요(다른 곳에서 넘어오거나 배·기차로 옴). 첫날은 반나절로 계산해요.'}</p>` : ''}
@@ -1607,8 +1631,8 @@ function vReadBox(s){
   const r = s.sh.vread || {}; let key = false; try{ key = !!askKeyNow(askKeys(localStorage)); }catch(e){}
   return `<div class="box vread" id="vread" data-dropread="vault">
       <h2>📄 확인서로 칸 채우기<small>항공권 e-티켓·숙소 바우처·입장권</small></h2>
-      <label for="vreadfile">확인서 사진·PDF 고르기<input id="vreadfile" type="file" accept="image/*,application/pdf"></label>
-      ${r.busy ? `<p class="fine">‘${esc(r.name || '')}’ ${r.local ? `이 기기 안에서 읽는 중…${r.prog ? ` ${r.prog}%` : ''} (처음 한 번은 읽기 도구를 받아요)` : 'AI로 읽는 중… (10~30초)'}</p>` : ''}
+      <label for="vreadfile">확인서 사진·PDF 고르기 <small>여러 장 한 번에 돼요 (일행 표 따로따로도)</small><input id="vreadfile" type="file" accept="image/*,application/pdf" multiple></label>
+      ${r.busy ? `<p class="fine">‘${esc(r.name || '')}’ ${r.local ? `이 기기 안에서 읽는 중…${r.part ? ` ${r.part}` : ''}${r.prog ? ` ${r.prog}%` : ''} (처음 한 번은 읽기 도구를 받아요)` : 'AI로 읽는 중… (10~30초)'}</p>` : ''}
       ${r.err ? `<p class="warnline">${esc(r.err)}</p>` : ''}
       ${r.msg ? `<p class="pnote">${esc(r.msg)}</p>` : ''}
       ${r.back ? `<p class="pnote">${esc(r.back)}</p><div class="pfoot"><button type="button" class="primary small" data-act="vreadback">✈️ 여행지에서 비행기 시간 보기</button></div>` : ''}

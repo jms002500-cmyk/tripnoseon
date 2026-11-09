@@ -154,6 +154,7 @@ export const DAY_COLORS = ['#F39700','#E60012','#00A7DB','#009944','#9B7CB6','#B
 // 처음 연 사람의 상태. 실제 사람의 일정은 넣지 않음(공개 저장소). 입력한 값은 그 기기 localStorage에만 저장
 export const DEFAULT = {step:0, who:null, adults:2, kids:[], styles:[], pace:'normal',
   country:'jp', city:'tokyo', cityOnly:'', start:'', end:'',
+  fsegs:{},   // 누가 어느 비행기 편: { 'f20261220CX411': { dir:'out'|'back', fno, date, from, to, dep, arr, who:['a1','k1'] } } — 함께 짜기로 공유(예약번호·티켓은 보관함에만, js/bookings.js applyFlight)
   flight:{ ap:'', arr:'', dep:'', ap2:'', way:'' },   // ap2: 오는 편 공항(비우면 ap와 같음), way: '' 왕복 | 'out' 가는 편만 | 'back' 오는 편만 (js/flight.js effFlight)
     // 비행기: 공항 코드, 첫날 도착·마지막 날 출발 현지 시각 'HH:MM' (js/flight.js, 함께 짜기로 공유)   // cityOnly: 도시가 둘인 지역에서 한 도시만 갈 때 'hk' | 'sz' (''이면 둘 다)
   moves:[],

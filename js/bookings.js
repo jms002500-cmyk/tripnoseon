@@ -6,6 +6,7 @@
 import { AIRPORTS, toMin, NIGHT_DEP } from './flight.js';
 import { buildDays, allPlaces } from './logic.js';
 import { legOf } from './moves.js';
+import { travellers } from './pax.js';
 
 const isKey = k => /^\d{4}-\d{2}-\d{2}$/.test(k || '');
 export const addDay = (key, n) => { const [y, m, d] = key.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
@@ -26,9 +27,37 @@ export function flightDir(s, it){
 }
 
 // 항공권: 가는 편은 도착 날짜·도착 시각(현지), 오는 편은 출발 날짜·출발 시각(현지)
+// 편 정보 칸 이름: 날짜+편명 (같은 편을 여러 사람이 따로 넣어도 한 칸에 사람만 더함)
+export const fsegId = (date, fno) => ('f' + String(date || '').replace(/-/g, '') + String(fno || '').replace(/[^A-Z0-9]/gi, '').toUpperCase()).slice(0, 40);
+// 이 항공권으로 타는 사람: 인원별 번호를 넣은 사람, 없으면 일행 모두
+export function flightWho(s, it){
+  const keys = travellers(s).map(t => t.key);
+  const pc = it && it.pcode && typeof it.pcode === 'object' ? Object.keys(it.pcode).filter(k => keys.includes(k) && it.pcode[k]) : [];
+  const fw = ((it && it.files) || []).map(f => f && f.who).filter(k => keys.includes(k));
+  const w = [...new Set(pc.concat(fw))];
+  return w.length ? keys.filter(k => w.includes(k)) : keys;
+}
 export function applyFlight(s, it){
   const patch = {}, msgs = []; const f = Object.assign({ ap:'', arr:'', dep:'' }, s.flight);
   const apOk = it.ap && (AIRPORTS[s.city] || []).some(a => a.code === it.ap); const dir = flightDir(s, it);
+  // 누가 어느 편 (함께 짜기로 공유 — 예약번호·티켓 번호는 안 올림)
+  const fno = String(it.fno || '').replace(/\s+/g, '').toUpperCase().slice(0, 10);
+  const segs = Object.assign({}, s.fsegs); let mine = null;
+  if(/^[A-Z0-9]{3,8}$/.test(fno) && isKey(it.date)){
+    const id = fsegId(it.date, fno), old = segs[id] || {}; const keys = travellers(s).map(t => t.key);
+    const who = keys.filter(k => (old.who || []).concat(flightWho(s, it)).includes(k));
+    const from = /^[A-Z]{3}$/.test(it.from || '') ? it.from : dir === 'back' && apOk ? it.ap : old.from || '';
+    const to = /^[A-Z]{3}$/.test(it.to || '') ? it.to : dir === 'out' && apOk ? it.ap : old.to || '';
+    mine = { dir, fno, date:it.date, from, to, dep:/^\d{2}:\d{2}$/.test(it.time || '') ? it.time : old.dep || '', arr:/^\d{2}:\d{2}$/.test(it.time2 || '') ? it.time2 : old.arr || '', who };
+    if(JSON.stringify(old) !== JSON.stringify(mine)){ segs[id] = mine; patch.fsegs = segs; msgs.push(`${dir === 'back' ? '오는' : '가는'} 편 ${fno}`); }
+  }
+  // 일행 첫날·마지막 날 시간: 그 방향에서 가장 많은 사람이 타는 편 기준 (친구끼리 따로 예약해 편이 다르면)
+  const best = Object.values(segs).filter(x => x && x.dir === dir && Array.isArray(x.who)).sort((a, b) => b.who.length - a.who.length)[0];
+  if(mine && best && best.fno !== fno && best.who.length > mine.who.length){
+    msgs.push(`${dir === 'back' ? '마지막 날' : '첫날'} 시간은 더 많은 사람이 타는 ${best.fno} 기준 그대로`);
+    if(JSON.stringify(f) !== JSON.stringify(Object.assign({ ap:'', arr:'', dep:'' }, s.flight))) patch.flight = f;
+    return { patch, msgs };
+  }
   // 가는 편 공항 → 도착 공항, 오는 편 공항 → 출발 공항(ap2). 편도로 해 둔 반대쪽 항공권을 넣으면 왕복으로
   if(dir === 'out'){ if(apOk) f.ap = it.ap; if(f.way === 'back'){ f.way = ''; msgs.push('왕복으로'); } }
   else { if(apOk) f.ap2 = it.ap === f.ap ? '' : it.ap; if(f.way === 'out'){ f.way = ''; msgs.push('왕복으로'); } }
