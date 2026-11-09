@@ -136,7 +136,7 @@ function mineBox(s){
         <button type="button" class="primary small" data-act="mineopen" data-v="${esc(t.id)}">이 기기에서 열기</button></li>`).join('')}</ul>
     </div>`;
 }
-const DEVICE_TIP = '<p class="fine">📱💻 폰과 PC를 같이 쓰려면 두 기기에서 같은 구글 계정으로 로그인하세요. 다른 기기의 \'함께 짜기\'에 이 여행이 떠서 한 번에 열리고, 그 뒤로는 어느 쪽에서 고쳐도 서로 바로 보여요.</p>';
+const DEVICE_TIP = '<p class="fine">📱💻 폰과 PC를 같이 쓰려면 두 기기에서 같은 구글 계정으로 로그인하세요. 다른 기기에서 “함께 짜기” → 구글로 로그인만 하면 이 여행이 바로 열리고, 그 뒤로는 앱만 열면 돼요. 어느 쪽에서 고쳐도 서로 바로 보여요.</p>';
 
 // 함께 짜기 창
 export function SHEET(s){

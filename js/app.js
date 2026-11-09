@@ -182,18 +182,29 @@ async function startShare(){
   try{
     await SH.watchUser(u => {
       const sh = state.sh; sh.user = u; sh.authReady = true;
-      if(u && state.shareId) watchTrip(); else if(!u){ unwatch(); sh.mine = null; } else loadMine();
+      try{ if(u) localStorage.setItem(SIGNED_KEY, '1'); else localStorage.removeItem(SIGNED_KEY); }catch(e){}
+      if(u && state.shareId) watchTrip(); else if(!u){ unwatch(); sh.mine = null; } else loadMine(true);
       render();
     });
   }catch(e){ userWatching = false; state.sh.msg = '함께 짜기를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요.'; state.sh.authReady = true; render(); }
 }
 
+// 이 기기에서 구글 로그인을 한 적 있음 → 앱을 열 때 함께 짜기를 바로 이어 붙임 (함께 짜기 창을 안 열어도)
+const SIGNED_KEY = 'tripnoseon-signed', NOAUTO_KEY = 'tripnoseon-noauto';
 // 이 계정의 공유 여행 (이 기기에 공유 여행이 없을 때): 폰에서 만든 여행을 PC에서 같은 계정으로 로그인해 바로 열게
-async function loadMine(){
+//   auto: 로그인하자마자·계정이 바뀌어 옛 여행에 못 들어갈 때는 묻지 않고 가장 최근 여행을 엶 (지금 일정은 백업, '함께 짜기'에서 되돌리기).
+//   사용자가 이 기기에서 공유를 끊었으면(NOAUTO) 자동으로 다시 열지 않음
+async function loadMine(auto){
   const sh = state.sh; if(!sh.user || state.shareId || sh.mineBusy) return;
   sh.mineBusy = true; sh.mineErr = false; render();
   try{ sh.mine = await SH.myTrips(sh.user.uid); }catch(e){ sh.mine = null; sh.mineErr = true; }
   sh.mineBusy = false; render();
+  let off = false; try{ off = localStorage.getItem(NOAUTO_KEY) === '1'; }catch(e){}
+  const first = (sh.mine || [])[0];
+  if(auto && first && !off && !state.shareId && !sh.pendingJoin && !sh.busy){
+    sh.pendingJoin = first.id; await shareAct('joinok');
+    toast(`이 계정의 함께 짜는 여행 ‘${first.title}’을(를) 열었어요. 다른 기기와 같은 여행이라 어느 쪽에서 고쳐도 바로 보여요.${(sh.mine || []).length > 1 ? ' 다른 여행은 ‘함께 짜기’에서 고를 수 있어요.' : ''}`);
+  }
 }
 function unwatch(){ unsubs.forEach(f => { try{ f(); }catch(e){} }); unsubs = []; }
 
@@ -237,7 +248,7 @@ function watchTrip(){
     }
     if(!regionWait) renderRemote();
   }, code => {
-    if(code === 'permission-denied') stopShare('이 공유 여행에 들어갈 수 없어요. 초대 링크가 닫혔거나 여행에서 빠졌어요. 이 기기의 일정은 그대로 남아요.');
+    if(code === 'permission-denied') stopShare('이 계정으로는 이 기기에 있던 공유 여행에 들어갈 수 없어요(다른 계정의 여행이거나 여행에서 빠졌어요). 이 기기의 일정은 그대로 남아요.', true);
     else { state.sh.msg = '공유 연결이 끊겼어요. 잠시 후 다시 열어 주세요.'; render(); }
   }));
   unsubs.push(SH.watchComments(id, list => { state.sh.comments = list; renderRemote(); }));
@@ -246,12 +257,13 @@ function watchTrip(){
 }
 
 // 이 기기에서 공유를 끊음 (일정은 마지막 상태 그대로 남김)
-function stopShare(msg){
+function stopShare(msg, auto){
   { const id = state.shareId, u = state.sh.user; if(state.locOn && id && u) SH.clearLoc(id, u.uid).catch(() => {}); }
   state.locOn = false; stopGeo(); state.sh.locs = [];
   unwatch(); clearTimeout(pushTimer); pushTimer = null; forgetSync();
   const s = state; s.shareId = null; s.sh.trip = null; s.sh.votes = {}; s.sh.comments = []; s.sh.log = []; s.sh.cmPlace = null; s.sh.msg = msg || '';
-  s.sh.mine = null; saveLocal(); render(); loadMine();   // 공유를 끊으면 이 계정의 다른 여행을 다시 보여 줌
+  if(!auto) try{ localStorage.setItem(NOAUTO_KEY, '1'); }catch(e){}   // 사용자가 끊었으면 로그인해도 자동으로 다시 열지 않음
+  s.sh.mine = null; saveLocal(); render(); loadMine(auto);   // 공유를 끊으면 이 계정의 다른 여행을 다시 보여 줌
 }
 
 // 남이 내 장소를 빼거나 날짜를 옮김 → 장소 담기·일정 위에 알림(되돌리기). 이 기기 화면에만, 최근 10개
@@ -323,6 +335,7 @@ async function shareAct(a, v){
         try{ await SH.joinTrip(jid, u); }catch(e){ /* 이미 참여한 여행이면 규칙상 거절됨 → 그대로 열어 봄 */ }
         unwatch(); clearTimeout(pushTimer); forgetSync();   // 첫 일정은 서버 것을 그대로 받음
         s.shareId = jid; sh.pendingJoin = null; sh.busy = false; sh.hasBackup = true; saveLocal(); watchTrip();
+        try{ localStorage.removeItem(NOAUTO_KEY); }catch(e){}
         SH.addLog(jid, u, (sh.mine || []).some(x => x.id === jid) ? '다른 기기에서 열었음' : '여행에 참여함').catch(() => {});
         break;
       }
@@ -1859,6 +1872,7 @@ document.addEventListener('submit', onSubmit);
     if(j !== state.shareId){ state.sh.pendingJoin = j; state.sh.open = true; }
     startShare();
   } else if(state.shareId) startShare();
+  else { let signed = false; try{ signed = localStorage.getItem(SIGNED_KEY) === '1'; }catch(e){} if(signed) startShare(); }   // 로그인한 적 있는 기기: 앱만 열어도 내 계정 여행으로
 }
 /* ---------- 위치 공유 (켜는 사람만, js/loc.js) ---------- */
 // 앱을 열어 둔 동안만 위치를 받아(watchPosition) 움직이거나 2분마다 올림. 여행 마지막 날이 지나면 끄고 서버 위치도 지움
