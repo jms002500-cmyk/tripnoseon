@@ -501,7 +501,7 @@ export function vWhere(s){
       <label for="dend">오는 날<input id="dend" type="date" value="${esc(s.end)}"${s.start && !datesReversed(s) ? ` min="${esc(s.start)}"` : ''} data-date="end"></label>
     </div>
     ${datesReversed(s) ? '<p class="warnline">가는 날이 오는 날보다 늦어요. 오는 날을 다시 골라 주세요.</p>' : ''}
-    ${days.length ? flightBox(s, days) : `<div class="box"><h2>비행기 표가 있나요?<small>있으면 넣어 주세요</small></h2>${FLREAD}<p class="fine">항공권 확인서를 넣으면 보관함으로 옮겨 이 폰 안에서 바로 읽고, 저장하면 가는 날·오는 날과 비행기 시간을 채워요.</p></div>`}
+    ${days.length ? flightBox(s, days) : `<div class="box"><h2>비행기 표가 있나요?<small>있으면 넣어 주세요</small></h2>${FLREAD}<p class="fine">항공권 확인서를 넣으면 보관함으로 옮겨 이 기기 안에서 바로 읽고, 저장하면 가는 날·오는 날과 비행기 시간을 채워요.</p></div>`}
     ${days.length ? `<div class="box">
       <div class="row"><h2>${days.length-1}박 ${days.length}일</h2><span class="fine">${PACE[s.pace].label} 기준</span></div>
       <ol class="daystrip">${days.map(d => `<li>${badge(d.i)}<div><b>${d.label}</b><span>${kindLabel(d.kind)} · 쓸 수 있는 시간 약 ${d.cap}시간${d.arrive ? ` · ${koTime(d.arrive.ready)}부터` : ''}${d.depart && d.depart.leave >= 0 ? ` · ${koTime(d.depart.leave)} 숙소에서 공항으로` : ''}</span></div></li>`).join('')}</ol>
@@ -1605,7 +1605,7 @@ function vReadBox(s){
   return `<div class="box vread" id="vread" data-dropread="vault">
       <h2>📄 확인서로 칸 채우기<small>항공권 e-티켓·숙소 바우처·입장권</small></h2>
       <label for="vreadfile">확인서 사진·PDF 고르기<input id="vreadfile" type="file" accept="image/*,application/pdf"></label>
-      ${r.busy ? `<p class="fine">‘${esc(r.name || '')}’ ${r.local ? `이 폰 안에서 읽는 중…${r.prog ? ` ${r.prog}%` : ''} (처음 한 번은 읽기 도구를 받아요)` : 'AI로 읽는 중… (10~30초)'}</p>` : ''}
+      ${r.busy ? `<p class="fine">‘${esc(r.name || '')}’ ${r.local ? `이 기기 안에서 읽는 중…${r.prog ? ` ${r.prog}%` : ''} (처음 한 번은 읽기 도구를 받아요)` : 'AI로 읽는 중… (10~30초)'}</p>` : ''}
       ${r.err ? `<p class="warnline">${esc(r.err)}</p>` : ''}
       ${r.msg ? `<p class="pnote">${esc(r.msg)}</p>` : ''}
       ${r.back ? `<p class="pnote">${esc(r.back)}</p><div class="pfoot"><button type="button" class="primary small" data-act="vreadback">✈️ 여행지에서 비행기 시간 보기</button></div>` : ''}
@@ -1614,7 +1614,7 @@ function vReadBox(s){
       <div class="pfoot"><button type="button" class="${key ? 'ghost' : 'primary'} small" data-act="vreadsend">AI 앱으로 보내기</button></div>
       <label for="vreadpaste">AI 답 붙여 넣기<textarea id="vreadpaste" rows="3" placeholder='{"kind":"flight", …}'></textarea></label>
       <div class="pfoot"><button type="button" class="ghost small" data-act="vreadgo">답으로 칸 채우기</button></div>` : ''}
-      <p class="fine">먼저 이 폰 안에서 읽어요 — 확인서는 밖으로 나가지 않아요. PDF는 바로 읽고, 사진은 글자 인식이라 덜 정확해요(처음 한 번 읽기 도구를 받아요: PDF 약 2MB, 사진 약 7MB). 날짜·시각·편명·공항·예약번호·탑승객을 아래 칸에 채우고 확인서 파일도 그 예약에 첨부해요. 저장 전에 꼭 확인해 주세요. 다 못 읽으면 그때 AI로 읽을지 고를 수 있어요.</p>
+      <p class="fine">먼저 이 기기 안에서 읽어요 — 확인서는 밖으로 나가지 않아요. PDF는 바로 읽고, 사진은 글자 인식이라 덜 정확해요(처음 한 번 읽기 도구를 받아요: PDF 약 2MB, 사진 약 7MB). 날짜·시각·편명·공항·예약번호·탑승객을 아래 칸에 채우고 확인서 파일도 그 예약에 첨부해요. 저장 전에 꼭 확인해 주세요. 다 못 읽으면 그때 AI로 읽을지 고를 수 있어요.</p>
     </div>`;
 }
 

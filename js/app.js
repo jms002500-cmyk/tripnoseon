@@ -1640,9 +1640,9 @@ async function readDoc(f, from){
     if(state.sh.vread !== mine) return;
     const j = parseDocText(text, { year:s.start ? +s.start.slice(0, 4) : new Date().getFullYear() });
     const good = j.items.some(x => x.date || x.fno || x.code);
-    if(good){ useDrafts(readDrafts(s, j), '이 폰 안에서 읽었어요 (확인서는 밖으로 보내지 않았어요).'); return; }
-    Object.assign(mine, { busy:false, local:false, localFail:true, err:text.trim() ? '이 폰 안에서는 예약 내용을 다 찾지 못했어요. 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' : '이 파일에서 글자를 꺼내지 못했어요(스캔한 사진 PDF일 수 있어요). 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' });
-  }catch(e){ if(state.sh.vread !== mine) return; Object.assign(mine, { busy:false, local:false, localFail:true, err:navigator.onLine ? '이 폰에서 읽기 도구를 쓰지 못했어요. 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' : '처음 한 번은 읽기 도구를 받아야 해서 인터넷이 필요해요. 연결되면 다시 골라 주세요.' }); }
+    if(good){ useDrafts(readDrafts(s, j), '이 기기 안에서 읽었어요 (확인서는 밖으로 보내지 않았어요).'); return; }
+    Object.assign(mine, { busy:false, local:false, localFail:true, err:text.trim() ? '이 기기 안에서는 예약 내용을 다 찾지 못했어요. 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' : '이 파일에서 글자를 꺼내지 못했어요(스캔한 사진 PDF일 수 있어요). 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' });
+  }catch(e){ if(state.sh.vread !== mine) return; Object.assign(mine, { busy:false, local:false, localFail:true, err:navigator.onLine ? '이 기기에서 읽기 도구를 쓰지 못했어요. 칸을 직접 채우거나 아래 AI로 읽기를 써 주세요.' : '처음 한 번은 읽기 도구를 받아야 해서 인터넷이 필요해요. 연결되면 다시 골라 주세요.' }); }
   render();
 }
 // AI로 읽기 (사용자가 누를 때만): 키가 있으면 그 폰에서 구글에 바로
