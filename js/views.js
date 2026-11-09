@@ -28,7 +28,7 @@ import { mapSVG } from './map.js';
 import { REQS, SAYS, ASKS, REPLIES, talkOf, talkWords } from './asktalk.js';
 import { nearbyOf, googleNearUrl, amapNearUrl, nearDirUrl, amapDirUrl, WALK_KM } from './nearby.js';
 import { ASK_KINDS, askKindOf, askGroups, askOrder, askRecItem, askTalkCurs, askCount, askLastList, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
-import { FLIGHT_WAYS, effFlight, depAp, AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno } from './flight.js';
+import { FLIGHT_WAYS, effFlight, depAp, AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno, APT_LIST, aptLabel } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
 import { dayAgenda, nextUp } from './agenda.js';
@@ -1720,7 +1720,7 @@ export function vVault(s){
         <label for="vkind">종류<select id="vkind">${VAULT_KINDS.map(k => `<option value="${k.key}"${(d.kind || 'flight') === k.key ? ' selected' : ''}>${k.icon} ${k.label}</option>`).join('')}</select></label>
         <label for="vdate"><span class="vl-any">날짜</span><span class="vl-flight">출발 날짜</span><span class="vl-hotel">체크인 날짜</span><input id="vdate" type="date" value="${esc(d.date || '')}"></label>
       </div>
-      <label for="vtitle"><span class="vl-any">이름</span><span class="vl-hotel">숙소 이름</span><input id="vtitle" type="text" required maxlength="60" value="${esc(d.title || '')}" placeholder="예: 가는 편 인천 → 나리타"></label>
+      <label for="vtitle" class="vt-title"><span class="vl-any">이름</span><span class="vl-hotel">숙소 이름</span><input id="vtitle" type="text" maxlength="60" value="${esc(d.title || '')}" placeholder="예: 디즈니랜드 1일권 · 공항 픽업"></label>
       <div class="row2">
         <label for="vtime"><span class="vl-any">시간</span><span class="vl-flight">출발 시각</span><span class="vl-hotel">체크인 시각</span><input id="vtime" type="time" value="${esc(d.time || '')}"></label>
         <label for="vcode">예약번호<input id="vcode" type="text" maxlength="40" value="${esc(d.code || '')}" spellcheck="false"></label>
@@ -1783,11 +1783,14 @@ function vaultExtras(s, d){
   const picked = pickedPlaces(s); const all = allPlaces(s); const cur = d.placeId && !picked.some(p => p.id === d.placeId) ? all.filter(p => p.id === d.placeId) : [];
   return `<div class="vx vx-flight">
       <div class="row2">
-        <label for="vdir">가는 편·오는 편<select id="vdir">${[['', '날짜로 알아서'], ['out', '가는 편'], ['back', '오는 편']].map(([k, l]) => `<option value="${k}"${(d.dir || '') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label for="vdir">가는 편·오는 편<select id="vdir">${[['', '공항·날짜로 알아서'], ['out', '가는 편'], ['back', '오는 편']].map(([k, l]) => `<option value="${k}"${(d.dir || '') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
         <label for="vtime2">도착 시각 (도착지)<input id="vtime2" type="time" value="${esc(d.kind === 'flight' ? d.time2 || '' : '')}"></label>
       </div>
       <label for="vfno">편명 (선택)<input id="vfno" type="text" maxlength="10" value="${esc(d.fno || '')}" placeholder="예: CX411 · 넣으면 지연·게이트 확인 바로가기" spellcheck="false" autocapitalize="characters"></label>
-      ${aps.length ? `<label for="vap">여행지 공항<select id="vap">${aps.map(a => `<option value="${a.code}"${(d.ap || (s.flight || {}).ap || aps[0].code) === a.code ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : ''}
+      ${(() => { const tm = /([A-Z]{3}) → ([A-Z]{3})/.exec(d.title || ''); const fr = d.from || (tm ? tm[1] : '') || (dir === 'back' ? d.ap : ''), to = d.to || (tm ? tm[2] : '') || (dir === 'out' ? d.ap || (s.flight || {}).ap : '');
+        return `<div class="row2"><label for="vfrom">출발 공항<input id="vfrom" type="text" list="aptlist" maxlength="30" value="${esc(aptLabel(fr))}" placeholder="예: 인천 (ICN)"></label>
+        <label for="vto">도착 공항<input id="vto" type="text" list="aptlist" maxlength="30" value="${esc(aptLabel(to))}" placeholder="예: 홍콩 (HKG)"></label></div>
+        <datalist id="aptlist">${APT_LIST.map(a => `<option value="${esc(a.name)} (${a.code})"></option>`).join('')}</datalist>`; })()}
       <p class="fine">가는 편은 도착 날짜·도착 시각으로 첫날을, 오는 편은 출발 날짜·출발 시각으로 마지막 날을 맞춰요(현지 시각).${dir ? ` 지금은 ${dir === 'out' ? '가는 편' : '오는 편'}으로 봤어요.` : ''}</p>
     </div>
     <div class="vx vx-hotel">

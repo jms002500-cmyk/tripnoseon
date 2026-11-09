@@ -12,7 +12,19 @@ export const AIRPORTS = {
   hksz:[{ code:'HKG', name:'홍콩 국제공항', min:{ hk:50, sz:120 } }, { code:'SZX', name:'선전 바오안 공항', min:{ hk:130, sz:50 } }]   // 다른 도시로 가면 국경 포함
 };
 
-// 편도: way 'out'(가는 편만 비행기)이면 마지막 날 출발 시각을, 'back'(오는 편만)이면 첫날 도착 시각을 안 씀.
+// 출발·도착 공항 고르기 목록 (보관함 항공권): 한국 공항 + 여행지 공항. 쳐서 넣어도 됨
+export const APT_LIST = [{ code:'ICN', name:'인천국제공항' }, { code:'GMP', name:'김포공항' }, { code:'PUS', name:'김해공항' }, { code:'CJU', name:'제주공항' }, { code:'TAE', name:'대구공항' }, { code:'CJJ', name:'청주공항' }, { code:'MWX', name:'무안공항' }]
+  .concat(Object.values(AIRPORTS).flat().map(a => ({ code:a.code, name:a.name })));
+export const aptLabel = c => { const a = APT_LIST.find(x => x.code === c); return a ? `${a.name} (${a.code})` : c || ''; };
+// 친 글 → { code, text }: '(HKG)'·'HKG'·'홍콩'처럼 이름 앞부분도 알아봄. 모르는 공항은 글 그대로
+export function aptOf(v){
+  const t = String(v || '').trim().slice(0, 30); if(!t) return { code:'', text:'' };
+  const m = /\(([A-Za-z]{3})\)/.exec(t) || /^([A-Za-z]{3})$/.exec(t);
+  if(m) return { code:m[1].toUpperCase(), text:t };
+  const k = t.replace(/\s+/g, ''); const a = APT_LIST.find(x => x.name.replace(/\s+/g, '').startsWith(k) || k.startsWith(x.name.replace(/\s+/g, '').replace(/(국제)?공항$/, '')));
+  return a ? { code:a.code, text:t } : { code:'', text:t };
+}
+// 편도: way 'out\'(가는 편만 비행기)이면 마지막 날 출발 시각을, 'back'(오는 편만)이면 첫날 도착 시각을 안 씀.
 //   돌아올 때 배·기차·육로로 가거나 다른 여행으로 이어 가는 경우. 값은 지우지 않아서 왕복으로 되돌리면 다시 쓰임
 export const FLIGHT_WAYS = [['', '왕복'], ['out', '가는 편만'], ['back', '오는 편만']];
 export function effFlight(f){

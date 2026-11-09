@@ -17,6 +17,8 @@ import { isEmptyMove, vaultDraft } from './moves.js';
 import { travellers, PAX_KINDS } from './pax.js';
 import { READ_SCHEMA, readPrompt, readAppPrompt, readParse, readDrafts, mergeReads } from './readdoc.js';
 import { parseDocText } from './docparse.js';
+import { AIRPORTS, aptOf } from './flight.js';
+import { flightDir } from './bookings.js';
 import { pdfText, imageText } from './localread.js';
 import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
 import { planText } from './agenda.js';
@@ -505,7 +507,8 @@ async function addReceipt(spendId, list){
 
 async function saveVault(){
   const s = state, g = id => document.getElementById(id);
-  const title = g('vtitle').value.trim(); if(!title) return;
+  const kind0 = g('vkind').value; let title = g('vtitle').value.trim();
+  if(!title && kind0 !== 'flight'){ g('vtitle').focus(); toast('이름을 넣어 주세요.'); return; }
   const picked = Array.from(g('vfiles').files || []);
   const fromRead = !s.vedit && s.vdraft && s.vdraft.fromRead;   // 확인서로 채운 예약이면 그 확인서도 첨부
   // 확인서로 채운 예약: 그 예약이 나온 확인서들(rf)을 따로 붙이고, 한 사람 표인 파일은 그 사람 것으로(rwho)
@@ -516,8 +519,15 @@ async function saveVault(){
   Object.assign(it, { kind, title:title.slice(0, 60), date:g('vdate').value, time:g('vtime').value,
     code:g('vcode').value.trim().slice(0, 40), link:safeHttpsUrl(g('vlink').value), memo:g('vmemo').value.trim().slice(0, 300),
     placeId:PLACE_KINDS.includes(kind) ? g('vplace').value || null : null });
-  if(kind === 'flight') Object.assign(it, { dir:g('vdir').value, time2:g('vtime2').value, ap:g('vap') ? g('vap').value : '', fno:g('vfno').value.trim().toUpperCase().slice(0, 10) });
-  if(kind === 'flight' && fromRead){ ['from', 'to'].forEach(k => { if(/^[A-Z]{3}$/.test(s.vdraft[k] || '')) it[k] = s.vdraft[k]; }); }   // 확인서에서 읽은 출발·도착 공항 (편 정보에)
+  if(kind === 'flight'){
+    // 출발·도착 공항(고르거나 쳐서) → 가는 편·오는 편과 여행지 공항을 알아서, 이름은 '가는 편 ICN → HKG'
+    const fr = aptOf(g('vfrom').value), to = aptOf(g('vto').value); const aps = (AIRPORTS[s.city] || []).map(a => a.code);
+    let dir = g('vdir').value; if(!dir) dir = aps.includes(to.code) ? 'out' : aps.includes(fr.code) ? 'back' : '';
+    Object.assign(it, { dir, time2:g('vtime2').value, fno:g('vfno').value.trim().toUpperCase().slice(0, 10), from:fr.code, to:to.code, fromT:fr.code ? '' : fr.text, toT:to.code ? '' : to.text });
+    const d2 = flightDir(s, it); it.ap = d2 === 'back' ? (aps.includes(fr.code) ? fr.code : '') : (aps.includes(to.code) ? to.code : '');
+    const air = (title.split(' · ')[1] || '').trim();
+    it.title = `${d2 === 'back' ? '오는 편' : '가는 편'}${fr.code || fr.text || to.code || to.text ? ` ${fr.code || fr.text || '?'} → ${to.code || to.text || '?'}` : ''}${air ? ` · ${air}` : ''}`.slice(0, 60);
+  }
   if(kind === 'hotel') Object.assign(it, { date2:g('vdate2').value, time2:g('vtime2h').value, addr:g('vaddr').value.trim().slice(0, 120), tel:g('vtel').value.trim().slice(0, 30) });
   Object.assign(it, { amt:+g('vamt').value > 0 ? Math.round(+g('vamt').value * 100) / 100 : 0, cur:g('vcur').value || 'KRW' });
   if(!editing && s.vdraft && s.vdraft.moveId) it.moveId = s.vdraft.moveId;
