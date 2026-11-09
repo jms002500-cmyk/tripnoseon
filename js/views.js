@@ -28,7 +28,7 @@ import { mapSVG } from './map.js';
 import { REQS, SAYS, ASKS, REPLIES, talkOf, talkWords } from './asktalk.js';
 import { nearbyOf, googleNearUrl, amapNearUrl, nearDirUrl, amapDirUrl, WALK_KM } from './nearby.js';
 import { ASK_KINDS, askKindOf, askGroups, askOrder, askRecItem, askTalkCurs, askCount, askLastList, askPrompt, receiptLine, askKeys, AI_SITES, ASK_KEY_PAGE, QUICK_TRANSLATE, quickHref, quickNote, planPrompt, aiToPick } from './askai.js';
-import { FLIGHT_WAYS, effFlight, depAp, AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno, APT_LIST, aptLabel } from './flight.js';
+import { FLIGHT_WAYS, effFlight, depAp, AIRPORTS, AFTER_LANDING, airportOf, toMin, koTime, minText as fminText, flightLinks, normFno, APT_LIST, aptLabel, beforeFlight, CHECKIN_BEFORE } from './flight.js';
 const nightTag = m => m >= 1440 ? '(다음 날 새벽)' : '';   // 밤 비행기(flight.js depMin)
 import { bookingRows, flightDir, PLACE_KINDS, bookingSpendOf } from './bookings.js';
 import { dayAgenda, nextUp } from './agenda.js';
@@ -547,6 +547,8 @@ function flightBox(s, days){
   const ap1 = f.ap || (aps[0] || {}).code, ap2 = f.ap2 || ap1;
   const a = first.arrive, z = last.depart;
   const lines = [];
+  { const go = (s.moves || []).find(m => m.k === 'go'); const b = beforeFlight(f, go && go.min, go && go.time);
+    if(b) lines.push(`가는 날 ${koTime(b.dep)} 출발(한국 시각) → <b>${koTime(b.at)}까지 공항 도착</b>(국제선 2시간 30분 전)${b.leave != null ? ` → <b>${koTime(b.leave)}에 집에서 나서요</b>` : ` · 집에서 나설 시각은 일정 단계 '오가는 길'의 집 → 공항에 걸리는 시간을 넣으면 계산해요`}.`); }
   if(a) lines.push(a.cap > 0
     ? `첫날 ${koTime(a.at)} 도착 → 입국·짐 찾기 1시간, ${esc(a.ap.name)}에서 숙소까지 약 ${fminText(a.transfer)}, 짐 맡기기 → <b>${koTime(a.ready)}쯤부터 약 ${first.cap}시간</b> 다닐 수 있어요.`
     : `첫날 ${koTime(a.at)} 도착이라 숙소에 들어가 쉬는 날로 둘게요.`);
@@ -563,10 +565,14 @@ function flightBox(s, days){
     <div class="chips" role="group" aria-label="항공권 종류">${FLIGHT_WAYS.map(([k, l]) => chip('flway', k, l, way === k)).join('')}</div>
     ${way ? `<p class="fine">${way === 'out' ? '돌아오는 비행기가 없어요(배·기차로 다른 곳으로 가거나 아직 안 정함). 마지막 날은 반나절로 계산해요. 돌아오는 길은 일정 단계 \'오가는 길\'에 따로 넣을 수 있어요.' : '가는 비행기가 없어요(다른 곳에서 넘어오거나 배·기차로 옴). 첫날은 반나절로 계산해요.'}</p>` : ''}
     ${aps.length > 1 ? `<div class="dates">${way !== 'back' ? apSel('fap', 'ap', way ? '공항' : '도착 공항', ap1) : ''}${way !== 'out' ? apSel('fap2', 'ap2', way ? '공항' : '출발 공항', ap2) : ''}</div>` : ''}
-    <div class="dates">
-      ${way !== 'back' ? `<label for="farr">첫날 도착<input id="farr" type="time" value="${esc(f.arr || '')}" data-flight="arr"></label>` : ''}
-      ${way !== 'out' ? `<label for="fdep">마지막 날 출발<input id="fdep" type="time" value="${esc(f.dep || '')}" data-flight="dep"></label>` : ''}
-    </div>
+    ${way !== 'back' ? `<div class="dates">
+      <label for="fodep">가는 편 출발 <small>한국</small><input id="fodep" type="time" value="${esc(f.odep || '')}" data-flight="odep"></label>
+      <label for="farr">첫날 도착 <small>현지</small><input id="farr" type="time" value="${esc(f.arr || '')}" data-flight="arr"></label>
+    </div>` : ''}
+    ${way !== 'out' ? `<div class="dates">
+      <label for="fdep">마지막 날 출발 <small>현지</small><input id="fdep" type="time" value="${esc(f.dep || '')}" data-flight="dep"></label>
+      <label for="frarr">한국 도착 <small>한국</small><input id="frarr" type="time" value="${esc(f.rarr || '')}" data-flight="rarr"></label>
+    </div>` : ''}
     ${lines.length ? `<p class="pnote">${lines.join('<br>')}</p>` : '<p class="fine">넣으면 첫날은 입국·공항에서 숙소까지 시간을 빼고, 마지막 날은 공항 가러 나서기 전까지만 일정을 짜요. 비우면 첫날·마지막 날은 반나절로 계산해요.</p>'}
     ${f.arr || f.dep ? '<div><button type="button" class="link" data-act="flightclear">비행기 시간 지우기</button></div>' : ''}
   </div>`;
@@ -1381,7 +1387,11 @@ const guessMin = (m, info) => !moveMin(m) && info ? `약 ${fminText(info.transfe
 function dayMoves(s, d, ctx, part){
   const ms = movesOn(s, d.key).filter(m => !isEmptyMove(m)); const of = k => ms.filter(m => m.k === k); const rows = []; const warn = [];
   if(part === 'start'){
-    of('go').forEach(m => rows.push(moveLi(m, ctx, [], s)));
+    { const go = of('go')[0]; const b = d.i === 0 ? beforeFlight(s.flight, go && go.min, go && go.time) : null;   // 가는 날 출발 전 (한국 시각)
+      if(b && b.leave != null && !go) rows.push(mvLi(b.leave, '🏠 집에서 나서기', '', true));
+      of('go').forEach(m => rows.push(moveLi(b && b.leave != null && toMin(m.time) == null ? Object.assign({}, m, { time:`${String(Math.floor(((b.leave % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((b.leave % 60) + 60) % 60).padStart(2, '0')}` }) : m, ctx, b && toMin(m.time) == null && b.leave != null ? ['비행기 시각에 맞춰 계산한 나서는 시각'] : [], s)));
+      if(b){ rows.push(mvLi(b.at, '🛂 공항 도착 · 체크인·짐 부치기', `국제선 ${fminText(CHECKIN_BEFORE)} 전`, true));
+        rows.push(mvLi(b.dep, '✈️ 출발', '', true, flightRowLinks(s, 'out'))); } }
     const a = d.arrive;
     if(a){
       rows.push(mvLi(a.at, `✈️ ${esc(a.ap.name)} 도착`, `입국·짐 찾기 약 ${fminText(AFTER_LANDING)}`, false, flightRowLinks(s, 'out') + docBtns(s, docsOf(s, { flight:'out' }))));

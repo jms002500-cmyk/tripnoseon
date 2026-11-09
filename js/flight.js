@@ -27,9 +27,17 @@ export function aptOf(v){
 // 편도: way 'out\'(가는 편만 비행기)이면 마지막 날 출발 시각을, 'back'(오는 편만)이면 첫날 도착 시각을 안 씀.
 //   돌아올 때 배·기차·육로로 가거나 다른 여행으로 이어 가는 경우. 값은 지우지 않아서 왕복으로 되돌리면 다시 쓰임
 export const FLIGHT_WAYS = [['', '왕복'], ['out', '가는 편만'], ['back', '오는 편만']];
+export const CHECKIN_BEFORE = 150;   // 국제선: 출발 2시간 30분 전 공항 도착
+// 가는 날 출발 전 (한국 시각): 비행기 출발 → 공항 도착(2시간 30분 전) → 집에서 나서는 시각(집→공항 걸리는 시간을 알면)
+//   goMin: 오가는 길 '집 → 공항'에 넣은 걸리는 시간(분), goAt: 그 이동에 넣은 나서는 시각
+export function beforeFlight(f, goMin, goAt){
+  const x = effFlight(f); const t = toMin(x.odep); if(t == null) return null;
+  const at = t - CHECKIN_BEFORE; const leave = toMin(goAt) != null ? toMin(goAt) : goMin > 0 ? at - goMin : null;
+  return { dep:t, at, leave, late:leave != null && toMin(goAt) != null && goMin > 0 && leave + goMin > t - 90 };
+}
 export function effFlight(f){
   const x = Object.assign({ ap:'', arr:'', dep:'', ap2:'', way:'' }, f || {});
-  if(x.way === 'out') x.dep = ''; else if(x.way === 'back') x.arr = '';
+  if(x.way === 'out'){ x.dep = ''; x.rarr = ''; } else if(x.way === 'back'){ x.arr = ''; x.odep = ''; }
   return x;
 }
 // 오는 편 공항 (따로 안 골랐으면 도착 공항과 같음 — 홍콩 도착, 선전 출발처럼 다를 수 있음)

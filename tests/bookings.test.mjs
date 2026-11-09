@@ -23,7 +23,7 @@ test('가는 편·오는 편 짐작', () => {
 test('항공권: 가는 편은 도착 날짜·시각, 오는 편은 출발 날짜·시각', () => {
   const s = trip();
   const a = applyFlight(s, v('flight', { date:'2027-03-06', time:'09:00', time2:'11:20', ap:'HND', dir:'out' }));
-  assert.equal(a.patch.start, '2027-03-06'); assert.deepEqual(a.patch.flight, { ap:'HND', arr:'11:20', dep:'', ap2:'', way:'' });
+  assert.equal(a.patch.start, '2027-03-06'); assert.deepEqual(a.patch.flight, { ap:'HND', arr:'11:20', dep:'', ap2:'', way:'', odep:'09:00', rarr:'' });   // 가는 편 출발(한국)도
   const night = applyFlight(s, v('flight', { date:'2027-03-05', time:'23:30', time2:'02:10', dir:'out' }));
   assert.equal(night.patch.start, '2027-03-06');                            // 밤 비행기는 다음 날 도착
   const b = applyFlight(s, v('flight', { date:'2027-03-11', time:'18:30', dir:'back' }));
@@ -146,7 +146,7 @@ test('일정 줄마다 서류: 장소·이동·비행기 편·예약 id로 찾�
 
 test('편도: 가는 편만이면 마지막 날 출발 시각을, 오는 편만이면 첫날 도착 시각을 안 씀 · 오는 편 공항 따로', async () => {
   const F = await import('../js/flight.js');
-  assert.deepEqual(F.effFlight({ ap:'HKG', arr:'12:00', dep:'18:00', way:'out' }), { ap:'HKG', arr:'12:00', dep:'', ap2:'', way:'out' });
+  assert.deepEqual(F.effFlight({ ap:'HKG', arr:'12:00', dep:'18:00', way:'out' }), { ap:'HKG', arr:'12:00', dep:'', ap2:'', way:'out', rarr:'' });
   assert.equal(F.effFlight({ ap:'HKG', arr:'12:00', dep:'18:00', way:'back' }).arr, '');
   assert.equal(F.effFlight(null).way, '');
   assert.equal(F.depAp({ ap:'HKG', ap2:'SZX' }), 'SZX'); assert.equal(F.depAp({ ap:'HKG', ap2:'' }), 'HKG');
@@ -163,4 +163,13 @@ test('편도: 가는 편만이면 마지막 날 출발 시각을, 오는 편만�
   const { cleanShared } = await import('../js/sharecore.js');
   const o = { flight:{ ap:'HKG', arr:'', dep:'', way:'편도', ap2:5 } }; cleanShared(o);
   assert.deepEqual([o.flight.way, o.flight.ap2], ['', '5']);
+});
+
+test('가는 날 출발 전: 출발 2시간 30분 전 공항, 집→공항 걸리는 시간을 알면 집에서 나서는 시각', async () => {
+  const F = await import('../js/flight.js');
+  assert.deepEqual(F.beforeFlight({ odep:'14:30' }, 60, ''), { dep:870, at:720, leave:660, late:false });
+  assert.equal(F.beforeFlight({ odep:'14:30' }, null, '').leave, null);
+  assert.equal(F.beforeFlight({ odep:'14:30', way:'back' }, 60, ''), null);   // 오는 편만이면 가는 편 출발 없음
+  const r = applyFlight(trip(), v('flight', { date:'2027-03-11', time:'18:30', time2:'23:10', dir:'back' }));
+  assert.equal(r.patch.flight.rarr, '23:10');   // 오는 편 한국 도착
 });

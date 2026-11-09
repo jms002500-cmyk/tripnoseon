@@ -149,7 +149,7 @@ export function cleanShared(s){
   if(!(typeof s.country === 'string' && /^[a-z]{2}$/.test(s.country))) s.country = REGIONS[s.city].country;
   if(!['', 'hk', 'sz'].includes(s.cityOnly)) s.cityOnly = '';
   ['start', 'end'].forEach(k => { if(!(typeof s[k] === 'string' && DATE.test(s[k]))) s[k] = ''; });
-  s.flight = objOr(s.flight, DEFAULT.flight); fixStrs(s.flight, ['ap', 'arr', 'dep', 'ap2', 'way']);
+  s.flight = objOr(s.flight, DEFAULT.flight); fixStrs(s.flight, ['ap', 'arr', 'dep', 'ap2', 'way', 'odep', 'rarr']);
   if(s.flight.way != null && !['', 'out', 'back'].includes(s.flight.way)) s.flight.way = '';
   { const o = {}; const v = isMap(s.fsegs) ? s.fsegs : {};   // 비행기 편: 칸 이름·글자만, 12편까지
     Object.keys(v).filter(safeId).slice(0, 12).forEach(id => { const x = v[id]; if(!isMap(x)) return; const S = (k, n) => typeof x[k] === 'string' ? x[k].slice(0, n) : '';

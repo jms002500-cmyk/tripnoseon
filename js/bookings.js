@@ -66,11 +66,13 @@ export function applyFlight(s, it){
     const day = isKey(it.date) ? (arr != null && dep != null && arr < dep - 60 ? addDay(it.date, 1) : it.date) : '';   // 밤 비행기는 다음 날 도착
     if(day && day !== s.start){ patch.start = day; msgs.push(`가는 날 ${md(day)}`); }
     if(arr != null && f.arr !== it.time2){ f.arr = it.time2; msgs.push(`첫날 ${it.time2} 도착`); }
+    if(dep != null && f.odep !== it.time){ f.odep = it.time; msgs.push(`가는 날 ${it.time} 출발`); }
   } else {
     const night = toMin(it.time) != null && toMin(it.time) < NIGHT_DEP;   // 자정 넘어 출발: 오는 날은 그 전날(그날 밤 숙소에서 나섬)
     const end = isKey(it.date) ? (night ? addDay(it.date, -1) : it.date) : '';
     if(end && end !== s.end){ patch.end = end; msgs.push(`오는 날 ${md(end)}${night ? `(밤 비행기 · ${md(it.date)} ${it.time} 출발)` : ''}`); }
     if(toMin(it.time) != null && f.dep !== it.time){ f.dep = it.time; msgs.push(`마지막 날 ${it.time} 출발`); }
+    if(toMin(it.time2) != null && f.rarr !== it.time2){ f.rarr = it.time2; }
   }
   if(JSON.stringify(f) !== JSON.stringify(Object.assign({ ap:'', arr:'', dep:'' }, s.flight))) patch.flight = f;
   return { patch, msgs };
