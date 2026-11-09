@@ -407,6 +407,14 @@ html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn
 .gslink.ok{color:var(--muted)}
 .gsnow{flex-basis:100%;margin:.1em 0 0}
 .gsdone summary{cursor:pointer;margin:.3em 0}
+.vpaxlist{display:flex;flex-direction:column;gap:10px;margin:8px 0}
+.vpaxrow{border-top:1px solid var(--rule);padding-top:8px}
+.vpaxhd{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.vpcode{font-family:var(--f-mono);font-weight:600}
+.vpax{margin:6px 0}
+.vpax summary{cursor:pointer;font-weight:600;padding:6px 0}
+.vpaxin{border-top:1px solid var(--rule);padding:8px 0;display:grid;gap:6px}
+#vaultform[data-kind="hotel"] .vpax{display:none}
 .docbtns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
 .docbtn{font:inherit;font-size:var(--fs-sm);padding:6px 10px;border-radius:999px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);cursor:pointer;min-height:36px}
 .docbtn:hover{border-color:var(--muted)}

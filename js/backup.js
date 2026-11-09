@@ -4,6 +4,7 @@
 import { DEFAULT, STEPS } from './data.js';
 import { cleanShared } from './sharecore.js';
 import { cleanGsaved } from './gsave.js';
+import { cleanPax } from './pax.js';
 
 export const BACKUP_APP = 'tripnoseon';
 export const BACKUP_V = 1;
@@ -69,7 +70,7 @@ function cleanBackup(o){
   cleanShared(o);
   if(!(Number.isInteger(o.step) && o.step >= 0 && o.step < STEPS.length)) o.step = 0;
   ['vault', 'imports'].forEach(k => { o[k] = Array.isArray(o[k]) ? o[k].filter(x => x && typeof x === 'object' && !Array.isArray(x)) : []; });
-  o.vault.forEach(it => { if(!Array.isArray(it.files)) it.files = []; it.files = it.files.filter(f => f && typeof f === 'object'); });
+  o.vault.forEach(it => { if(!Array.isArray(it.files)) it.files = []; it.files = it.files.filter(f => f && typeof f === 'object'); cleanPax(it); });
   ['sphone', 'askNote', 'idLater', 'lastBackup'].forEach(k => { if(typeof o[k] !== 'string') o[k] = DEFAULT[k]; });
   if(!['', 'big', 'bigger'].includes(o.textSize)) o.textSize = '';
   if(!(o.tdone && typeof o.tdone === 'object' && !Array.isArray(o.tdone))) o.tdone = {};

@@ -49,6 +49,7 @@ import { esc, chip, badge, gmap, gdir } from './ui.js';
 import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 import { gsaveUrl, gsaveList, isSaved } from './gsave.js';
 import { docsOf, docLabel } from './docs.js';
+import { travellers, paxOf, PAX_KINDS } from './pax.js';
 
 export function partyText(s){
   if(!s.who) return '동행 미정';
@@ -1223,7 +1224,7 @@ export function DOCSHEET(s){
   const head = `<div class="mshead"><b>${it ? `${kindOf(it.kind).icon} ${esc(docLabel(it))}` : '서류'}</b><button type="button" class="ghost small" data-act="vdocclose">닫기</button></div>`;
   const md = k => /^\d{4}-\d{2}-\d{2}$/.test(k || '') ? `${+k.slice(5, 7)}/${+k.slice(8, 10)}` : '';
   const body = !it ? '<p class="fine">이 예약을 찾지 못했어요. 보관함에서 지웠을 수 있어요.</p>'
-    : `${md(it.date) ? `<p class="fine">${esc(md(it.date))}${it.kind === 'hotel' && md(it.date2) ? ` ~ ${esc(md(it.date2))}` : ''}${it.time ? ` · ${esc(it.time)}` : ''}</p>` : ''}${todayVaultCard(it)}
+    : `${md(it.date) ? `<p class="fine">${esc(md(it.date))}${it.kind === 'hotel' && md(it.date2) ? ` ~ ${esc(md(it.date2))}` : ''}${it.time ? ` · ${esc(it.time)}` : ''}</p>` : ''}${todayVaultCard(it, s)}
       ${it.memo ? `<p class="pnote">${esc(it.memo)}</p>` : ''}
       ${!(it.files || []).length && !it.code ? '<p class="fine">아직 첨부한 확인서가 없어요. 보관함에서 사진·PDF를 넣어 두면 여기서 바로 보여요.</p>' : ''}
       <div class="pfoot"><button type="button" class="ghost small" data-act="vdocedit" data-v="${esc(it.id)}">보관함에서 고치기</button></div>`;
@@ -1568,6 +1569,32 @@ function vaultDay(s, date){
   return `${d.getMonth()+1}/${d.getDate()} (${['일','월','화','수','목','금','토'][d.getDay()]})${i >= 0 ? ` · ${i+1}일차` : ''}`;
 }
 
+// 첨부 보기: 사람마다 나눠 넣었으면 사람별(이름 · 번호 복사 · 사진), 아니면 그대로 (js/pax.js)
+function vthumb(it, f){
+  return /^image\//.test(f.type)
+    ? `<button type="button" class="vthumb" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}" aria-label="${esc(f.name)} 크게 보기"><img data-fid="${esc(f.fid)}" alt=""></button>`
+    : `<button type="button" class="vpdf" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}">📄 ${esc(f.name)}</button>`;
+}
+function vfilesHtml(s, it){
+  const files = it.files || []; const P = s && PAX_KINDS.includes(it.kind) ? paxOf(s, it) : null;
+  if(!P || !P.used) return files.length ? `<div class="vfiles">${files.map(f => vthumb(it, f)).join('')}</div>` : '';
+  return `${P.common.length ? `<div class="vfiles">${P.common.map(f => vthumb(it, f)).join('')}</div>` : ''}
+    <div class="vpaxlist">${P.list.map(x => `<div class="vpaxrow"><div class="vpaxhd"><b>${esc(x.name)}</b>${x.code ? `<span class="vpcode">${esc(x.code)}</span><button type="button" class="link" data-act="vpcopy" data-v="${esc(it.id)}|${esc(x.key)}">복사</button>` : ''}${!x.code && !x.files.length ? '<span class="fine">아직 없어요</span>' : ''}</div>
+      ${x.files.length ? `<div class="vfiles">${x.files.map(f => vthumb(it, f)).join('')}</div>` : ''}</div>`).join('')}</div>`;
+}
+const paxMissing = (s, it) => { const P = PAX_KINDS.includes(it.kind) ? paxOf(s, it) : null; return P && P.missing.length ? `<p class="warnline">아직 ${esc(P.missing.join(', '))} 것이 없어요.</p>` : ''; };
+// 입력: 사람마다 번호·사진 (숙소 확인서 빼고)
+function vPaxField(s, editing){
+  const T = travellers(s); if(T.length < 2) return '';
+  const P = editing ? paxOf(s, editing) : null;
+  return `<details class="vpax"${P && P.used ? ' open' : ''}><summary>👪 인원별로 넣기 (${T.length}명)</summary>
+      <p class="fine">탑승권·입장권처럼 사람마다 따로인 것은 여기에 넣어요. 일정의 서류 버튼을 누르면 사람별로 나눠 보여요.</p>
+      ${T.map((t, i) => { const x = P ? P.list[i] : null; return `<div class="vpaxin"><b>${esc(t.name)}</b>
+        <label for="vpc-${i}">번호 (선택)<input id="vpc-${i}" type="text" maxlength="40" spellcheck="false" value="${esc(x ? x.code : '')}" placeholder="티켓·좌석·탑승권 번호"></label>
+        <label for="vpf-${i}">사진·PDF${x && x.files.length ? ` <small>· 이미 ${x.files.length}개</small>` : ''}<input id="vpf-${i}" type="file" accept="image/*,application/pdf" multiple></label></div>`; }).join('')}
+    </details>`;
+}
+
 function vaultCard(s, it){
   const k = kindOf(it.kind); const pn = it.placeId ? placeName(s, it.placeId) : '';
   const armed = s.sh && s.sh.vdel === it.id; const link = safeHttpsUrl(it.link);
@@ -1578,9 +1605,7 @@ function vaultCard(s, it){
     ${it.kind === 'flight' && normFno(it.fno) ? `<span class="mvtt">🛫 ${flightLinks(it.fno, (s.flight || {}).ap || it.ap, flightDir(s, it)).map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : ''}
     ${it.code ? `<div class="vcode"><span>예약번호</span><b>${esc(it.code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(it.id)}">복사</button></div>` : ''}
     ${it.memo ? `<p class="pnote">${esc(it.memo)}</p>` : ''}
-    ${(it.files || []).length ? `<div class="vfiles">${it.files.map(f => /^image\//.test(f.type)
-      ? `<button type="button" class="vthumb" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}" aria-label="${esc(f.name)} 크게 보기"><img data-fid="${esc(f.fid)}" alt=""></button>`
-      : `<button type="button" class="vpdf" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}">📄 ${esc(f.name)}</button>`).join('')}</div>` : ''}
+    ${vfilesHtml(s, it)}${paxMissing(s, it)}
     <div class="pfoot">
       ${link ? `<a class="link" href="${esc(link)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
       <button type="button" class="link" data-act="vedit" data-v="${esc(it.id)}">고치기</button>
@@ -1657,6 +1682,7 @@ export function vVault(s){
       <label for="vlink">예약 페이지 주소 (선택)<input id="vlink" type="url" inputmode="url" value="${esc(d.link || '')}" placeholder="https://"></label>
       <label for="vmemo">메모 (선택)<textarea id="vmemo" rows="2" maxlength="300" placeholder="예: 체크인 15시 · 짐은 프런트에 맡기기">${esc(d.memo || '')}</textarea></label>
       <label for="vfiles">티켓·QR 사진, PDF (선택, 여러 개)<input id="vfiles" type="file" accept="image/*,application/pdf" multiple></label>
+      ${vPaxField(s, editing)}
 
       ${editing && (editing.files || []).length ? `<p class="fine">이미 넣은 첨부 ${editing.files.length}개는 그대로 둬요. 새로 고른 파일은 더해져요.</p>` : ''}
       <div class="pfoot"><button type="submit" class="primary small">${editing ? '고친 내용 저장' : '보관함에 넣기'}</button>
@@ -2105,14 +2131,12 @@ export function vSafety(s){
 }
 
 /* 오늘 하루 (여행 중 앱을 열면 먼저 보이는 화면. 단계 밖) */
-function todayVaultCard(it){
+function todayVaultCard(it, s){
   const k = kindOf(it.kind); const link = safeHttpsUrl(it.link);
   return `<article class="vcard">
     <div class="vhead"><span class="vicon" aria-hidden="true">${k.icon}</span><div><h3>${esc(it.title)}</h3><p class="meta">${esc(k.label)}${it.time ? ' · ' + esc(it.time) : ''}</p></div></div>
     ${it.code ? `<div class="vcode"><span>예약번호</span><b>${esc(it.code)}</b><button type="button" class="link" data-act="vcopy" data-v="${esc(it.id)}">복사</button></div>` : ''}
-    ${(it.files || []).length ? `<div class="vfiles">${it.files.map(f => /^image\//.test(f.type)
-      ? `<button type="button" class="vthumb" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}" aria-label="${esc(f.name)} 크게 보기"><img data-fid="${esc(f.fid)}" alt=""></button>`
-      : `<button type="button" class="vpdf" data-act="vview" data-v="${esc(it.id)}|${esc(f.fid)}">📄 ${esc(f.name)}</button>`).join('')}</div>` : ''}
+    ${vfilesHtml(s, it)}${s ? paxMissing(s, it) : ''}
     ${link ? `<a class="link" href="${esc(link)}" target="_blank" rel="noopener noreferrer">예약 페이지 ↗</a>` : ''}
   </article>`;
 }
@@ -2339,7 +2363,7 @@ export function vToday(s){
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${hotel.name !== home.name ? `새 숙소로 · ${esc(home.name)}` : '숙소로 돌아가기'}</b><span class="fine">${esc(legText(stops[stops.length - 1], home))}</span><a class="link" href="${esc(gdir(stops[stops.length - 1], home))}" target="_blank" rel="noopener">마지막 장소에서 길찾기 ↗</a></div></li>
       </ol></div>` : ''}
     ${foodBox(s, d, hotel)}
-    ${vault.length ? `<h2 class="vday">이날 꺼낼 예약<small>${vault.length}건</small></h2><div class="list">${vault.map(todayVaultCard).join('')}</div>`
+    ${vault.length ? `<h2 class="vday">이날 꺼낼 예약<small>${vault.length}건</small></h2><div class="list">${vault.map(it => todayVaultCard(it, s)).join('')}</div>`
       : `<p class="fine">이날 날짜로 넣은 예약이 없어요. 입장권·QR은 <button type="button" class="link" data-act="go" data-v="${STEP('보관함')}">보관함</button>에 날짜를 넣어 두면 여기에 떠요.</p>`}
     <form class="box" id="ledgerform" autocomplete="off">
       <h2>이날 쓴 돈<small>${g ? lmoney(g.total, L.base) : '아직 없음'}</small></h2>

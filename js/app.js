@@ -14,6 +14,7 @@ import { MTR_STATIONS, mtrUrl, parseNextTrain } from './hktransit.js';
 import { hkoWant, hkoDue, hkDates, loadHko, mergeHkoState } from './hko.js';
 import { buildIcs } from './ics.js';
 import { isEmptyMove, vaultDraft } from './moves.js';
+import { travellers, PAX_KINDS } from './pax.js';
 import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
 import { planText } from './agenda.js';
 import { whereOf, tzOffset, HOME_TZ, HERE_FRESH } from './clock.js';
@@ -506,6 +507,16 @@ async function saveVault(){
   else if(kind !== 'transport' || (editing && g('vmove'))) delete it.moveId;
   const mapRaw = kind === 'hotel' ? g('vmap').value.trim() : '';
   const skipped = await storeFiles(it, picked);
+  // 인원별 티켓 (js/pax.js): 사람마다 번호·사진. 숙소 확인서는 한 장이라 안 받음
+  if(PAX_KINDS.includes(kind)){
+    const pc = Object.assign({}, it.pcode);
+    for(const [i, t] of travellers(s).entries()){
+      const c = g('vpc-' + i); if(c){ const val = c.value.trim().slice(0, 40); if(val) pc[t.key] = val; else delete pc[t.key]; }
+      const fl = g('vpf-' + i); const L = fl ? Array.from(fl.files || []) : [];
+      if(L.length){ const before = it.files.length; skipped.push(...await storeFiles(it, L)); it.files.slice(before).forEach(f => { f.who = t.key; }); }
+    }
+    if(Object.keys(pc).length) it.pcode = pc; else delete it.pcode;
+  }
   if(!editing) s.vault.push(it);
   s.vedit = null; s.vdraft = null;
   const r = applyBooking(s, it, Object.assign({ newId:'h' + Date.now().toString(36) }, hotelPt(mapRaw || it.link)));   // 예약을 일정에 반영 (js/bookings.js)
@@ -572,6 +583,7 @@ function vaultAct(a, v){
     case 'vedit': s.vedit = v; s.vdraft = null; render(); focusVaultForm(); return;
     case 'vcancel': s.vedit = null; s.vdraft = null; render(); return;
     case 'vcopy': { const it = s.vault.find(x => x.id === v); if(it && it.code) copyText(it.code, `예약번호 ${it.code}을(를) 복사했어요.`); return; }
+    case 'vpcopy': { const [id, k] = v.split('|'); const it = s.vault.find(x => x.id === id); const c = it && it.pcode && it.pcode[k]; if(c) copyText(c, `번호 ${c}을(를) 복사했어요.`); return; }
     case 'vview': { const [id, fid] = v.split('|'); openViewer(id, fid); return; }
     case 'vdel': {
       // 이 예약 금액으로 만든 가계부 줄이 있으면 두 번째 누름 대신 '같이 지우기 / 예약만 지우기'를 고르게 (vdel2). 그때 이 버튼은 '취소'
@@ -1037,7 +1049,7 @@ function act(a, v){
       s.imports = s.imports.filter(r => !r.skip && !ready.includes(r));
       break;
     }
-    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vview': case 'vdel': case 'vdel2': vaultAct(a, v); return;
+    case 'vnew': case 'vaddq': case 'vedit': case 'vcancel': case 'vcopy': case 'vpcopy': case 'vview': case 'vdel': case 'vdel2': vaultAct(a, v); return;
     case 'vapply': applyVaultAll(); return;
     case 'idwipe':
       if(!s.sh.idwipe){ s.sh.idwipe = true; render(); setTimeout(() => { if(state.sh.idwipe){ state.sh.idwipe = false; render(); } }, 4000); return; }
