@@ -831,6 +831,8 @@ async function exportLedger(){
   render();
 }
 
+// 확인서로 채운 칸은 읽은 결과 글부터 보이게(자판 안 올림)
+function showReadResult(){ const b = document.getElementById('vread'); if(b) b.scrollIntoView({ block:'start' }); }
 function focusVaultForm(){ const f = document.getElementById('vaultform'); if(f){ f.scrollIntoView({ block:'start' }); document.getElementById('vtitle').focus({ preventScroll:true }); } }
 
 function unpick(s, id){ delete s.picked[id]; delete s.must[id]; delete s.assign[id]; delete s.fullDay[id]; }
@@ -1669,13 +1671,13 @@ function useDrafts(list, how){
   const [first, ...rest] = list.map(d => Object.assign(d, { fromRead:true }));
   s.vedit = null; s.vdraft = first;
   s.sh.vread = { name, from, queue:rest, msg:`${how ? how + ' ' : ''}확인서를 읽어 아래 칸을 채웠어요. 맞는지 보고 '보관함에 넣기'를 눌러 주세요.${list.some(d => d.kind === 'flight') ? ' 넣으면 여행지의 비행기 시간·날짜도 채워져요.' : ''}${list.length > 1 ? ` 이 확인서에 예약이 ${list.length}개 있어요 — 저장하면 다음 것을 이어서 채워요.` : ''}` };
-  render(); focusVaultForm();
+  render(); showReadResult();
 }
 // 저장한 뒤: 같은 확인서의 다음 편(오는 편 등)을 이어서
 function nextDraft(){
   const s = state; const r = s.sh.vread; if(!r || !r.queue) return;
-  if(r.queue.length){ s.vdraft = r.queue.shift(); r.msg = `다음 예약을 채웠어요. 맞는지 보고 저장해 주세요.${r.queue.length ? ` (${r.queue.length}개 더)` : ''}`; render(); focusVaultForm(); }
-  else { vreadFile = null; const back = r.from === 'where' && r.flown; s.sh.vread = back ? { back:'항공권을 보관함에 넣고 여행지의 날짜·비행기 시간에도 반영했어요.' } : null; if(back) render(); }
+  if(r.queue.length){ s.vdraft = r.queue.shift(); r.msg = `다음 예약을 채웠어요. 맞는지 보고 저장해 주세요.${r.queue.length ? ` (${r.queue.length}개 더)` : ''}`; render(); showReadResult(); }
+  else { vreadFile = null; const back = r.from === 'where' && r.flown; s.sh.vread = back ? { back:'항공권을 보관함에 넣고 여행지의 날짜·비행기 시간에도 반영했어요.' } : null; if(back){ render(); showReadResult(); } }
 }
 // 여행지 단계 비행기 시간 칸에 넣은 확인서: 보관함으로 옮겨 바로 읽음. 저장하면 날짜·비행기 시간이 채워짐(bookings.js applyFlight)
 function readFromWhere(f){
