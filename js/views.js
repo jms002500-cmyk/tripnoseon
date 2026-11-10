@@ -587,6 +587,7 @@ function flightBox(s, days){
     <h2>비행기<small>편·예약·시간 · 몰라도 돼요</small></h2>
     ${fsegBox(s)}
     ${FLREAD}
+    ${Object.values(s.fsegs || {}).some(x => x && x.fno) ? `<p class="fine">✈️ 위 항공권 편으로 공항·시간을 채웠어요. 일정은 이 값으로 계산해요.${['out', 'back'].filter(d => !Object.values(s.fsegs || {}).some(x => x && x.dir === d) && (d === 'out' ? way !== 'back' : way !== 'out')).map(d => ` ${d === 'out' ? '가는' : '오는'} 편 항공권은 아직 없어요 — 넣거나 아래에서 직접 적어 주세요.`).join('')}</p><details class="flman" data-v="flman"${VOPEN.has('flman') || ['out', 'back'].some(d => !Object.values(s.fsegs || {}).some(x => x && x.dir === d) && (d === 'out' ? way !== 'back' : way !== 'out')) ? ' open' : ''}><summary>✏️ 공항·시간 직접 고치기 <small>항공권과 다르게 계산하고 싶을 때만</small></summary>` : ''}
     <div class="chips" role="group" aria-label="항공권 종류">${FLIGHT_WAYS.map(([k, l]) => chip('flway', k, l, way === k)).join('')}</div>
     ${way ? `<p class="fine">${way === 'out' ? '돌아오는 비행기가 없어요(배·기차로 다른 곳으로 가거나 아직 안 정함). 마지막 날은 반나절로 계산해요. 돌아오는 길은 일정 단계 \'오가는 길\'에 따로 넣을 수 있어요.' : '가는 비행기가 없어요(다른 곳에서 넘어오거나 배·기차로 옴). 첫날은 반나절로 계산해요.'}</p>` : ''}
     ${aps.length > 1 ? `<div class="dates">${way !== 'back' ? apSel('fap', 'ap', way ? '공항' : '도착 공항', ap1) : ''}${way !== 'out' ? apSel('fap2', 'ap2', way ? '공항' : '출발 공항', ap2) : ''}</div>` : ''}
@@ -598,6 +599,7 @@ function flightBox(s, days){
       <label for="fdep">마지막 날 출발 <small>현지</small><input id="fdep" type="text" inputmode="numeric" maxlength="5" placeholder="예: 1430" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(f.dep || '')}" data-flight="dep"></label>
       <label for="frarr">한국 도착 <small>한국</small><input id="frarr" type="text" inputmode="numeric" maxlength="5" placeholder="예: 1430" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(f.rarr || '')}" data-flight="rarr"></label>
     </div>` : ''}
+    ${Object.values(s.fsegs || {}).some(x => x && x.fno) ? '</details>' : ''}
     ${lines.length ? `<p class="pnote">${lines.join('<br>')}</p>` : '<p class="fine">넣으면 첫날은 입국·공항에서 숙소까지 시간을 빼고, 마지막 날은 공항 가러 나서기 전까지만 일정을 짜요. 비우면 첫날·마지막 날은 반나절로 계산해요.</p>'}
     ${airportLegsBox(s)}
     ${f.arr || f.dep ? '<div><button type="button" class="link" data-act="flightclear">비행기 시간 지우기</button></div>' : ''}
@@ -1670,7 +1672,7 @@ function vthumb(it, f){
 }
 // 보관함 카드의 첨부·사람별 번호는 접어 둠 (사용자 요청: 감추기). 펼친 카드는 기억해서 다시 그려도 펼친 채로(이 화면에서만)
 const VOPEN = new Set();
-if(typeof document !== 'undefined') document.addEventListener('toggle', e => { const d = e.target; if(d && d.classList && d.classList.contains('vmore')){ if(d.open) VOPEN.add(d.dataset.v); else VOPEN.delete(d.dataset.v); } }, true);
+if(typeof document !== 'undefined') document.addEventListener('toggle', e => { const d = e.target; if(d && d.classList && (d.classList.contains('vmore') || d.classList.contains('flman'))){ if(d.open) VOPEN.add(d.dataset.v); else VOPEN.delete(d.dataset.v); } }, true);
 function vmoreHtml(s, it){
   const h = vfilesHtml(s, it); if(!h.trim()) return '';
   const n = (it.files || []).length; const P = PAX_KINDS.includes(it.kind) ? paxOf(s, it) : null; const k = P && P.used ? P.list.filter(x => x.code || x.files.length).length : 0;

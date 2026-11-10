@@ -420,6 +420,9 @@ html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn
 .way.on{border-color:var(--accent)}
 .way>button{flex:none;white-space:nowrap}
 .aplegs{margin-top:.6em}
+.flman{margin:.3em 0 .6em}
+.flman>summary{cursor:pointer;color:var(--accent-ink);font-weight:600;padding:.3em 0}
+.flman>summary small{color:var(--muted);font-weight:400}
 .ckrow{display:flex;flex-direction:column;gap:4px}
 .ckrow .chips{gap:6px}
 .alinfo{margin:.2em 0 .3em}
