@@ -2,7 +2,7 @@
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, PLACES, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
 import { REPLIES, talkWords, pickVoice } from './asktalk.js';
-import { VIEWS, SHEET, ASKSHEET, NEARSHEET, DOCSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
+import { VIEWS, SHEET, ASKSHEET, NEARSHEET, DOCSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, wayWhere, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
 import { DEST } from './guide.js';
 import { recordOf, recordText, photoOf, newPhotoItem, MAX_DAY_PHOTOS } from './record.js';
 import { installHint } from './install.js';
@@ -18,6 +18,7 @@ import { travellers, PAX_KINDS } from './pax.js';
 import { READ_SCHEMA, readPrompt, readAppPrompt, readParse, readDrafts, mergeReads } from './readdoc.js';
 import { parseDocText } from './docparse.js';
 import { AIRPORTS, aptOf, aptLabel, normHHMM, hm } from './flight.js';
+import { airportWays } from './airportways.js';
 import { flightDir, fsegsFill } from './bookings.js';
 import { pdfText, imageText } from './localread.js';
 import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
@@ -1176,6 +1177,17 @@ function act(a, v){
     case 'installhide': s.installHide = true; break;
     case 'tsize': s.textSize = v === 'big' || v === 'bigger' ? v : ''; break;
     // 오가는 길 (js/moves.js). 고칠 때마다 새 객체로 바꿔 함께 짜기가 바뀐 걸 알게
+    case 'mvjump': {   // 여행지 비행기 칸에서 공항 오가는 길 정하기 → 일정 단계 '오가는 길'에서 그 구간을 열어 둠
+      const tidy = (s.moves || []).filter(m => !isEmptyMove(m)); const ex = tidy.find(m => m.k === v);
+      const m = ex || { id:v, k:v, date:'', time:'', how:'', min:null, from:'', to:'', booked:false, note:'' };
+      s.moves = ex ? tidy : tidy.concat(m); s.sh.mvEdit = m.id; s.mode = null; s.step = PLAN_STEP;
+      save(); render(); { const b = document.getElementById('movebox'); if(b) b.scrollIntoView({ block:'start' }); } return;
+    }
+    case 'mvway': {   // 추천 방법 카드에서 고름 → 수단(how), 메모가 비어 있으면 방법 이름
+      const m = (s.moves || []).find(x => x.id === s.sh.mvEdit); if(!m) return;
+      const x = airportWays(m.k, wayWhere(s, plan(s), m.k))[+v]; if(!x) return;
+      setMove(m.id, mm => ({ how:mm.how === x.how ? '' : x.how, note:(mm.note || '').trim() || x.title })); break;
+    }
     case 'mvset': case 'mvadd': {
       const P = plan(s); const tidy = (s.moves || []).filter(m => !isEmptyMove(m));
       const ex = a === 'mvset' && tidy.find(m => m.k === v);

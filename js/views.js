@@ -43,6 +43,7 @@ import { homeTime } from './ics.js';
 import { addDay } from './bookings.js';
 import { guideFor } from './guide.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
+import { airportWays } from './airportways.js';
 import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
@@ -594,10 +595,25 @@ function flightBox(s, days){
       <label for="frarr">한국 도착 <small>한국</small><input id="frarr" type="text" inputmode="numeric" maxlength="5" placeholder="예: 1430" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(f.rarr || '')}" data-flight="rarr"></label>
     </div>` : ''}
     ${lines.length ? `<p class="pnote">${lines.join('<br>')}</p>` : '<p class="fine">넣으면 첫날은 입국·공항에서 숙소까지 시간을 빼고, 마지막 날은 공항 가러 나서기 전까지만 일정을 짜요. 비우면 첫날·마지막 날은 반나절로 계산해요.</p>'}
+    ${airportLegsBox(s)}
     ${f.arr || f.dep ? '<div><button type="button" class="link" data-act="flightclear">비행기 시간 지우기</button></div>' : ''}
   </div>`;
 }
 
+// 비행기 칸의 '공항 오가는 길': 네 구간을 어떻게 갈지 한눈에, 누르면 일정 단계 오가는 길에서 그 구간을 정함 (편도면 없는 구간은 뺌)
+function airportLegsBox(s){
+  const P = plan(s); const ctx = moveCtx(s, P); const mv = s.moves || []; const f = effFlight(s.flight);
+  const legs = STD_LEGS.filter(k => !(f.way === 'out' && (k === 'out' || k === 'back')) && !(f.way === 'back' && (k === 'go' || k === 'in')));
+  return `<div class="aplegs"><p class="fine"><b>🚐 공항 오가는 길</b> · 공항철도·버스·택시·예약 차량 중에서 구간마다 정해요</p>
+    <ul class="mvset">${legs.map(k => { const m = mv.find(x => x.k === k && !isEmptyMove(x)); const L = legOf(k);
+      return `<li><div><b>${L.icon} ${L.label}</b><span>${m ? `${esc(moveText(m, ctx, minText))}${m.booked ? ' <span class="mvok">예약함</span>' : ''}` : '<span class="fine">아직 안 정했어요</span>'}</span></div><button type="button" class="ghost small" data-act="mvjump" data-v="${k}">${m ? '고치기' : '정하기'}</button></li>`; }).join('')}</ul></div>`;
+}
+// 공항 오가는 길 추천 방법을 고를 때 쓰는 자리: 어느 공항·숙소가 어느 도시인지 (js/airportways.js)
+export function wayWhere(s, P, k){
+  const f = effFlight(s.flight); const D = (P || plan(s)).days; const hotel = k === 'in' ? D[0] && D[0].to : k === 'out' ? D.length && D[D.length - 1].from : null;
+  const city = hotel ? (AREAS[hotel.key || hotel.area] || {}).city || '' : '';
+  return { region:s.city, ap:k === 'in' ? f.ap || (AIRPORTS[s.city] || [])[0] && AIRPORTS[s.city][0].code : k === 'out' ? depAp(f) || (AIRPORTS[s.city] || [])[0] && AIRPORTS[s.city][0].code : 'ICN', city:city || (s.cityOnly || '') };
+}
 // 여행 날짜 날씨: 지난 10년 같은 날짜 평균 + (16일 안이면) 예보
 function weatherBox(s){
   const w = wxOf(s);
@@ -1456,7 +1472,10 @@ function moveForm(s, m, P, ctx){
   const L = legOf(m.k); const ph = moveEnds({ k:m.k }, ctx); const D = P.days; const last = D[D.length - 1];
   const defMin = m.k === 'in' && D[0] && D[0].arrive ? D[0].arrive.transfer : m.k === 'out' && last && last.depart ? last.depart.transfer : '';
   return `<li class="mvform">
-    <p class="fine">어떻게 가요?</p>
+    ${(L => L.length ? `<div class="ways"><p class="fine"><b>추천 방법</b> · 누르면 이걸로 정해요 (예약했으면 아래 '예약했어요'도)</p>
+      <ul class="waylist">${L.map((x, i) => { const h = MOVE_HOW.find(y => y.k === x.how) || {}; const on = m.how === x.how;
+        return `<li class="way${on ? ' on' : ''}"><div><b>${h.icon || ''} ${esc(x.title)}</b><span class="fine">${esc(x.text)}</span>${x.link ? `<a class="link" href="${esc(x.link)}" target="_blank" rel="noopener noreferrer">공식 안내 ↗</a>` : ''}</div><button type="button" class="${on ? 'primary' : 'ghost'} small" data-act="mvway" data-v="${i}">${on ? '✓ 고름' : '이걸로'}</button></li>`; }).join('')}</ul></div>` : '')(airportWays(m.k, wayWhere(s, P, m.k)))}
+    <p class="fine">어떻게 가요? (직접 고르기)</p>
     <div class="chips">${MOVE_HOW.map(h => chip('mvhow', h.k, `${h.icon} ${h.label}`, m.how === h.k)).join('')}</div>
     ${(tt => tt ? `<div class="mvttbox"><p class="fine">${(d => d ? `${d.i + 1}일차 ${d.label}` : '그날')(D.find(d => d.key === moveDate(s, m)))} 운행 시간은 아래에서 날짜를 골라 확인하세요. 시간표는 바뀔 수 있으니 전날 한 번 더 보세요.</p>${tt}</div>` : '')(ttLinks(s, m))}
     ${parkPanel(s, m)}${busPanel(s, m)}

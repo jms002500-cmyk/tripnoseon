@@ -414,6 +414,12 @@ html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn
 .gsnow{flex-basis:100%;margin:.1em 0 0}
 .gsdone summary{cursor:pointer;margin:.3em 0}
 .vread label,.flread{display:grid;gap:6px}
+.waylist{list-style:none;margin:.3em 0 .6em;padding:0;display:flex;flex-direction:column;gap:8px}
+.way{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:.55em .65em;border:1px solid var(--rule);border-radius:10px}
+.way>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.way.on{border-color:var(--accent)}
+.way>button{flex:none;white-space:nowrap}
+.aplegs{margin-top:.6em}
 .alinfo{margin:.2em 0 .3em}
 .alinfo>summary{cursor:pointer;color:var(--accent-ink);font-weight:600;padding:.3em 0}
 .alfacts li{align-items:flex-start}
