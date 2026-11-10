@@ -38,13 +38,14 @@ import { KR_AIRPORTS, krAirport, moveKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES 
 import { BUS_AREAS, BUS_PAGES, BUS_ERR, isWeekend, nextTimes, gapOf, hhmm } from './airbus.js';
 import { MTR_STATIONS, MTR_LINES, MTR_ERR, MTR_SOURCE, nearStations, distText, stationKo, waitText, dirText } from './hktransit.js';
 import { THEMES, themeOf, inTheme, themeCounts } from './themes.js';
-import { CPS, cpOfBorder, crossDir, moveCross, BORDER_ALT } from './border.js';
-import { homeTime } from './ics.js';
+import { CPS, cpOfBorder, crossDir, moveCross, BORDER_ALT, lateCross } from './border.js';
+import { homeTime, dayTimes } from './ics.js';
+import { tomorrowOf, EVE_FROM } from './tomorrow.js';
 import { addDay } from './bookings.js';
 import { guideFor } from './guide.js';
 import { MOVE_HOW, STD_LEGS, legOf, moveEnds, movesOn, moveMin, moveText, etcMinutes, isEmptyMove, timetableLinks, TT_CHECKED, moveDate } from './moves.js';
 import { airportWays } from './airportways.js';
-import { moveDay, bagChoices } from './bags.js';
+import { moveDay, bagChoices, checkoutList } from './bags.js';
 import { catchUp } from './catchup.js';
 import { recordOf, MAX_DAY_PHOTOS } from './record.js';
 import { esc, chip, badge, gmap, gdir } from './ui.js';
@@ -1227,6 +1228,41 @@ function bagBox(s, d){
   </div>`;
 }
 
+// 숙소 나서기 전 확인 (오는 날·숙소 옮기는 날, js/bags.js checkoutList). 체크는 이 폰에만
+function checkoutBox(s, d){
+  const L = checkoutList(s, d); if(!L.length) return '';
+  const n = L.filter(x => x.done).length;
+  return `<div class="box ckout"><h2>🧳 숙소 나서기 전 확인<small>${L.length}개 중 ${n}개${n === L.length ? ' ✓' : ''}</small></h2>
+    <div class="chips">${L.map(x => `<button type="button" class="chip${x.done ? ' on' : ''}" data-act="outck" data-v="${esc(d.key)}|${x.k}" aria-pressed="${x.done}">${x.done ? '✓' : '○'} ${esc(x.t)}</button>`).join('')}</div>
+    <p class="fine">체크아웃하기 전에 하나씩 눌러 확인해요. 체크 표시는 이 폰에만 남아요.</p></div>`;
+}
+// 🌙 저녁에 내일 미리 보기 (js/tomorrow.js)
+function tomorrowBox(s, P, i, today){
+  const T = tomorrowOf(s, P, i, today, { wx:wxOf(s, P), ctx:moveCtx(s, P) }); if(!T) return '';
+  const w = T.w; const wl = !w ? '' : w.kind === 'forecast' ? `${w.text || ''}${w.lo != null && w.hi != null ? ` ${w.lo}~${w.hi}°` : ''}${w.rain != null ? ` · 비 ${w.rain}%` : ''}` : w.lo != null && w.hi != null ? `이맘때 ${w.lo}~${w.hi}°` : '';
+  const head = T.leave != null ? `✈️ <b>${koTime(T.leave)}에 숙소에서 공항으로</b> 나서요.` : T.first ? `첫 일: <b>${koTime(T.first.min)}</b> ${T.first.icon ? T.first.icon + ' ' : ''}${esc(T.first.text)}` : `${koTime(T.start)}쯤 숙소에서 나서요.`;
+  return `<div class="box tmrw"><h2>🌙 내일 미리 보기<small>${T.d.i + 1}일차 · ${esc(T.d.label)}</small></h2>
+    <p class="pnote">${head}${T.place && T.leave == null ? ` 첫 장소는 <b>${esc(T.place.name)}</b>이에요.` : ''}</p>
+    ${wl ? `<p class="fine">날씨 ${esc(wl.trim())}</p>` : ''}
+    ${T.tips.length ? `<p class="fine">오늘 밤 해 둘 일</p><ul class="implist">${T.tips.map(x => `<li class="imp"><div class="sbody"><b>${x.icon} ${esc(x.t)}</b><span>${esc(x.d)}</span>${x.url ? `<a class="link" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">온라인 체크인 ↗</a>` : ''}</div>${x.day != null ? `<button type="button" class="ghost small" data-act="tday" data-v="${x.day}">정하러 가기</button>` : ''}</li>`).join('')}</ul>` : ''}
+    <div><button type="button" class="ghost small" data-act="tday" data-v="${T.d.i}">내일 하루 전체 보기</button></div>
+  </div>`;
+}
+// 🛂 국경을 넘는 어림 시각이 검문소 닫는 시각에 가까우면 (js/border.js lateCross)
+//   맡겼다 찾기로 짐 찾고 넘는 날 · 여행 중 이동(시각을 넣은 국경 넘기) · 다른 도시에서 다니다 숙소로 돌아오는 날
+function crossLate(s, d, info){
+  if(!info || !d) return '';
+  const T = s.pace && (d.items || []).length ? dayTimes(s, d) : []; const end = T.length ? T[T.length - 1].end : null; let when = null;
+  const up = x => { if(x != null && Number.isFinite(x)) when = when == null ? x : Math.max(when, x); };
+  if(d.cross && (s.bags || {})[d.key] === 'keep' && end != null) up(end + 60);   // 맡긴 짐 찾으러 숙소 → 국경
+  movesOn(s, d.key).filter(m => m.k === 'etc' && moveCross(m.from, m.to, m.note)).forEach(m => up(toMin(m.time)));
+  const last = T.length ? T[T.length - 1].p : null;
+  if(last && d.to && ptCity(last) && ptCity(d.to) && ptCity(last) !== ptCity(d.to)) up(end + 45);
+  const w = lateCross(when, info.at); if(!w) return '';
+  const nm = c => `${CPS[c].ko}(${CPS[c].hours})`;
+  return `<p class="warnline">🛂 국경을 <b>${koTime(when)}쯤</b> 넘게 돼요. ${w.cp ? `${esc(CPS[w.cp].ko)}는 ${koTime(w.close)}에 닫아요${w.past ? '. 이미 닫은 뒤예요' : ''}.` : `검문소마다 닫는 시각이 달라요(가장 일찍 닫는 곳 ${koTime(w.close)}).`} ${w.alt.length ? `늦어지면 ${esc(w.alt.map(nm).join(' · '))} 쪽으로 가거나 ` : ''}일찍 넘어가세요. 통관 시간은 대략이라 가기 전에 확인하세요.</p>`;
+}
+
 // 오는 날 빈 일정 문구: 아침에 바로 나서면 그렇게, 시간이 있으면 숙소 근처에서
 const departLine = d => !d.depart || d.depart.leave < 0 ? '공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요.'
   : d.cap > 0 ? `공항 가기 전 숙소 근처에서 가볍게 보내는 날이에요. ${koTime(d.depart.leave)}에 숙소에서 공항으로 나서요.`
@@ -1586,7 +1622,7 @@ export function vPlan(s){
         ${dayEvents(s, d, EV).map(e => `<p class="fine">🎄 이날 행사: ${esc(e.name)}${e.time ? ' · ' + esc(e.time) : ''}</p>`).join('')}
         ${dayMoves(s, d, mctx, 'end')}
         ${itcLine(s, d)}
-        ${borderBox(s, d.key, crossInfo(s, d, T))}
+        ${(ci => borderBox(s, d.key, ci) + crossLate(s, d, ci))(crossInfo(s, d, T))}
         ${rainBox(s, P, d)}
         <div class="tacts"><button type="button" class="link" data-act="tfood" data-v="${d.i}">🍜 이날 점심·저녁 식당 찾기</button>${d.full || d.items.length ? (d.locked
           ? `<button type="button" class="link" data-act="dunlock" data-v="${d.i}">확정 풀기</button>` : `<button type="button" class="link" data-act="dlock" data-v="${d.i}">🔒 이날 확정</button>`) : ''}</div>
@@ -2498,13 +2534,15 @@ export function vToday(s){
     ${todayWeatherLine(dayWeather(wxOf(s, P), date), REGION.key === 'hksz' && ph.phase === 'during' && date === today && hkDates(P, AREAS).has(today) ? freshNow(s.hko, Date.now()) : null)}
     ${clockBox(s, ph)}
     <div><button type="button" class="ghost small" data-act="nearopen">📍 내 주변 가볼 만한 곳</button></div>
-    ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.done}/${pv.total}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
+    ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.total}개 중 ${pv.done}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
     ${ph.phase === 'before' ? prepBox(s, 'today') : ''}
     ${d.depart && d.depart.leave >= 0 ? `<p class="warnline">✈️ ${koTime(d.depart.at)}${nightTag(d.depart.at)} 비행기 · <b>${koTime(d.depart.leave)}에 숙소에서 공항으로 출발</b>해야 해요. 짐 찾을 시간도 챙기세요.</p>` : ''}
     ${agendaBox(s, d, P, ph.phase === 'during' && date === today)}
+    ${checkoutBox(s, d)}
+    ${ph.phase === 'during' && date === today && (sh.nowMin || 0) >= EVE_FROM ? tomorrowBox(s, P, i, today) : ''}
     ${next}
-    ${borderBox(s, date, crossInfo(s, d))}
+    ${(ci => borderBox(s, date, ci) + crossLate(s, d, ci))(crossInfo(s, d))}
     ${ph.phase === 'during' && date === today ? catchBox(s, P, i, date) : ''}
     ${locBox(s, today)}
     ${rainBox(s, P, d)}

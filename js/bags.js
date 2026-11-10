@@ -35,3 +35,15 @@ export function bagRows(s, d, end){
 
 // 고른 대로 그날 다닐 시간에서 뺄 시간 (맡겼다 찾기만)
 export const bagCapCut = (s, d) => moveDay(d) && (s.bags || {})[d.key] === 'keep' ? KEEP_BACK : 0;
+
+// 숙소 나서기 전 확인 (오는 날·숙소 옮기는 날 오늘 화면). 체크는 이 폰에만: s.outck { 'YYYY-MM-DD|키': true }
+export function checkoutList(s, d){
+  if(!(d && (d.kind === 'depart' || moveDay(d)))) return [];
+  const fly = d.kind === 'depart'; const kids = s.who === 'family' && (s.kids || []).length;
+  const L = [['passport', '여권 (가족 모두)'], ['safe', '방 금고·서랍·베개 밑'], ['charger', fly ? '충전기·보조배터리 (보조배터리는 들고 타요)' : '충전기·보조배터리'],
+    ['bath', '욕실·옷장·냉장고'], ['key', '방 카드키 반납']];
+  if(kids) L.push(['kid', '아이 물건 (인형·물병·약)']);
+  if(fly) L.push(['money', '남은 현지 돈·교통카드 잔액']);
+  const done = s.outck || {};
+  return L.map(([k, t]) => ({ k, t, done:!!done[`${d.key}|${k}`] }));
+}

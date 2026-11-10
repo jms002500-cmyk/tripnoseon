@@ -790,3 +790,6 @@ details.more summary, .vmore>summary, .flman>summary, .alinfo>summary{min-height
 .bagways b{color:var(--ink)}
 /* 다른 기기에서 넣은 항공권 (보관함 '아직 없는 예약') */
 .imp.other{opacity:.85}
+/* 숙소 나서기 전 확인 · 내일 미리 보기 */
+.ckout .chips{flex-wrap:wrap}
+.tmrw{border-color:var(--accent)}

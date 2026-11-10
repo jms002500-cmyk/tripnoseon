@@ -1182,6 +1182,9 @@ function act(a, v){
     case 'installhide': s.installHide = true; break;
     case 'tsize': s.textSize = v === 'big' || v === 'bigger' ? v : ''; break;
     // 오가는 길 (js/moves.js). 고칠 때마다 새 객체로 바꿔 함께 짜기가 바뀐 걸 알게
+    case 'outck': {   // 숙소 나서기 전 확인 (이 폰에만, js/bags.js checkoutList)
+      const k = String(v); if(!/^\d{4}-\d{2}-\d{2}\|[a-z]{2,12}$/.test(k)) return;
+      const o = Object.assign({}, s.outck); if(o[k]) delete o[k]; else o[k] = true; s.outck = o; break; }
     case 'bags': {   // 숙소 옮기는 날 짐 (js/bags.js, 함께 짜기로 공유). 같은 걸 다시 누르면 풂
       const [k, w] = String(v).split('|'); if(!/^\d{4}-\d{2}-\d{2}$/.test(k || '') || !BAG_WAYS.includes(w)) return;
       const b = Object.assign({}, s.bags); if(b[k] === w) delete b[k]; else b[k] = w; s.bags = b; break; }

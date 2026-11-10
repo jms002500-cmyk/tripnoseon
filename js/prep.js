@@ -23,6 +23,7 @@ export function prepTasks(s){
   add(21, 'insure', '여행자 보험 들기', '아이·어른 모두. 증권은 보관함에 넣어 두세요.', 'vault');
   add(14, 'data', '로밍·eSIM 정하기', sz ? '선전(중국 본토)은 카카오톡·구글이 막혀요. 한국 통신사 로밍이 가장 편해요.' : '길찾기·번역을 계속 쓰니 데이터가 넉넉한 걸로.');
   add(10, 'money', '현지 돈 조금 바꾸기', hk ? '홍콩달러 조금(옥토퍼스 충전·작은 가게)' + (sz ? ', 선전은 알리페이·위챗페이로 대부분 돼요.' : '.') : jp ? '엔화 현금·동전 지갑. 작은 식당·자판기는 현금만 받는 곳이 많아요.' : '');
+  if(sz) add(10, 'payapp', '알리페이·위챗페이 깔고 카드 연결', '선전(중국 본토)은 가게·택시 대부분이 휴대폰 결제예요. 한국에서 앱을 깔고 해외 카드(Visa·Mastercard·JCB 등)를 연결해 두세요. 연결이 거절되면 카드사에 물어야 하니 미리 해요. 준비물에서 체크하면 여기도 같이 체크돼요.', 'pack');
   if(sz) add(7, 'cnarrive', '중국 입국카드 온라인 작성', '가족 한 사람씩. 작성한 화면을 캡처해 보관함에 넣어 두세요.', 'vault');
   if(jp) add(7, 'vjw', 'Visit Japan Web 등록', '입국 심사·세관 QR. 한 계정에 같이 가는 가족을 넣고, QR은 한 사람씩 따로 보여 줘요.', 'vault');
   add(5, 'transapp', '번역 앱에 오프라인 언어 받기', `구글 번역 앱에서 ${hk ? '중국어(번체·간체)' : '일본어'} 오프라인 번역을 받아 두면 인터넷이 끊겨도 카메라로 간판·안내문을 읽어요.${sz ? ' 선전에서 현지 유심을 쓰면 구글이 막히는데, 받아 둔 언어는 그대로 돼요.' : ''}`);
@@ -58,6 +59,7 @@ export function prepTasks(s){
     packlist:Object.values(s.pack || {}).some(x => x && !x.hide),
     places:Object.keys(s.picked || {}).length >= 3,
     backup:!!s.lastBackup,
+    payapp:!!((s.pack || {}).sg_alipay && (s.pack || {}).sg_alipay.done),   // 준비물 추천 '알리페이·위챗페이 설치하고 해외 카드 연결'(hksz-guide.js alipay)
     hoteladd:(s.vault || []).some(x => x && x.kind === 'hotel') || (s.hotels || []).length > 0,
     hotelcard:addrOk((s.safety || {}).addr) || (s.hotels || []).some(h => addrOk(h.addr)),
     kidcard:!!s.sphone,

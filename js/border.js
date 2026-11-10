@@ -102,3 +102,17 @@ export const BORDER_ERR = {
   bad:'대기 시간 자료를 못 읽었어요. 잠시 후 다시 눌러 주세요.',
   net:'국경 대기 시간을 못 불러왔어요. 인터넷 연결을 확인하거나 아래 홍콩 보안국 페이지에서 보세요.'
 };
+
+// 통관 시간 '06:30~22:30' → 닫는 시각(분, 24:00 = 1440). 24시간·멈춤·모름이면 null
+export function closeMin(cp){ const m = /~\s*(\d{1,2}):(\d{2})/.exec((CPS[cp] || {}).hours || ''); return m ? +m[1] * 60 + +m[2] : null; }
+export const LATE_GAP = 60;   // 닫기 이만큼(분) 전부터 알림
+// 국경을 넘는 어림 시각 when(분)이 검문소 닫는 시각에 가까우면 { cp(일정에서 지나는 곳, 모르면 ''), close, past, alt:[늦게까지 여는 주요 검문소] }
+//   지나는 곳을 모르면 주요 검문소 중 가장 일찍 닫는 시각으로 봄
+export function lateCross(when, borderKey){
+  if(when == null || !Number.isFinite(when)) return null;
+  const cp = cpOfBorder(borderKey); const main = Object.keys(CPS).filter(c => CPS[c].main);
+  const close = cp ? closeMin(cp) : Math.min(...main.map(closeMin).filter(x => x != null));
+  if(close == null || !Number.isFinite(close) || when < close - LATE_GAP) return null;
+  const alt = main.filter(c => c !== cp && (CPS[c].hours === '24시간' || (closeMin(c) != null && closeMin(c) >= when + LATE_GAP)));   // 닫기까지 1시간 넘게 남은 곳만 권함
+  return { cp, close, past:when >= close, alt };
+}
