@@ -59,7 +59,8 @@ export function prepTasks(s){
     backup:!!s.lastBackup,
     hotelcard:addrOk((s.safety || {}).addr) || (s.hotels || []).some(h => addrOk(h.addr)),
     kidcard:!!s.sphone,
-    gsave:(ps => ps.length > 0 && ps.every(p => s.gsaved && s.gsaved[p.id]))(pickedPlaces(s))
+    gsave:(ps => ps.length > 0 && ps.every(p => s.gsaved && s.gsaved[p.id]))(pickedPlaces(s)),
+    checkin:(L => L.length > 0 && L.every(x => (x.who || []).length && (x.who || []).every(k => (x.ck || []).includes(k))))(Object.values(s.fsegs || {}).filter(x => x && x.dir === 'out'))
   };
   const done = s.prep || {};
   return L.map(x => Object.assign(x, { date:addDay(s.start, -x.dday), done:!!done[x.key] || !!auto[x.key], auto:!done[x.key] && !!auto[x.key] }))

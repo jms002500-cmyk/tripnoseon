@@ -154,7 +154,8 @@ export function cleanShared(s){
   { const o = {}; const v = isMap(s.fsegs) ? s.fsegs : {};   // 비행기 편: 칸 이름·글자만, 12편까지
     Object.keys(v).filter(safeId).slice(0, 12).forEach(id => { const x = v[id]; if(!isMap(x)) return; const S = (k, n) => typeof x[k] === 'string' ? x[k].slice(0, n) : '';
       o[id] = { dir:x.dir === 'back' ? 'back' : 'out', fno:S('fno', 10), date:DATE.test(S('date', 10)) ? S('date', 10) : '', from:S('from', 3), to:S('to', 3), dep:S('dep', 5), arr:S('arr', 5),
-        who:(Array.isArray(x.who) ? x.who : []).filter(k => typeof k === 'string' && k.length <= 40).slice(0, 20) }; });
+        who:(Array.isArray(x.who) ? x.who : []).filter(k => typeof k === 'string' && k.length <= 40).slice(0, 20) };
+      const ck = (Array.isArray(x.ck) ? x.ck : []).filter(k => typeof k === 'string' && k.length <= 40).slice(0, 20); if(ck.length) o[id].ck = ck; });
     s.fsegs = o; }
   if(!(s.hotelArea === null || (typeof s.hotelArea === 'string' && safeId(s.hotelArea)))) s.hotelArea = null;
   if(!(s.hotelPick === null || typeof s.hotelPick === 'string')) s.hotelPick = null;

@@ -528,7 +528,8 @@ async function saveVault(){
     const d2 = flightDir(s, it); it.ap = d2 === 'back' ? (aps.includes(fr.code) ? fr.code : '') : (aps.includes(to.code) ? to.code : '');
     if(fromRead && s.vdraft.pname) it.pname = s.vdraft.pname;   // 탑승객 영문 이름 → 일행 칸 (다음 항공권도 같은 사람으로, 이 기기에만)
     const air = (title.split(' · ')[1] || '').trim();
-    it.title = `${d2 === 'back' ? '오는 편' : '가는 편'}${fr.code || fr.text || to.code || to.text ? ` ${fr.code || fr.text || '?'} → ${to.code || to.text || '?'}` : ''}${air ? ` · ${air}` : ''}`.slice(0, 60);
+    if(fromRead) it.bp = !!s.vdraft.bp; else if(!editing) it.bp = false;
+    it.title = `${it.bp ? '탑승권 · ' : ''}${d2 === 'back' ? '오는 편' : '가는 편'}${fr.code || fr.text || to.code || to.text ? ` ${fr.code || fr.text || '?'} → ${to.code || to.text || '?'}` : ''}${air ? ` · ${air}` : ''}`.slice(0, 60);
   }
   if(kind === 'hotel') Object.assign(it, { date2:g('vdate2').value, time2:g('vtime2h').value, addr:g('vaddr').value.trim().slice(0, 120), tel:g('vtel').value.trim().slice(0, 30) });
   Object.assign(it, { amt:+g('vamt').value > 0 ? Math.round(+g('vamt').value * 100) / 100 : 0, cur:g('vcur').value || 'KRW' });
@@ -1177,6 +1178,11 @@ function act(a, v){
     case 'installhide': s.installHide = true; break;
     case 'tsize': s.textSize = v === 'big' || v === 'bigger' ? v : ''; break;
     // 오가는 길 (js/moves.js). 고칠 때마다 새 객체로 바꿔 함께 짜기가 바뀐 걸 알게
+    case 'fsegck': {   // 체크인 했어요 / 안 했어요 (사람마다, 함께 짜기로 공유)
+      const [id, k] = String(v).split('|'); const x = (s.fsegs || {})[id]; if(!x) return;
+      const ck = new Set(x.ck || []); if(ck.has(k)) ck.delete(k); else ck.add(k);
+      s.fsegs = Object.assign({}, s.fsegs, { [id]:Object.assign({}, x, { ck:[...ck] }) }); break;
+    }
     case 'mvjump': {   // 여행지 비행기 칸에서 공항 오가는 길 정하기 → 일정 단계 '오가는 길'에서 그 구간을 열어 둠
       const tidy = (s.moves || []).filter(m => !isEmptyMove(m)); const ex = tidy.find(m => m.k === v);
       const m = ex || { id:v, k:v, date:'', time:'', how:'', min:null, from:'', to:'', booked:false, note:'' };

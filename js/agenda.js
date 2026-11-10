@@ -6,7 +6,7 @@ import { bookingRows } from './bookings.js';
 import { AFTER_LANDING, DAY_START, hm, toMin, minText, depMin, effFlight, beforeFlight, APT_LIST } from './flight.js';
 import { homeTime, TZ_OFFSET } from './ics.js';
 import { bookings } from './vault.js';
-import { airlineOf, checkinOpenDate, onlineText } from './airlines.js';
+import { airlineOf, checkinOpenDate, onlineText, checkinState } from './airlines.js';
 
 const DAY_WORD = { '-1':'전날', '1':'다음 날' };   // 밤 비행기라 집 ↔ 공항이 한국 날짜로 하루 다를 때 (ics.js homeTime)
 
@@ -47,7 +47,11 @@ export function dayAgenda(s, d, ctx){
   }
   // 오는 편 온라인 체크인이 열리는 날 (여행 중): 그날 아침에 알림
   Object.values(s.fsegs || {}).filter(x => x && x.dir === 'back' && x.fno && checkinOpenDate(x.fno, x.date) === d.key).forEach(x => { const a = airlineOf(x.fno);
-    out.push({ min:DAY_START, icon:'📲', text:`오는 편 ${x.fno} 온라인 체크인 열림`, sub:`${a.name} · ${onlineText(a)} · 좌석을 같이 앉게 정해요`, kind:'note' }); });
+    const st = checkinState(x, d.key); if(st && st.done) return;
+    out.push({ min:DAY_START, icon:'📲', text:`오는 편 ${x.fno} 온라인 체크인 열림`, sub:`${a.name} · ${onlineText(a)} · 좌석을 같이 앉게 정해요${st && st.left.length && st.left.length < (x.who || []).length ? ` · 아직 ${st.left.length}명` : ''}`, kind:'note' }); });
+  // 비행기 타는 날: 체크인 안 한 사람이 있으면 공항 카운터에서 (마감 전에)
+  Object.values(s.fsegs || {}).filter(x => x && x.date === d.key && (x.who || []).length).forEach(x => { const st = checkinState(x, d.key); if(!st || st.done) return; const a = airlineOf(x.fno);
+    out.push({ min:DAY_START, icon:'⚠️', text:`${x.dir === 'back' ? '오는' : '가는'} 편 ${x.fno} 아직 체크인 안 한 사람 ${st.left.length}명`, sub:`앱·누리집에서 하거나 공항 카운터에서${a ? ` (${a.counter})` : ''} · 했으면 여행지 비행기 칸에서 표시`, kind:'note' }); });
   bookingRows(bookings(s.vault), d.key, new Set((s.moves || []).map(m => m.id))).forEach(b => out.push({ min:b.time, icon:b.icon, text:b.text, sub:'예약', kind:'book', vid:b.id }));
   if(z && s.flight && s.flight.itc) out.push({ min:DAY_START, icon:'🧳', text:'시내 체크인 · 홍콩역·구룡역에서 짐 부치기', sub:'참여 항공사만 · 받는 시간 확인', kind:'itc' });
   const rank = x => x.min == null ? 9999 : x.min;

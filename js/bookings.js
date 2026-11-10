@@ -58,6 +58,7 @@ export function applyFlight(s, it){
     const from = /^[A-Z]{3}$/.test(it.from || '') ? it.from : dir === 'back' && apOk ? it.ap : old.from || '';
     const to = /^[A-Z]{3}$/.test(it.to || '') ? it.to : dir === 'out' && apOk ? it.ap : old.to || '';
     mine = { dir, fno, date:it.date, from, to, dep:/^\d{2}:\d{2}$/.test(it.time || '') ? it.time : old.dep || '', arr:/^\d{2}:\d{2}$/.test(it.time2 || '') ? it.time2 : old.arr || '', who };
+    { const ck = keys.filter(k => (old.ck || []).includes(k) || (it.bp && flightWho(s, it).includes(k))); if(ck.length) mine.ck = ck; }   // 탑승권을 넣은 사람은 체크인 완료
     if(JSON.stringify(old) !== JSON.stringify(mine)){ segs[id] = mine; patch.fsegs = segs; msgs.push(`${dir === 'back' ? '오는' : '가는'} 편 ${fno}`); }
   }
   // 일행 첫날·마지막 날 시간: 그 방향에서 가장 많은 사람이 타는 편 기준 (친구끼리 따로 예약해 편이 다르면)

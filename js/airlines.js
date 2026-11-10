@@ -103,6 +103,13 @@ export function checkinOpenDate(fno, date){
   const a = airlineOf(fno); if(!a || !a.online || !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return '';
   const [y, m, d] = date.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d - Math.ceil(a.online[0] / 24))).toISOString().slice(0, 10);
 }
+// 이 편 체크인 상태: today(현지 날짜 'YYYY-MM-DD')가 체크인 여는 날 ~ 출발 날이면 open. left: 안 한 사람 키
+export function checkinState(seg, today){
+  if(!seg || !seg.fno) return null;
+  const opens = checkinOpenDate(seg.fno, seg.date); const ck = seg.ck || []; const left = (seg.who || []).filter(k => !ck.includes(k));
+  const open = !!today && !!seg.date && today <= seg.date && (opens ? today >= opens : today === seg.date);
+  return { opens, open, left, done:(seg.who || []).length > 0 && !left.length };
+}
 export const onlineText = a => a && a.online ? `출발 ${a.online[0]}시간 전부터 ${a.online[1]}까지` : '';
 // 이 편에 해당하는 보조배터리 규정: 출발 공항 나라 규정 + 홍콩은 오가는 편 모두
 export function powerbankRules(from, to){

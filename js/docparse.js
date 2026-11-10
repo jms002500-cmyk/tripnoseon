@@ -79,7 +79,9 @@ export function parseDocText(text, o = {}){
   const flights = []; segs.forEach(x => { const same = flights.find(y => y.fno === x.fno && (!y.date || !x.date || y.date === x.date)); if(same){ ['date', 'time', 'time2'].forEach(k => { if(!same[k]) same[k] = x[k]; }); } else flights.push(x); });
   if(flights.length){
     flights.sort((a, b) => (a.date || '9').localeCompare(b.date || '9') || (a.time || '').localeCompare(b.time || ''));
-    return { kind:'flight', items:flights.map((f, i) => Object.assign({ title:'', date:f.date, time:f.time, time2:f.time2, fno:f.fno, from:f.from, to:f.to, code:code || codeT }, code2 ? { code2 } : {}, bag ? { bag } : {},
+    // 탑승권(체크인을 해야 나옴): 제목·탑승구·좌석이 있고 e-티켓·여정·영수증 표시는 없음 (e-티켓 안내문에도 '탑승권 발급' 말이 있어서)
+    const bp = /BOARDING\s*PASS|탑승권|登機證|登机牌|搭乗券/i.test(t) && /GATE|탑승구|登機閘口|登机口/i.test(t) && /SEAT|좌석|座位|座席/i.test(t) && !/E-?\s*TICKET|ITINERARY|RECEIPT|전자\s*항공권|e-\s*티켓|발권이\s*완료/i.test(t);
+    return { kind:'flight', items:flights.map((f, i) => Object.assign({ title:'', date:f.date, time:f.time, time2:f.time2, fno:f.fno, from:f.from, to:f.to, code:code || codeT }, code2 ? { code2 } : {}, bag ? { bag } : {}, bp ? { bp:true } : {},
       i === 0 && amt ? amt : {}, { passengers:i === 0 || passengers.some(p => p.ticket) ? passengers : [] })), unclear:flights.some(f => !f.date || !f.time) ? '날짜·시각을 다 찾지 못한 편이 있어요' : '' };
   }
   // 숙소: 체크인·체크아웃 날짜

@@ -47,3 +47,20 @@ test('수하물 기준: 주요 항공사는 기내·위탁 기준이 있고, 공
   ['KE', 'OZ', 'CX', 'TW', 'BX', 'RS', 'NH', 'JL'].forEach(k => { assert.ok(AIRLINES[k].carry && AIRLINES[k].checked, k); assert.match(AIRLINES[k].url.baggage, /^https:\/\//, k); assert.ok(AIRLINES[k].url.checkin, k); });
   assert.match(AIRLINES.KE.checked, /23kg/); assert.match(AIRLINES.HX.carry, /7kg/);
 });
+
+test('탑승권은 체크인 완료로 알아봄 (e-티켓은 아님), 체크인 열림·안 한 사람', async () => {
+  const { checkinState } = await import('../js/airlines.js');
+  const { applyFlight } = await import('../js/bookings.js');
+  const bp = parseDocText('BOARDING PASS\nHONG/GILDONG MR\nCX 400 06MAR ICN HKG 08:00 10:40\nGATE 23 SEAT 41A BOARDING 07:20', { year:2027 });
+  assert.equal(bp.items[0].bp, true);
+  const et = parseDocText('ELECTRONIC TICKET ITINERARY/RECEIPT\nCX 400 06MAR ICN HKG 08:00 10:40\n탑승권은 공항에서 GATE SEAT', { year:2027 });
+  assert.equal(et.items[0].bp, undefined);
+  const seg = { fno:'CX400', date:'2027-03-06', who:['a1', 'a2'], ck:['a1'] };
+  assert.deepEqual(checkinState(seg, '2027-03-03'), { opens:'2027-03-04', open:false, left:['a2'], done:false });
+  assert.equal(checkinState(seg, '2027-03-05').open, true);
+  assert.equal(checkinState(Object.assign({}, seg, { ck:['a1', 'a2'] }), '2027-03-05').done, true);
+  // 탑승권을 넣은 사람은 편 정보에 체크인 완료(ck)
+  const s = Object.assign(JSON.parse(JSON.stringify(DEFAULT)), { city:'hksz', adults:2, kids:[], start:'2027-03-06', end:'2027-03-10' });
+  const r = applyFlight(s, { kind:'flight', fno:'CX400', date:'2027-03-06', time:'08:00', dir:'out', ap:'HKG', bp:true, pcode:{ a2:'160-2' } });
+  assert.deepEqual(Object.values(r.patch.fsegs)[0].ck, ['a2']);
+});

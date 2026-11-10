@@ -51,7 +51,7 @@ import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 import { gsaveUrl, gsaveList, isSaved } from './gsave.js';
 import { docsOf, docLabel } from './docs.js';
 import { travellers, paxOf, PAX_KINDS } from './pax.js';
-import { airlineOf, airlineCode, onlineText, powerbankRules, CHECKED as AL_CHECKED } from './airlines.js';
+import { airlineOf, airlineCode, onlineText, powerbankRules, checkinState, CHECKED as AL_CHECKED } from './airlines.js';
 import { askKeyNow } from './askai.js';
 
 export function partyText(s){
@@ -549,6 +549,10 @@ function fsegBox(s){
     return `<li class="fseg"><div class="fsegh"><b>${x.dir === 'back' ? '🛬 오는 편' : '🛫 가는 편'} · ${esc(x.fno)}</b><button type="button" class="link" data-act="fsegdel" data-v="${esc(id)}" aria-label="${esc(x.fno)} 편 지우기">지우기</button></div>
       <span class="fsegt">${esc(dayTxt(x.date))} ${esc(x.dep || '')} ${esc(x.from || '')} → ${esc(x.arr || '')} ${esc(x.to || '')}</span>
       ${who.length ? `<span class="fine">👪 ${esc(who.join(' · '))}${who.length === T.length && T.length > 1 ? ' (일행 모두)' : ''}</span>` : ''}
+      ${(st => { if(!st || !(x.who || []).length) return ''; const a = airlineOf(x.fno);
+        const chips = (x.who || []).map(k => { const on = (x.ck || []).includes(k); return `<button type="button" class="chip${on ? ' on' : ''}" data-act="fsegck" data-v="${esc(id)}|${esc(k)}" aria-pressed="${on}">${on ? '✓' : '○'} ${esc(nm(k))}</button>`; }).join('');
+        const warn = st.open && st.left.length ? `<p class="warnline">📲 온라인 체크인이 열렸어요${a ? `(${esc(onlineText(a))})` : ''}. 아직 안 한 사람: <b>${esc(st.left.map(nm).join(', '))}</b>${a && a.url && a.url.checkin ? ` · <a class="link" href="${esc(a.url.checkin)}" target="_blank" rel="noopener noreferrer">${esc(a.name)} 체크인 ↗</a>` : ''}</p>` : '';
+        return `<div class="ckrow"><span class="fine">체크인${st.done ? ' — 모두 했어요 ✓' : st.opens && !st.open && st.left.length ? ` — ${esc(st.opens.slice(5).replace('-', '/'))}부터 열려요` : ''}</span><div class="chips">${chips}</div></div>${warn}`; })(checkinState(x, (s.sh || {}).today))}
       ${mine.map(codeRows).join('')}
       ${mine.length ? docBtns(s, mine) : '<span class="fine">이 기기에는 이 편 확인서가 없어요 (예약번호·티켓은 넣은 기기에만 있어요)</span>'}
       ${links.length ? `<span class="mvtt">${links.map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : ''}
