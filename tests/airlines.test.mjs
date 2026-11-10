@@ -42,3 +42,8 @@ test('출발 전 할 일 온라인 체크인: 가는 편 항공사에 맞춘 날
   const d4 = dayAgenda(s, { i:4, key:'2027-03-10', depart:{ at:1110, leave:900, ap:{ name:'홍콩 국제공항' }, transfer:50 } }, {});
   assert.match(d4.find(x => x.dir === 'back').sub, /홍콩익스프레스/);
 });
+
+test('수하물 기준: 주요 항공사는 기내·위탁 기준이 있고, 공식 수하물 안내 링크도', () => {
+  ['KE', 'OZ', 'CX', 'TW', 'BX', 'RS', 'NH', 'JL'].forEach(k => { assert.ok(AIRLINES[k].carry && AIRLINES[k].checked, k); assert.match(AIRLINES[k].url.baggage, /^https:\/\//, k); assert.ok(AIRLINES[k].url.checkin, k); });
+  assert.match(AIRLINES.KE.checked, /23kg/); assert.match(AIRLINES.HX.carry, /7kg/);
+});

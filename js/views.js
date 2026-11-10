@@ -524,7 +524,7 @@ function airlineBox(fno, from, to, bag){
   const pbs = powerbankRules(from, to).concat(a && a.pb ? [`${a.name}: ${a.pb}`] : []);
   const body = a ? `<ul class="facts alfacts">
       ${row('온라인 체크인', a.online ? onlineText(a) : '앱·공항에서 (아래 안내)')}${row('공항 카운터', a.counter)}${row('탑승구', a.gate)}
-      ${row('인천공항', a.icn ? `제${a.icn.slice(1)}여객터미널(${a.icn})` : '')}${row('홍콩공항', a.hkg)}${row('기내 수하물', a.carry)}${row('위탁 수하물', bag ? `${bag} (확인서·예약 기준)` : '운임마다 달라요 — 확인서·예약 화면을 보세요')}
+      ${row('인천공항', a.icn ? `제${a.icn.slice(1)}여객터미널(${a.icn})` : '')}${row('홍콩공항', a.hkg)}${row('기내 수하물', a.carry || '항공사 수하물 안내를 보세요')}${row('내 위탁 수하물', bag ? `${bag} (확인서에 적힌 대로)` : '')}${row(bag ? '위탁 기준' : '위탁 수하물', a.checked ? `${a.checked}${bag ? '' : ' — 내 운임은 확인서·예약 화면에서'}` : bag ? '' : '운임마다 달라요 — 확인서·예약 화면을 보세요')}
     </ul>${(a.notes || []).map(n => `<p class="fine">· ${esc(n)}</p>`).join('')}`
     : `<p class="fine">${esc(code)} 항공사 안내는 아직 앱에 없어요. 항공사 누리집에서 '온라인 체크인'과 '수하물'을 찾아보세요.${bag ? ` 확인서의 위탁 수하물: ${esc(bag)}.` : ''}</p>`;
   const links = a ? Object.entries(a.url || {}).map(([k, u]) => `<a class="link" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${({ checkin:'체크인 공식 안내', counter:'공항 카운터 안내', baggage:'수하물 공식 안내' })[k] || '공식 안내'} ↗</a>`).join('')

@@ -28,7 +28,7 @@ export const AIRLINES = {
     url:{ checkin:'https://www.hkexpress.com/en/travel-help/check-in-guide', baggage:'https://www.hkexpress.com/en/Plan-Your-Trip/Baggage/Carry-On-Baggage' } },
   '7C':{ name:'제주항공', online:[24, '1시간 30분 전'], counter:'국제선 출발 60분 전 마감', icn:'T1',
     carry:'캐리어 1개 + 개인 소지품 1개(면세품 포함) 합쳐 10kg, 세 변 합 115cm(한 변 55cm) 이하',
-    notes:['위탁 수하물: 베이직 운임은 없음, 스탠다드 15kg (운임마다 달라요).', '해외 출발 모바일 탑승권은 일본 일부·마카오·홍콩·태국·타이베이만 돼요.'],
+    notes:['해외 출발 모바일 탑승권은 일본 일부·마카오·홍콩·태국·타이베이만 돼요.'],
     pb:'2026년 1월 22일부터 기내에서 보조배터리 사용 금지',
     url:{ checkin:'https://www.jejuair.net/ko/linkService/fastProcedure/guide.do', baggage:'https://www.jejuair.net/ko/linkService/boardingProcessGuide/cabinBaggage.do' } },
   LJ:{ name:'진에어', online:[24, '1시간 30분 전'], counter:'인천: 출발 3시간 전~50분 전 (T2 3층 E21~40), 위탁 수하물 50분 전 마감', gate:'탑승구 출발 10분 전 마감', icn:'T2',
@@ -45,7 +45,7 @@ export const AIRLINES = {
     url:{ checkin:'https://www.airbusan.com/content/common/service/airport/autoIssue' } },
   ZE:{ name:'이스타항공', online:[24, '1시간 30분 전'], counter:'위탁 수하물 출발 1시간 전 마감, 출국장은 1시간 전까지 통과', gate:'탑승 출발 15분 전 종료',
     carry:'세 변 합 115cm·10kg 이하 1개',
-    notes:['특가 운임은 무료 위탁 수하물이 없고, 일반·할인 운임은 15kg.', '중국·베트남 출발 등은 온라인 체크인이 안 돼요.'],
+    notes:['중국·베트남 출발 등은 온라인 체크인이 안 돼요.'],
     pb:'2026년 1월 1일부터 기내에서 보조배터리 사용 금지',
     url:{ checkin:'https://www.eastarjet.com/newstar/PGWIJ00001' } },
   RS:{ name:'에어서울', online:[24, '1시간 30분 전'], counter:'인천 출발 60분 전 마감 (나리타·간사이 등은 50분 전)', gate:'탑승 출발 10분 전 마감',
@@ -62,6 +62,31 @@ export const AIRLINES = {
     notes:['앱 자동 체크인은 출발 120분 전에 탑승권이 나와요(노선에 따라 안 될 수 있어요).'],
     url:{ checkin:'https://www.flypeach.com/en/lm/ai/airports/how_to_checkin', baggage:'https://www.flypeach.com/en/lm/ai/airports/baggage/carry_on_bag' } }
 };
+
+// 수하물 기준 (일반석·이코노미, 미주 외 국제선, 2026-11-10 공식 누리집 확인). 운임·노선마다 다르니 확인서에 적힌 게 먼저
+//   carry: 기내 수하물  checked: 무료 위탁 수하물
+const BAG = {
+  KE:{ carry:'가방 1개 + 개인 소지품 1개, 합쳐 10kg — 가방은 세 변 합 115cm(또는 55×40×20cm), 소지품은 40×30×15cm 이내',
+    checked:'일반석 1개 23kg (일행끼리 무게 합산 안 됨)', url:{ baggage:'https://www.koreanair.com/contents/plan-your-travel/baggage/checked-baggage/free-baggage?hl=ko' } },
+  OZ:{ carry:'가방 1개 10kg, 세 변 합 115cm + 개인 소지품 1개(40×30×20cm)', checked:'일반석 1개 23kg, 세 변 합 158cm',
+    url:{ baggage:'https://m.flyasiana.com/C/KR/KO/contents/free-baggage' } },
+  HX:{ carry:'가방 1개 + 작은 물건 1개, 합쳐 7kg — 가방은 56×36×23cm 이내 (넘으면 탑승구에서 HK$500/개)', checked:'운임마다 달라요 — 확인서에 적힌 개수·무게대로',
+    url:{ baggage:'https://www.hongkongairlines.com/en_HK/fly-with-us/baggage/handcarry' } },
+  CX:{ carry:'이코노미 1개 7kg', checked:'이코노미 Light 1개 23kg, Essential·Flex 2개 각 23kg',
+    url:{ baggage:'https://flights.cathaypacific.com/en_US/baggage.html' } },
+  UO:{ checked:'운임에 없으면 미리 사야 해요(공항·탑승구에서 사면 더 비싸요)' },
+  '7C':{ checked:'베이직 운임 없음, 스탠다드 15kg, BIZ LITE 30kg (한 개 32kg·158cm까지)' },
+  TW:{ carry:'1개 10kg, 세 변 합 115cm', checked:'스마트 15kg, 일반 20kg, 이벤트 운임 없음 (일행끼리 무게 합산 돼요, 한 개 32kg까지)',
+    url:{ baggage:'https://www.twayair.com/app/serviceInfo/contents/1148' } },
+  BX:{ carry:'1개 10kg, 세 변 합 115cm', checked:'실속·일반 운임 15kg (괌 노선 23kg)', url:{ baggage:'https://m.airbusan.com/mc/common/service/baggage/free' } },
+  ZE:{ checked:'일반·할인 운임 15kg, 특가 운임 없음' },
+  RS:{ carry:'1개 10kg, 세 변 합 115cm(55×40×20cm)', checked:'정규·할인 운임 15kg, 특가 운임 없음', url:{ baggage:'https://m.flyairseoul.com/CM/ko/destinations02.do' } },
+  NH:{ carry:'가방 1개 + 개인 소지품 1개, 합쳐 10kg — 가방은 세 변 합 115cm, 소지품은 40×30×20cm', checked:'이코노미 0~2개 각 23kg (운임마다 달라요, 세 변 합 158cm)',
+    url:{ baggage:'https://www.ana.co.jp/en/us/travel-information/baggage-information/checked-baggage/' } },
+  JL:{ carry:'가방 1개 + 개인 소지품 1개, 합쳐 10kg — 가방은 세 변 합 115cm', checked:'이코노미 2개 각 23kg (세 변 합 203cm)',
+    url:{ baggage:'https://www.jal.co.jp/jp/en/inter/baggage/checked/' } }
+};
+Object.entries(BAG).forEach(([k, v]) => { const a = AIRLINES[k]; if(!a) return; const { url, ...rest } = v; Object.assign(a, rest); if(url) a.url = Object.assign({}, a.url, url); });
 
 // 보조배터리 — 출발지 규정 (한국 국토교통부·홍콩 민항처·중국 민항국)
 export const POWERBANK = {
