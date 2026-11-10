@@ -6,6 +6,7 @@ import { bookingRows } from './bookings.js';
 import { AFTER_LANDING, DAY_START, hm, toMin, minText, depMin, effFlight, beforeFlight, APT_LIST } from './flight.js';
 import { homeTime, TZ_OFFSET } from './ics.js';
 import { bookings } from './vault.js';
+import { airlineOf, checkinOpenDate, onlineText } from './airlines.js';
 
 const DAY_WORD = { '-1':'전날', '1':'다음 날' };   // 밤 비행기라 집 ↔ 공항이 한국 날짜로 하루 다를 때 (ics.js homeTime)
 
@@ -27,7 +28,8 @@ export function dayAgenda(s, d, ctx){
   const a = d.arrive, z = d.depart && d.depart.leave >= 0 ? d.depart : null;
   if(pre){
     if(pre.leave != null && !go0) out.push({ min:loc(pre.leave), kst:pre.leave, home:true, icon:'🏠', text:'집에서 나서기', sub:'비행기 시각에 맞춰 계산 · 집 → 공항 걸리는 시간 기준', kind:'pre' });
-    out.push({ min:loc(pre.at), kst:pre.at, home:true, icon:'🛂', text:'공항 도착 · 체크인·짐 부치기', sub:'국제선 2시간 30분 전', kind:'pre' });
+    const oa = airlineOf((Object.values(s.fsegs || {}).find(x => x && x.dir === 'out') || {}).fno);
+    out.push({ min:loc(pre.at), kst:pre.at, home:true, icon:'🛂', text:'공항 도착 · 체크인·짐 부치기', sub:`국제선 2시간 30분 전${oa ? ` · ${oa.name} ${oa.counter}` : ''}`, kind:'pre' });
     out.push({ min:loc(pre.dep), kst:pre.dep, home:true, icon:'✈️', text:'출발', sub:'탑승권·여권 꺼내 두기', kind:'flight', dir:'out' });   // 탑승권 버튼은 이 줄에
   }
   if(a){
@@ -36,12 +38,16 @@ export function dayAgenda(s, d, ctx){
   }
   if(z){
     if(!ms.some(m => m.k === 'out' && toMin(m.time) != null)) out.push({ min:z.leave, icon:'🧳', text:`숙소에서 공항으로 출발 · 약 ${minText(z.transfer)}`, sub:(ms.find(m => m.k === 'out') ? moveText(ms.find(m => m.k === 'out'), c, minText) + ' · ' : '') + '짐 챙기기', kind:'move' });
-    out.push({ min:z.at, icon:'✈️', text:`${z.ap.name} 출발`, sub:`${z.at >= 1440 ? '다음 날 새벽 · ' : ''}2시간 30분 전 공항 도착 기준`, kind:'flight', dir:'back' });
+    const ba = airlineOf((Object.values(s.fsegs || {}).find(x => x && x.dir === 'back') || {}).fno);
+    out.push({ min:z.at, icon:'✈️', text:`${z.ap.name} 출발`, sub:`${z.at >= 1440 ? '다음 날 새벽 · ' : ''}2시간 30분 전 공항 도착 기준${ba ? ` · ${ba.name} ${ba.counter}` : ''}`, kind:'flight', dir:'back' });
     // 오는 편 한국 도착(한국 시각) — 넣었을 때만
     const ra = toMin(effFlight(s.flight).rarr);
     if(ra != null){ let lm = loc(ra); while(lm < z.at) lm += 1440; const seg = Object.values(s.fsegs || {}).find(x => x && x.dir === 'back' && x.to); const ap = seg ? (APT_LIST.find(x => x.code === seg.to) || {}).name || seg.to : '한국';
       out.push({ min:lm, kst:ra, home:true, icon:'🛬', text:`${ap} 도착`, sub:lm >= 1440 ? '다음 날 · 입국·짐 찾기 뒤 집으로' : '입국·짐 찾기 뒤 집으로', kind:'arr' }); }
   }
+  // 오는 편 온라인 체크인이 열리는 날 (여행 중): 그날 아침에 알림
+  Object.values(s.fsegs || {}).filter(x => x && x.dir === 'back' && x.fno && checkinOpenDate(x.fno, x.date) === d.key).forEach(x => { const a = airlineOf(x.fno);
+    out.push({ min:DAY_START, icon:'📲', text:`오는 편 ${x.fno} 온라인 체크인 열림`, sub:`${a.name} · ${onlineText(a)} · 좌석을 같이 앉게 정해요`, kind:'note' }); });
   bookingRows(bookings(s.vault), d.key, new Set((s.moves || []).map(m => m.id))).forEach(b => out.push({ min:b.time, icon:b.icon, text:b.text, sub:'예약', kind:'book', vid:b.id }));
   if(z && s.flight && s.flight.itc) out.push({ min:DAY_START, icon:'🧳', text:'시내 체크인 · 홍콩역·구룡역에서 짐 부치기', sub:'참여 항공사만 · 받는 시간 확인', kind:'itc' });
   const rank = x => x.min == null ? 9999 : x.min;

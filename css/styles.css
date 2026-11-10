@@ -414,6 +414,10 @@ html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn
 .gsnow{flex-basis:100%;margin:.1em 0 0}
 .gsdone summary{cursor:pointer;margin:.3em 0}
 .vread label,.flread{display:grid;gap:6px}
+.alinfo{margin:.2em 0 .3em}
+.alinfo>summary{cursor:pointer;color:var(--accent-ink);font-weight:600;padding:.3em 0}
+.alfacts li{align-items:flex-start}
+.alfacts li b{font-weight:500;text-align:right}
 .vmore{margin:.3em 0}
 .vmore>summary{cursor:pointer;color:var(--muted);padding:.35em 0;list-style:none}
 .vmore>summary::-webkit-details-marker{display:none}

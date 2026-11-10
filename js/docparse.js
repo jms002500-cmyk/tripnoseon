@@ -53,6 +53,7 @@ export function parseDocText(text, o = {}){
     const c = (m[1] || m[3] || '').toUpperCase(); const cur = { '₩':'KRW', '원':'KRW', 'HK$':'HKD', '￥':'JPY', '¥':'JPY' }[c] || (/^[A-Z]{3}$/.test(c) ? c : '');
     return { amount:n, currency:cur }; })();
   const passengers = names.map((n, i) => ({ name:n, ticket:tickets[i] || '' }));
+  const bag = (() => { const m = /(?:무료\s*)?(?:위탁\s*)?수하물\s*(?:BAGGAGE)?\s*[:：]?\s*(\d{1,2})\s*(PCS|PIECES?|PC|KG|K|개)(?![A-Z0-9])|BAGGAGE(?:\s*ALLOWANCE)?\s*[:：]?\s*(\d{1,2})\s*(PCS|PIECES?|PC|KG|K)(?![A-Z0-9])/i.exec(t); if(!m) return ''; const n = m[1] || m[3], u = (m[2] || m[4]).toUpperCase(); return /^K/.test(u) ? `${n}kg` : `${n}개`; })();   // 위탁 수하물 허용량
   if(!passengers.length && tickets.length) tickets.forEach(tk => passengers.push({ name:'', ticket:tk }));
 
   // 비행기: 편명 위치마다 그 앞뒤 구간에서 공항 두 개·날짜·시각
@@ -78,7 +79,7 @@ export function parseDocText(text, o = {}){
   const flights = []; segs.forEach(x => { const same = flights.find(y => y.fno === x.fno && (!y.date || !x.date || y.date === x.date)); if(same){ ['date', 'time', 'time2'].forEach(k => { if(!same[k]) same[k] = x[k]; }); } else flights.push(x); });
   if(flights.length){
     flights.sort((a, b) => (a.date || '9').localeCompare(b.date || '9') || (a.time || '').localeCompare(b.time || ''));
-    return { kind:'flight', items:flights.map((f, i) => Object.assign({ title:'', date:f.date, time:f.time, time2:f.time2, fno:f.fno, from:f.from, to:f.to, code:code || codeT }, code2 ? { code2 } : {},
+    return { kind:'flight', items:flights.map((f, i) => Object.assign({ title:'', date:f.date, time:f.time, time2:f.time2, fno:f.fno, from:f.from, to:f.to, code:code || codeT }, code2 ? { code2 } : {}, bag ? { bag } : {},
       i === 0 && amt ? amt : {}, { passengers:i === 0 || passengers.some(p => p.ticket) ? passengers : [] })), unclear:flights.some(f => !f.date || !f.time) ? '날짜·시각을 다 찾지 못한 편이 있어요' : '' };
   }
   // 숙소: 체크인·체크아웃 날짜

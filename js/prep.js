@@ -5,6 +5,7 @@
 import { idCopies } from './vault.js';
 import { isEmptyMove } from './moves.js';
 import { pickedPlaces } from './logic.js';
+import { airlineOf, onlineText } from './airlines.js';
 
 const addDay = (key, n) => { const [y, m, d] = key.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
 const addrOk = a => !!(a || '').trim() && !/[가-힣]/.test(a);   // 기사님이 읽을 수 있는 현지어 주소
@@ -35,7 +36,13 @@ export function prepTasks(s){
   add(3, 'backup', '백업 파일 만들어 두기', '폰을 잃어버리거나 바꿔도 다른 폰에서 일정·보관함을 그대로 되돌릴 수 있어요.', 'backupbox');
   add(2, 'offline', '인터넷 없이 열리는지 확인', '비행기 모드로 앱을 한 번 열어 보세요. 일정·보관함·긴급 정보는 이 폰에 저장돼 있어요. 홈 화면에 설치해 두면 더 빨리 열려요.');
   add(3, 'weather', '일기예보 보기', '여행지 단계 날씨에 출발 16일 안부터 예보가 떠요. 비 오면 일정 단계 \'비 오면?\'으로 바꿔요.', 'where');
-  add(2, 'checkin', '항공사 온라인 체크인', '보통 출발 24~48시간 전에 열려요(항공사마다 달라요). 좌석을 같이 앉게 정해요.');
+  { // 가는 편 항공사가 앱에 있으면 그 항공사 온라인 체크인 여는 날·시간·카운터 마감으로 (js/airlines.js)
+    const seg = Object.values(s.fsegs || {}).filter(x => x && x.dir === 'out' && x.fno).sort((a, b) => (a.date + a.dep).localeCompare(b.date + b.dep))[0];
+    const fl = seg || (s.vault || []).find(x => x && x.kind === 'flight' && x.fno && x.dir !== 'back');
+    const a = fl ? airlineOf(fl.fno) : null;
+    if(a && a.online) add(Math.max(1, Math.ceil(a.online[0] / 24)), 'checkin', `${a.name} ${fl.fno} 온라인 체크인`, `${onlineText(a)} 앱·누리집에서 해요. 공항 카운터는 ${a.counter}. 좌석을 같이 앉게 정하고, 짐이 있으면 공항에서 맡겨요.`, 'vault');
+    else add(2, 'checkin', '항공사 온라인 체크인', `${a ? `${a.name}: ${a.counter}. ` : ''}보통 출발 24~48시간 전에 열려요(항공사마다 달라요). 좌석을 같이 앉게 정해요.`);
+  }
   add(1, 'idcopy', '여권 사본 넣어 두기', '여권을 잃어버리면 여행증명서를 빨리 받아요. 이 폰에만 저장돼요.', 'idbox');
   add(1, 'cal', '일정을 폰 캘린더에 넣기', '공항 가기 1시간 전 같은 알림을 폰이 울려 줘요.', 'icsbox');
   add(1, 'bag', '짐 마무리', '보조배터리는 부치는 짐 말고 들고 타요. 액체는 100ml 이하로.', 'pack');

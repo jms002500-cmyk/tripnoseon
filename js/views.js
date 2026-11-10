@@ -50,6 +50,7 @@ import { safeMapUrl, safeHttpsUrl, nearestArea, FAR_KM } from './gimport.js';
 import { gsaveUrl, gsaveList, isSaved } from './gsave.js';
 import { docsOf, docLabel } from './docs.js';
 import { travellers, paxOf, PAX_KINDS } from './pax.js';
+import { airlineOf, airlineCode, onlineText, powerbankRules, CHECKED as AL_CHECKED } from './airlines.js';
 import { askKeyNow } from './askai.js';
 
 export function partyText(s){
@@ -516,6 +517,24 @@ export function vWhere(s){
 
 // 📄 항공권 확인서 넣기 (여행지 단계): 고르거나 끌어다 놓으면 보관함으로 옮겨 이 기기 안에서 바로 읽음 (app.js readFromWhere)
 const FLREAD = `<label class="flread" for="flreadfile" data-dropread="where">📄 항공권 확인서 넣기 <small>사진·PDF 여러 장 한 번에 · 일행 표를 한 사람이 다 넣어도, 각자 자기 폰에서 넣어도 돼요</small><input id="flreadfile" type="file" accept="image/*,application/pdf" multiple></label>`;
+// 항공사 체크인·수하물 안내 (js/airlines.js): 접어 둔 상자. bag: 확인서·예약에 적힌 위탁 수하물
+function airlineBox(fno, from, to, bag){
+  const a = airlineOf(fno); const code = airlineCode(fno); if(!code) return '';
+  const row = (k, v) => v ? `<li><span>${k}</span><b>${esc(v)}</b></li>` : '';
+  const pbs = powerbankRules(from, to).concat(a && a.pb ? [`${a.name}: ${a.pb}`] : []);
+  const body = a ? `<ul class="facts alfacts">
+      ${row('온라인 체크인', a.online ? onlineText(a) : '앱·공항에서 (아래 안내)')}${row('공항 카운터', a.counter)}${row('탑승구', a.gate)}
+      ${row('인천공항', a.icn ? `제${a.icn.slice(1)}여객터미널(${a.icn})` : '')}${row('홍콩공항', a.hkg)}${row('기내 수하물', a.carry)}${row('위탁 수하물', bag ? `${bag} (확인서·예약 기준)` : '운임마다 달라요 — 확인서·예약 화면을 보세요')}
+    </ul>${(a.notes || []).map(n => `<p class="fine">· ${esc(n)}</p>`).join('')}`
+    : `<p class="fine">${esc(code)} 항공사 안내는 아직 앱에 없어요. 항공사 누리집에서 '온라인 체크인'과 '수하물'을 찾아보세요.${bag ? ` 확인서의 위탁 수하물: ${esc(bag)}.` : ''}</p>`;
+  const links = a ? Object.entries(a.url || {}).map(([k, u]) => `<a class="link" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${({ checkin:'체크인 공식 안내', counter:'공항 카운터 안내', baggage:'수하물 공식 안내' })[k] || '공식 안내'} ↗</a>`).join('')
+    : `<a class="link" href="https://www.google.com/search?q=${encodeURIComponent(`${normFno(fno) || fno} 온라인 체크인 수하물`)}" target="_blank" rel="noopener noreferrer">체크인·수하물 찾아보기 (구글) ↗</a>`;
+  return `<details class="alinfo"><summary>🧾 ${esc(a ? a.name : code)} 체크인·수하물 안내</summary>${body}
+    ${pbs.length ? `<p class="fine"><b>🔋 보조배터리</b></p>${pbs.map(x => `<p class="fine">· ${esc(x)}</p>`).join('')}` : ''}
+    <span class="mvtt">${links}</span>
+    <p class="fine">${a ? `${AL_CHECKED.slice(0, 4)}년 ${+AL_CHECKED.slice(5, 7)}월 ${+AL_CHECKED.slice(8)}일에 항공사·공항·정부 공식 누리집에서 확인했어요. 운임·노선마다 다를 수 있으니 출발 전 항공사 안내를 한 번 더 보세요.` : ''}</p>
+  </details>`;
+}
 // 누가 어느 편 (s.fsegs, 함께 짜기로 공유) + 이 기기 보관함의 그 편 예약(예약번호·서류·사람별 티켓)
 function fsegBox(s){
   const segs = Object.entries(s.fsegs || {}).filter(([, x]) => x && x.fno).sort(([, a], [, b]) => (a.date + a.dep).localeCompare(b.date + b.dep));
@@ -532,6 +551,7 @@ function fsegBox(s){
       ${mine.map(codeRows).join('')}
       ${mine.length ? docBtns(s, mine) : '<span class="fine">이 기기에는 이 편 확인서가 없어요 (예약번호·티켓은 넣은 기기에만 있어요)</span>'}
       ${links.length ? `<span class="mvtt">${links.map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : ''}
+      ${airlineBox(x.fno, x.from, x.to, (mine.find(it => it.bag) || {}).bag)}
     </li>`;
   };
   const left = dir => { const on = new Set(segs.filter(([, x]) => x.dir === dir).flatMap(([, x]) => x.who || [])); return on.size ? T.filter(t => !on.has(t.key)).map(t => t.name) : []; };
@@ -1681,6 +1701,7 @@ function vaultCard(s, it){
   return `<article class="vcard" id="v-${esc(it.id)}">
     <div class="vhead"><span class="vicon" aria-hidden="true">${k.icon}</span><div><h3>${esc(it.title)}</h3>
       <p class="meta">${esc(k.label)}${it.time ? ' · ' + esc(it.time) : ''}${pn && pn !== it.title ? ' · ' + esc(pn) : ''}${it.fno ? ' · ' + esc(normFno(it.fno) || it.fno) : ''}${it.amt > 0 ? ' · ' + lmoney(it.amt, it.cur || 'KRW') : ''}</p></div></div>
+    ${it.kind === 'flight' && normFno(it.fno) ? airlineBox(it.fno, it.from, it.to, it.bag) : ''}
     ${it.kind === 'flight' && normFno(it.fno) ? `<span class="mvtt">🛫 ${flightLinks(it.fno, flightDir(s, it) === 'back' ? (it.from || it.ap || depAp(s.flight)) : (it.to || it.ap || (s.flight || {}).ap), flightDir(s, it)).map(l => `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</span>` : ''}
     ${codeRows(it)}
     ${it.memo ? `<p class="pnote">${esc(it.memo)}</p>` : ''}
@@ -1818,6 +1839,7 @@ function vaultExtras(s, d){
         <label for="vdir">가는 편·오는 편<select id="vdir">${[['', '공항·날짜로 알아서'], ['out', '가는 편'], ['back', '오는 편']].map(([k, l]) => `<option value="${k}"${(d.dir || '') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
         <label for="vtime2">도착 시각 (도착지)<input id="vtime2" type="text" inputmode="numeric" maxlength="5" placeholder="예: 1430" list="hhmm" data-hhmm autocomplete="off" spellcheck="false" value="${esc(d.kind === 'flight' ? d.time2 || '' : '')}"></label>
       </div>
+      <label for="vbag">위탁 수하물 (선택)<input id="vbag" type="text" maxlength="20" value="${esc(d.bag || '')}" placeholder="예: 1개 · 23kg (확인서·예약 화면에 적힌 대로)"></label>
       <label for="vfno">편명 (선택)<input id="vfno" type="text" maxlength="10" value="${esc(d.fno || '')}" placeholder="예: CX411 · 넣으면 지연·게이트 확인 바로가기" spellcheck="false" autocapitalize="characters"></label>
       ${(() => { const tm = /([A-Z]{3}) → ([A-Z]{3})/.exec(d.title || ''); const fr = d.from || (tm ? tm[1] : '') || (dir === 'back' ? d.ap : ''), to = d.to || (tm ? tm[2] : '') || (dir === 'out' ? d.ap || (s.flight || {}).ap : '');
         return `<div class="row2"><label for="vfrom">출발 공항<input id="vfrom" type="text" list="aptlist" maxlength="30" value="${esc(aptLabel(fr))}" placeholder="예: 인천 (ICN)"></label>

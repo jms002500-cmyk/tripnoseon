@@ -523,7 +523,7 @@ async function saveVault(){
     // 출발·도착 공항(고르거나 쳐서) → 가는 편·오는 편과 여행지 공항을 알아서, 이름은 '가는 편 ICN → HKG'
     const fr = aptOf(g('vfrom').value), to = aptOf(g('vto').value); const aps = (AIRPORTS[s.city] || []).map(a => a.code);
     let dir = g('vdir').value; if(!dir) dir = aps.includes(to.code) ? 'out' : aps.includes(fr.code) ? 'back' : '';
-    Object.assign(it, { dir, time2:g('vtime2').value, fno:g('vfno').value.trim().toUpperCase().slice(0, 10), from:fr.code, to:to.code, fromT:fr.code ? '' : fr.text, toT:to.code ? '' : to.text });
+    Object.assign(it, { dir, time2:g('vtime2').value, fno:g('vfno').value.trim().toUpperCase().slice(0, 10), bag:g('vbag') ? g('vbag').value.trim().slice(0, 20) : '', from:fr.code, to:to.code, fromT:fr.code ? '' : fr.text, toT:to.code ? '' : to.text });
     const d2 = flightDir(s, it); it.ap = d2 === 'back' ? (aps.includes(fr.code) ? fr.code : '') : (aps.includes(to.code) ? to.code : '');
     if(fromRead && s.vdraft.pname) it.pname = s.vdraft.pname;   // 탑승객 영문 이름 → 일행 칸 (다음 항공권도 같은 사람으로, 이 기기에만)
     const air = (title.split(' · ')[1] || '').trim();
@@ -1750,7 +1750,7 @@ async function fillFormFrom(files, what){
   const done = [];
   const put = (id, v, label) => { const e = g(id); if(e && v != null && v !== '' && !String(e.value).trim()){ e.value = v; done.push(label); } };
   put('vdate', d.date, '날짜'); put('vtime', d.time, '시각');
-  if(d.kind === 'flight'){ put('vtime2', d.time2, '도착 시각'); put('vfrom', d.from ? aptLabel(d.from) : '', '출발 공항'); put('vto', d.to ? aptLabel(d.to) : '', '도착 공항'); put('vfno', d.fno, '편명'); if(d.dir && g('vdir') && !g('vdir').value) g('vdir').value = d.dir; }
+  if(d.kind === 'flight'){ put('vtime2', d.time2, '도착 시각'); put('vfrom', d.from ? aptLabel(d.from) : '', '출발 공항'); put('vto', d.to ? aptLabel(d.to) : '', '도착 공항'); put('vfno', d.fno, '편명'); put('vbag', d.bag, '위탁 수하물'); if(d.dir && g('vdir') && !g('vdir').value) g('vdir').value = d.dir; }
   if(d.kind === 'hotel'){ put('vdate2', d.date2, '체크아웃 날짜'); put('vtime2h', d.time2, '체크아웃 시각'); put('vaddr', d.addr, '주소'); put('vtel', d.tel, '전화'); }
   if(d.kind !== 'flight') put('vtitle', d.title, '이름');
   put('vcode', d.code, '예약번호'); put('vcode2', d.code2, '예약 사이트 번호');

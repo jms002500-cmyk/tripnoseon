@@ -9,7 +9,7 @@ const STR = { type:'STRING' }, NUM = { type:'NUMBER' };
 export const READ_SCHEMA = { type:'OBJECT', properties:{
   kind:{ type:'STRING', enum:['flight', 'hotel', 'ticket', 'transport', 'insurance', 'etc'] },
   items:{ type:'ARRAY', items:{ type:'OBJECT', properties:{
-    title:STR, date:STR, time:STR, date2:STR, time2:STR, fno:STR, from:STR, to:STR, code:STR, code2:STR, addr:STR, tel:STR, amount:NUM, currency:STR,
+    title:STR, date:STR, time:STR, date2:STR, time2:STR, fno:STR, from:STR, to:STR, code:STR, code2:STR, bag:STR, addr:STR, tel:STR, amount:NUM, currency:STR,
     passengers:{ type:'ARRAY', items:{ type:'OBJECT', properties:{ name:STR, ticket:STR, seat:STR } } } } } },
   unclear:STR }, required:['kind', 'items'] };
 
@@ -17,7 +17,7 @@ export function readPrompt(s){
   return ['여행 예약 확인서(항공권 e-티켓·숙소 바우처·입장권·교통 예약 등)야. 내용을 아래 칸으로 정리해 줘.',
     'kind: flight(항공권) hotel(숙소) ticket(입장권·투어·식당 예약) transport(기차·배·버스·공항 픽업 차량) insurance(보험) etc 중 하나.',
     'items: 예약 하나(비행기는 한 편)마다 한 칸. 비행기가 가는 편·오는 편 두 편이면 두 칸, 출발 순서대로.',
-    '- 비행기: date 출발 날짜, time 출발 시각, time2 도착 시각, fno 편명(예: CX411), from·to 출발·도착 공항 IATA 코드 세 글자, title 항공사 이름.',
+    '- 비행기: date 출발 날짜, time 출발 시각, time2 도착 시각, fno 편명(예: CX411), from·to 출발·도착 공항 IATA 코드 세 글자, title 항공사 이름, bag 무료 위탁 수하물(예: 1개, 23kg).',
     '- 숙소: title 숙소 이름, date 체크인 날짜, date2 체크아웃 날짜, time·time2 체크인·체크아웃 시각, addr 현지어(한자·현지 글자) 주소, tel 전화.',
     '- 그 밖: title 예약 이름(상품·장소), date·time 이용 날짜·시각.',
     'code: 예약번호(비행기는 항공사 예약번호 PNR — 항공사 체크인에 쓰는 것). code2: 여행사·예약 사이트(마이리얼트립·트립닷컴·아고다 등) 예약번호가 따로 있으면. amount·currency: 결제 총액과 통화 코드(KRW·HKD·CNY·JPY·USD 등).',
@@ -59,7 +59,7 @@ export function mergeReads(list){
         || (j.kind !== 'flight' && code && str(y.code, 40) === code && j.kind === y._kind));
       if(!same){ out.push(Object.assign(x, { _fno:fno, _kind:j.kind, _files:[k] })); return; }
       if(!same._files.includes(k)) same._files.push(k);
-      ['title', 'date', 'time', 'date2', 'time2', 'from', 'to', 'addr', 'tel', 'code', 'code2', 'currency'].forEach(f => { if(!str(same[f], 200) && str(x[f], 200)) same[f] = x[f]; });
+      ['title', 'date', 'time', 'date2', 'time2', 'from', 'to', 'addr', 'tel', 'code', 'code2', 'bag', 'currency'].forEach(f => { if(!str(same[f], 200) && str(x[f], 200)) same[f] = x[f]; });
       if(code && str(same.code, 40) && code !== str(same.code, 40)){ same._codes = (same._codes || []).concat(code); }
       if(typeof x.amount === 'number' && x.amount > 0){
         if(!(typeof same.amount === 'number' && same.amount > 0)){ same.amount = x.amount; same.currency = x.currency; }
@@ -105,7 +105,7 @@ export function readDrafts(s, j){
       const from = iata(x.from), to = iata(x.to); const fno = str(x.fno, 10).replace(/\s+/g, '').toUpperCase();
       d.dir = aps.includes(to) ? 'out' : aps.includes(from) ? 'back' : '';
       d.ap = d.dir === 'out' ? to : d.dir === 'back' ? from : '';
-      d.time2 = hm(x.time2); d.fno = fno; if(from) d.from = from; if(to) d.to = to;
+      d.time2 = hm(x.time2); d.fno = fno; if(from) d.from = from; if(to) d.to = to; if(str(x.bag, 20)) d.bag = str(x.bag, 20);
       d.title = `${d.dir === 'back' ? '오는 편' : d.dir === 'out' ? '가는 편' : '비행기'}${from && to ? ` ${from} → ${to}` : ''}${d.title ? ` · ${d.title}` : ''}`.slice(0, 60);
     } else if(kind === 'hotel'){
       d.date2 = day(x.date2); d.time2 = hm(x.time2); d.addr = str(x.addr, 120); d.tel = str(x.tel, 30);
