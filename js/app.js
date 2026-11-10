@@ -18,7 +18,7 @@ import { travellers, PAX_KINDS } from './pax.js';
 import { READ_SCHEMA, readPrompt, readAppPrompt, readParse, readDrafts, mergeReads } from './readdoc.js';
 import { parseDocText } from './docparse.js';
 import { AIRPORTS, aptOf, aptLabel, normHHMM, hm } from './flight.js';
-import { flightDir } from './bookings.js';
+import { flightDir, fsegsFill } from './bookings.js';
 import { pdfText, imageText } from './localread.js';
 import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
 import { planText } from './agenda.js';
@@ -525,6 +525,7 @@ async function saveVault(){
     let dir = g('vdir').value; if(!dir) dir = aps.includes(to.code) ? 'out' : aps.includes(fr.code) ? 'back' : '';
     Object.assign(it, { dir, time2:g('vtime2').value, fno:g('vfno').value.trim().toUpperCase().slice(0, 10), from:fr.code, to:to.code, fromT:fr.code ? '' : fr.text, toT:to.code ? '' : to.text });
     const d2 = flightDir(s, it); it.ap = d2 === 'back' ? (aps.includes(fr.code) ? fr.code : '') : (aps.includes(to.code) ? to.code : '');
+    if(fromRead && s.vdraft.pname) it.pname = s.vdraft.pname;   // 탑승객 영문 이름 → 일행 칸 (다음 항공권도 같은 사람으로, 이 기기에만)
     const air = (title.split(' · ')[1] || '').trim();
     it.title = `${d2 === 'back' ? '오는 편' : '가는 편'}${fr.code || fr.text || to.code || to.text ? ` ${fr.code || fr.text || '?'} → ${to.code || to.text || '?'}` : ''}${air ? ` · ${air}` : ''}`.slice(0, 60);
   }
@@ -1655,7 +1656,7 @@ async function sendAsk(){
 /* ---------- 📄 확인서로 보관함 칸 채우기 (js/readdoc.js) ---------- */
 // 여러 장을 한 번에 골라도 됨(가족 표를 한 사람이 다 올리거나 사람마다 따로 받은 e-티켓): 같은 편끼리 합쳐 사람별 번호·파일로
 let vreadFiles = [];   // 고른 확인서들 (메모리에만, 저장할 때 그 예약에 첨부)
-const READ_MAX = 8;
+const READ_MAX = 12;   // e-티켓 여러 장 + 영수증까지 한 번에
 const fileB64 = f => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => { const u = String(fr.result); ok({ mime:f.type || 'application/pdf', data:u.slice(u.indexOf(',') + 1) }); }; fr.onerror = no; fr.readAsDataURL(f); });
 const readName = L => L.length > 1 ? `${L[0].name.slice(0, 40)} 외 ${L.length - 1}개` : L.length ? L[0].name.slice(0, 60) : '';
 async function readDoc(input, from){
@@ -2039,6 +2040,7 @@ const shareQ = new URLSearchParams(location.search);
 const sharedIn = sharedPlace(shareQ);
 if(SHARE_KEYS.some(k => shareQ.has(k))) history.replaceState(history.state, '', location.pathname + stripShare(location.search) + location.hash);
 if(sharedIn){ state.mode = null; state.step = STEPS.indexOf('장소 담기'); saveLocal(); }
+{ const f = fsegsFill(state); if(f){ state.fsegs = f; saveLocal(); if(state.shareId) schedulePush(); } }   // 예전에 넣은 항공권의 '누가 어느 편' (v0.82 전)
 render();
 if(sharedIn) openLiveMap(sharedIn).catch(() => false).then(ok => {
   if(ok) return;   // 지도를 못 열면(키·인터넷·지도 오류) 가져온 곳 목록에 올려 두고 이름으로 위치 찾기

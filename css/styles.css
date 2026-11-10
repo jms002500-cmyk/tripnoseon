@@ -388,6 +388,12 @@ html[data-size="bigger"] .bar{zoom:1.15}   /* 아래 막대는 이미 큰 버튼
 .bar .in{grid-auto-flow:column; grid-auto-columns:auto}   /* 이전·다음 뒤에 붙는 작은 버튼(📷 AI, 💬 개발용)은 오른쪽에 차례로 */
 .bar .askbtn{padding:13px 8px; min-width:44px; font-size:18px; line-height:1}
 .bar .nextbtn{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:7px 10px; line-height:1.15; min-width:0}   /* 다음 버튼: 작은 '다음' + 큰 단계 이름 한 줄 (큰 글씨·버튼이 많아도 단계 이름이 두 줄로 안 꺾이게) */
+@media (max-height:520px) and (orientation:landscape){
+  .top{position:static}   /* 가로로 든 폰: 위 메뉴가 화면 반을 덮지 않게 같이 스크롤 */
+  .bar .primary,.bar .ghost{padding-block:7px}
+  .bar .nextbtn{padding-block:4px}
+  .bar .nextbtn small{display:none}
+}
 .bar .nextbtn small{font-size:var(--fs-xs); font-weight:500; opacity:.85}
 .bar .nextbtn b{font-size:var(--fs-lg); font-weight:700; text-align:center; word-break:keep-all; max-width:100%}   /* 아주 좁으면 낱말 사이에서만 꺾임 (잘리지 않게) */
 .bar .prevbtn .pvi{display:none; font-size:24px; line-height:1}

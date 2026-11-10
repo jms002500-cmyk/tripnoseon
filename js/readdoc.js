@@ -48,7 +48,9 @@ export function mergeReads(list){
   if(!L.length) return null;
   const kind = (L.find(x => x.j.kind === 'flight') || L[0]).j.kind;
   const out = [], unclear = [];
+  const extra = [];   // 항공권 확인서와 같이 넣은 영수증 등(편명 없음): 예약을 따로 만들지 않고 같은 예약번호 편의 빈 금액만
   L.forEach(({ j, k }) => {
+    if(kind === 'flight' && j.kind !== 'flight'){ j.items.forEach(x => { if(x && typeof x === 'object') extra.push(Object.assign({}, x, { _file:k })); }); return; }
     if(str(j.unclear, 200)) unclear.push(str(j.unclear, 200));
     j.items.filter(x => x && typeof x === 'object').forEach(x0 => {
       const x = Object.assign({}, x0, { passengers:(Array.isArray(x0.passengers) ? x0.passengers : []).filter(p => p && typeof p === 'object').map(p => Object.assign({}, p, { _file:k })) });
@@ -67,7 +69,25 @@ export function mergeReads(list){
         if(!same.passengers.some(q => (t && str(q.ticket, 40) === t) || (!t && n && str(q.name, 40) === n))) same.passengers.push(p); });
     });
   });
+  extra.forEach(x => { const code = str(x.code, 40); const f = out.find(y => code && (str(y.code, 40) === code || str(y.code2, 40) === code)) || (out.length === 1 ? out[0] : null);
+    if(f && !(typeof f.amount === 'number' && f.amount > 0) && typeof x.amount === 'number' && x.amount > 0){ f.amount = x.amount; f.currency = x.currency; }
+    if(f && !f._files.includes(x._file)) f._files.push(x._file); });
   return { kind, items:out, unclear:[...new Set(unclear)].join(' · ') };
+}
+
+// 탑승객 → 일행 칸(어른 1·아이…): 이미 넣은 항공권에서 본 이름은 같은 사람으로, 처음 보는 이름은 호칭(MSTR·MISS·CHD·INF는 아이)으로 빈 칸에.
+//   known: Map(이름 → 칸) — 이 확인서의 여러 편과 보관함의 다른 항공권(pname)이 함께 씀 (파일 고른 순서와 상관없이 가는 편·오는 편 사람이 같게)
+const KID = /\b(MSTR|MISS|CHD|INF)\b/;
+export const normName = n => String(n || '').toUpperCase().replace(/\b(MR|MRS|MS|MSTR|MISS|CHD|INF|DR)\b/g, '').replace(/[^A-Z]/g, '');
+export function assignPax(pax, T, known){
+  const keys = pax.map(() => null), used = new Set(), ok = new Set(T.map(t => t.key));
+  pax.forEach((p, i) => { const k = known.get(normName(p.name)); if(k && ok.has(k) && !used.has(k)){ keys[i] = k; used.add(k); } });
+  const kidKey = k => /^k\d/.test(k); const hasKid = T.some(t => kidKey(t.key));
+  pax.forEach((p, i) => { if(keys[i]) return; const kid = KID.test(String(p.name || '').toUpperCase());
+    const free = T.filter(t => !used.has(t.key)); const t = (hasKid ? free.find(x => kidKey(x.key) === kid) : null) || free[0];
+    if(t){ keys[i] = t.key; used.add(t.key); } });
+  pax.forEach((p, i) => { const n = normName(p.name); if(n && keys[i]) known.set(n, keys[i]); });
+  return keys;
 }
 
 // 칸 자료 → 보관함 입력 초안 목록 [{ kind, title, date, … }]. s: 여행(지역 공항·통화·인원)
@@ -76,6 +96,7 @@ export function readDrafts(s, j){
   const kind = KINDS.includes(j.kind) ? j.kind : 'etc'; const city = (s && s.city) || 'tokyo';
   const aps = (AIRPORTS[city] || []).map(a => a.code); const curs = ['KRW'].concat(city === 'hksz' ? ['HKD', 'CNY'] : ['JPY']);
   const T = travellers(s); const unclear = str(j.unclear, 200);
+  const known = new Map(); ((s && s.vault) || []).forEach(it => { if(it && it.pname && typeof it.pname === 'object') Object.entries(it.pname).forEach(([k, n]) => { const x = normName(n); if(x && !known.has(x)) known.set(x, k); }); });
   return j.items.slice(0, 6).filter(x => x && typeof x === 'object').map(x => {
     const d = { kind, title:str(x.title, 60), date:day(x.date), time:hm(x.time), code:str(x.code, 40), files:[] };
     if(str(x.code2, 40) && str(x.code2, 40) !== d.code) d.code2 = str(x.code2, 40);
@@ -94,12 +115,14 @@ export function readDrafts(s, j){
     const pax = (Array.isArray(x.passengers) ? x.passengers : []).filter(p => p && typeof p === 'object' && (str(p.name, 40) || str(p.ticket, 40)));
     if(pax.length){
       memo.push(`${kind === 'flight' ? '탑승객' : '이용자'}: ${pax.map(p => [str(p.name, 40), str(p.seat, 6) ? `좌석 ${str(p.seat, 6)}` : ''].filter(Boolean).join(' ')).join(', ')}`);
-      const pc = {}; pax.slice(0, T.length).forEach((p, i) => { const t = str(p.ticket, 40) || str(p.seat, 6); if(t) pc[T[i].key] = t; });   // 확인서 순서대로 인원에 (다르면 고쳐 주세요)
+      const keys = assignPax(pax, T, known); const pc = {}, pn = {};
+      pax.forEach((p, i) => { const k = keys[i]; if(!k) return; const t = str(p.ticket, 40) || str(p.seat, 6); if(t) pc[k] = t; if(str(p.name, 40)) pn[k] = str(p.name, 40); });
       if(Object.keys(pc).length) d.pcode = pc;
+      if(Object.keys(pn).length) d.pname = pn;   // 다음에 읽는 항공권도 같은 사람으로 (보관함 항목에 남김)
       // 여러 장을 합쳤으면: 한 사람 표인 파일은 그 사람 것으로 (일정 서류 창에서 사람별로 보임)
-      const per = {}; pax.slice(0, T.length).forEach((p, i) => { if(Number.isInteger(p._file)) (per[p._file] = per[p._file] || []).push(T[i].key); });
+      const per = {}; pax.forEach((p, i) => { if(keys[i] && Number.isInteger(p._file)) (per[p._file] = per[p._file] || []).push(keys[i]); });
       const rwho = {}; Object.keys(per).forEach(f => { if(per[f].length === 1) rwho[f] = per[f][0]; }); if(Object.keys(rwho).length) d.rwho = rwho;
-      if(pax.length < T.length) d.paxShort = T.length - Math.min(pax.length, T.length);   // 일행 중 이 표에 없는 사람 (따로 예약했거나 아직)
+      { const n = keys.filter(Boolean).length; if(n < T.length) d.paxShort = T.length - n; }   // 일행 중 이 표에 없는 사람 (따로 예약했거나 아직)
     }
     if(Array.isArray(x._codes) && x._codes.length) memo.push(`다른 예약번호: ${x._codes.map(c => str(c, 40)).join(', ')}`);
     if(unclear) memo.push(`확인 필요: ${unclear}`);

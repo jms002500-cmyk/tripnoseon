@@ -37,6 +37,15 @@ export function flightWho(s, it){
   const w = [...new Set(pc.concat(fw))];
   return w.length ? keys.filter(k => w.includes(k)) : keys;
 }
+// 보관함 항공권은 있는데 '누가 어느 편'(s.fsegs)에 없는 편 → 채운 fsegs (없으면 null). 앱 열 때(v0.82 전에 넣은 항공권)
+export function fsegsFill(s){
+  let segs = null;
+  ((s && s.vault) || []).filter(it => it && it.kind === 'flight' && /^[A-Z0-9]{3,8}$/.test(String(it.fno || '').replace(/\s+/g, '').toUpperCase()) && isKey(it.date)).forEach(it => {
+    const cur = segs || s.fsegs || {}; if(cur[fsegId(it.date, it.fno)]) return;
+    const r = applyFlight(Object.assign({}, s, { fsegs:cur }), it); if(r.patch.fsegs) segs = r.patch.fsegs;
+  });
+  return segs;
+}
 export function applyFlight(s, it){
   const patch = {}, msgs = []; const f = Object.assign({ ap:'', arr:'', dep:'' }, s.flight);
   const apOk = it.ap && (AIRPORTS[s.city] || []).some(a => a.code === it.ap); const dir = flightDir(s, it);
