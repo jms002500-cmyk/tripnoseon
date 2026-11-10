@@ -57,7 +57,10 @@ export function missingBookings(s, items){
   const out = [];
   // 항공권은 한 편씩: 왕복이면 가는 편·오는 편, 편도면 그 편만 (s.flight.way)
   const way = (s.flight || {}).way || ''; const dirs = new Set(v.filter(x => x.kind === 'flight').map(x => flightDir(s, x)));
-  (way === 'out' ? ['out'] : way === 'back' ? ['back'] : ['out', 'back']).filter(d => !dirs.has(d)).forEach(d => out.push({ kind:'flight', dir:d,
+  const segDirs = new Set(Object.values(s.fsegs || {}).filter(x => x && x.fno).map(x => x.dir));   // 함께 짜기로 온 편 (다른 기기에서 넣음)
+  (way === 'out' ? ['out'] : way === 'back' ? ['back'] : ['out', 'back']).filter(d => !dirs.has(d)).forEach(d => out.push(segDirs.has(d) ? { kind:'flight', dir:d, other:true,
+    title:`${d === 'out' ? '가는 편' : '오는 편'} 항공권 · 다른 기기에서 넣었어요`,
+    why:'편명·시간·탈 사람은 함께 짜기로 이 기기에도 와 있어요. 확인서·탑승권 파일은 넣은 기기에만 있어서, 이 폰에서도 꺼내 보려면 여기에도 넣어 두세요.' } : { kind:'flight', dir:d,
     title:`${d === 'out' ? '가는 편' : '오는 편'} 항공권${way ? ' (편도)' : ''}`,
     why:!way && dirs.size ? '편도라면 여행지 단계 “비행기 시간”에서 “가는 편만”이나 “오는 편만”을 고르면 이 제안이 사라져요.' : '탑승권·예약번호를 넣어 두면 공항에서 바로 꺼내 볼 수 있어요.' }));
   const h = (s.hotels || []).find(x => x.id === s.hotelPick);

@@ -110,6 +110,14 @@ export function checkinState(seg, today){
   const open = !!today && !!seg.date && today <= seg.date && (opens ? today >= opens : today === seg.date);
   return { opens, open, left, done:(seg.who || []).length > 0 && !left.length };
 }
+// 카운터 안내 가운데 '홍콩공항: …'·'인천: …'처럼 한 공항 것은 그 공항에서 떠날 때만 (다른 공항이면 일반 안내)
+const AP_WORD = { '홍콩공항':'HKG', '홍콩':'HKG', '인천':'ICN', '인천공항':'ICN', '김포':'GMP', '나리타':'NRT', '하네다':'HND' };
+export function counterFor(a, ap){
+  if(!a || !a.counter) return '';
+  const m = /^([^:：]{1,6})[:：]\s*/.exec(a.counter); const code = m ? AP_WORD[m[1].trim()] : '';
+  if(!code || !ap || code === ap) return a.counter;
+  return '카운터 마감은 이 공항 안내를 확인하세요 (국제선은 보통 출발 50~60분 전)';
+}
 export const onlineText = a => a && a.online ? `출발 ${a.online[0]}시간 전부터 ${a.online[1]}까지` : '';
 // 이 편에 해당하는 보조배터리 규정: 출발 공항 나라 규정 + 홍콩은 오가는 편 모두
 export function powerbankRules(from, to){

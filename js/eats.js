@@ -16,17 +16,21 @@ export function priceText(p){
   return p.cur === 'HKD' ? `HK$${r}` : p.cur === 'CNY' ? `${r}위안` : p.cur === 'JPY' ? `${r}엔` : `${r} ${p.cur}`;
 }
 const snack = e => e.kind === '디저트' || e.kind === '카페' ? 1 : 0;
+// 1인 가격이 이만큼(원, 어림 환율)을 넘으면 '특별한 한 끼': 가족 점심 추천에서는 뒤로
+const ROUGH_KRW = { HKD:180, CNY:195, JPY:9.3, KRW:1 };
+export const PRICEY_KRW = 50000;
+export const pricey = e => !!(e && e.price && e.price.lo > 0 && e.price.lo * (ROUGH_KRW[e.price.cur] || 0) >= PRICEY_KRW);
 export const isClosedOn = (e, wd) => wd != null && Array.isArray(e.closed) && e.closed.includes(wd);
 
 // 한 지점 근처 식당: km 안에 있는 곳을 가까운 순으로, 그날 쉬는 곳은 맨 뒤
-//   meal: true면 끼니 자리라 디저트·간식 가게를 식사할 곳 뒤로
+//   meal: true면 끼니 자리라 디저트·간식 가게를 식사할 곳 뒤로, cheap: true면(점심) 비싼 곳을 뒤로
 //   돌려주는 값: 식당에 { km, walk(분), off(그날 쉼) }를 더한 것
 export function eatsNear(list, pt, opt = {}){
   if(!pt || pt.lat == null || !Array.isArray(list)) return [];
   const max = opt.km != null ? opt.km : NEAR_KM; const wd = opt.wd;
   return list.map(e => { const km = dist(pt, e); return Object.assign({}, e, { km, walk:walkMin(km), off:isClosedOn(e, wd) }); })
     .filter(e => e.km <= max)
-    .sort((a, b) => (a.off - b.off) || (opt.meal ? snack(a) - snack(b) : 0) || (a.km - b.km))
+    .sort((a, b) => (a.off - b.off) || (opt.meal ? snack(a) - snack(b) : 0) || (opt.cheap ? pricey(a) - pricey(b) : 0) || (a.km - b.km))
     .slice(0, opt.limit || 3);
 }
 

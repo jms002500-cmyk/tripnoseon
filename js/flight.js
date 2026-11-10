@@ -56,6 +56,8 @@ export function normHHMM(v){
   return h >= 0 && h < 24 && m >= 0 && m < 60 ? `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` : '';
 }
 export const minText = m => m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}`;
+// 시간(소수) → '1시간 30분'·'30분'·'29시간 15분' (0.25시간처럼 소수로 안 보이게)
+export const hrText = h => { const m = Math.max(0, Math.round((+h || 0) * 60)); return m ? minText(m) : '0시간'; };
 // '오후 1시', '오전 9:30'
 export const koTime = m => hm(((Math.round(m) % 1440) + 1440) % 1440);   // 24시간 '14:30' (사용자 요청: 오전·오후 말고 12·13·14…) };
 

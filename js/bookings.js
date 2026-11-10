@@ -28,7 +28,23 @@ export function flightDir(s, it){
 
 // 항공권: 가는 편은 도착 날짜·도착 시각(현지), 오는 편은 출발 날짜·출발 시각(현지)
 // 편 정보 칸 이름: 날짜+편명 (같은 편을 여러 사람이 따로 넣어도 한 칸에 사람만 더함)
-export const fsegId = (date, fno) => ('f' + String(date || '').replace(/-/g, '') + String(fno || '').replace(/[^A-Z0-9]/gi, '').toUpperCase()).slice(0, 40);
+// 편명 꼴 맞추기: 'HX 0123'·'hx0123' → 'HX123' (앞의 0을 빼서 같은 편이 두 칸으로 나뉘지 않게)
+export const fnoKey = t => { const x = String(t || '').replace(/[\s-]+/g, '').toUpperCase(); const m = /^([A-Z0-9]{2})0*(\d{1,4}[A-Z]?)$/.exec(x); return m && /[A-Z]/.test(m[1]) ? m[1] + m[2] : x.slice(0, 10); };
+export const fsegId = (date, fno) => ('f' + String(date || '').replace(/-/g, '') + fnoKey(fno).replace(/[^A-Z0-9]/g, '')).slice(0, 40);
+// 예전에 0이 붙은 채 저장된 편(칸 이름·편명) 맞추고, 같은 편이 두 칸이면 사람·체크인을 합침 → 바뀐 fsegs, 그대로면 null
+export function fsegsNorm(segs){
+  const out = {}; let changed = false; const uni = (a, b) => [...new Set((a || []).concat(b || []))];
+  Object.entries(segs || {}).forEach(([id, x]) => {
+    if(!x || !x.fno){ out[id] = x; return; }
+    const fno = fnoKey(x.fno), nid = fsegId(x.date, fno), o = out[nid];
+    if(nid !== id || fno !== x.fno || o) changed = true;
+    if(!o){ out[nid] = fno === x.fno ? x : Object.assign({}, x, { fno }); return; }
+    const m = Object.assign({}, x, o, { fno, who:uni(o.who, x.who) }); ['from', 'to', 'dep', 'arr'].forEach(k => { m[k] = o[k] || x[k] || ''; });
+    const ck = uni(o.ck, x.ck); if(ck.length) m.ck = ck; else delete m.ck;
+    out[nid] = m;
+  });
+  return changed ? out : null;
+}
 // 이 항공권으로 타는 사람: 인원별 번호를 넣은 사람, 없으면 일행 모두
 export function flightWho(s, it){
   const keys = travellers(s).map(t => t.key);
@@ -39,7 +55,7 @@ export function flightWho(s, it){
 }
 // 보관함 항공권은 있는데 '누가 어느 편'(s.fsegs)에 없는 편 → 채운 fsegs (없으면 null). 앱 열 때(v0.82 전에 넣은 항공권)
 export function fsegsFill(s){
-  let segs = null;
+  let segs = fsegsNorm(s && s.fsegs);   // 예전 꼴(앞에 0) 먼저 맞춤
   ((s && s.vault) || []).filter(it => it && it.kind === 'flight' && /^[A-Z0-9]{3,8}$/.test(String(it.fno || '').replace(/\s+/g, '').toUpperCase()) && isKey(it.date)).forEach(it => {
     const cur = segs || s.fsegs || {}; if(cur[fsegId(it.date, it.fno)]) return;
     const r = applyFlight(Object.assign({}, s, { fsegs:cur }), it); if(r.patch.fsegs) segs = r.patch.fsegs;
@@ -50,7 +66,7 @@ export function applyFlight(s, it){
   const patch = {}, msgs = []; const f = Object.assign({ ap:'', arr:'', dep:'' }, s.flight);
   const apOk = it.ap && (AIRPORTS[s.city] || []).some(a => a.code === it.ap); const dir = flightDir(s, it);
   // 누가 어느 편 (함께 짜기로 공유 — 예약번호·티켓 번호는 안 올림)
-  const fno = String(it.fno || '').replace(/\s+/g, '').toUpperCase().slice(0, 10);
+  const fno = fnoKey(it.fno);
   const segs = Object.assign({}, s.fsegs); let mine = null;
   if(/^[A-Z0-9]{3,8}$/.test(fno) && isKey(it.date)){
     const id = fsegId(it.date, fno), old = segs[id] || {}; const keys = travellers(s).map(t => t.key);

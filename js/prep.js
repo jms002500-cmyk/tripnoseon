@@ -5,7 +5,7 @@
 import { idCopies } from './vault.js';
 import { isEmptyMove } from './moves.js';
 import { pickedPlaces } from './logic.js';
-import { airlineOf, onlineText } from './airlines.js';
+import { airlineOf, onlineText, counterFor } from './airlines.js';
 
 const addDay = (key, n) => { const [y, m, d] = key.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
 const addrOk = a => !!(a || '').trim() && !/[가-힣]/.test(a);   // 기사님이 읽을 수 있는 현지어 주소
@@ -27,7 +27,8 @@ export function prepTasks(s){
   if(jp) add(7, 'vjw', 'Visit Japan Web 등록', '입국 심사·세관 QR. 한 계정에 같이 가는 가족을 넣고, QR은 한 사람씩 따로 보여 줘요.', 'vault');
   add(5, 'transapp', '번역 앱에 오프라인 언어 받기', `구글 번역 앱에서 ${hk ? '중국어(번체·간체)' : '일본어'} 오프라인 번역을 받아 두면 인터넷이 끊겨도 카메라로 간판·안내문을 읽어요.${sz ? ' 선전에서 현지 유심을 쓰면 구글이 막히는데, 받아 둔 언어는 그대로 돼요.' : ''}`);
   add(5, 'askkey', '📷 메뉴판 읽기 준비', '메뉴판 사진을 찍으면 한국어로 풀어 주고 고른 메뉴로 주문 문장을 만들어 줘요. AI 묻기 창에서 구글 AI 키를 한 번 넣어 두세요. 키가 없어도 준비된 부탁·질문 문구는 인터넷 없이 쓸 수 있어요.', 'ask');
-  add(3, 'hotelcard', '택시용 숙소 주소 카드 채우기', `예약 확인서의 ${hk ? '한자' : '일본어'} 주소와 숙소 전화를 넣어 두면 택시 기사나 길을 물을 사람에게 화면만 크게 보여 주면 돼요.${hk ? ' 홍콩·선전에 나눠 자면 숙소마다 넣어요.' : ''}`, 'soshotel');
+  add(21, 'hoteladd', '예약한 숙소를 앱에 넣기', '숙소 예약 확인서를 보관함에 넣으면 숙소 위치·밤별 숙소·긴급 숙소 카드가 저절로 채워져요. 아직 안 정했으면 숙소 동네 단계에서 동네부터 골라요.', 'vault');
+  add(14, 'hotelcard', '택시용 숙소 주소 카드 채우기', `예약 확인서의 ${hk ? '한자' : '일본어'} 주소와 숙소 전화를 넣어 두면 택시 기사나 길을 물을 사람에게 화면만 크게 보여 주면 돼요.${hk ? ' 홍콩·선전에 나눠 자면 숙소마다 넣어요.' : ''}`, 'soshotel');
   if(kids) add(3, 'kidcard', '아이 미아 카드 만들기', '긴급 화면에 부모 연락처를 넣으면 현지어 카드가 만들어져요. 아이 폰 배경으로 캡처해 두면 아이가 혼자서도 보여 줄 수 있어요.', 'soskid');
   add(2, 'voice', '🔊 소리로 들려주기 시험', `긴급 화면의 문장을 눌러 크게 보기에서 🔊를 한 번 눌러 보세요. 소리가 안 나면 폰 설정의 '텍스트 음성 변환'에서 ${hk ? '중국어·광둥어' : '일본어'} 음성을 받아 두세요.`, 'sos');
   add(5, 'gsave', '⭐ 담은 곳을 내 구글 지도에 저장', '일정 단계의 \'내 구글 지도에 저장\'에서 한 곳씩 누르면 구글 지도 앱이 그 장소로 열려요. \'저장\'을 눌러 여행 목록에 넣어 두면 여행 중 구글 지도 \'저장됨\'에서 바로 보여요.' + (sz ? ' 선전(중국 본토)에서는 로밍이 아니면 구글 지도가 안 열리니 한국에서 해 두세요.' : ''), 'gsavebox');
@@ -40,8 +41,8 @@ export function prepTasks(s){
     const seg = Object.values(s.fsegs || {}).filter(x => x && x.dir === 'out' && x.fno).sort((a, b) => (a.date + a.dep).localeCompare(b.date + b.dep))[0];
     const fl = seg || (s.vault || []).find(x => x && x.kind === 'flight' && x.fno && x.dir !== 'back');
     const a = fl ? airlineOf(fl.fno) : null;
-    if(a && a.online) add(Math.max(1, Math.ceil(a.online[0] / 24)), 'checkin', `${a.name} ${fl.fno} 온라인 체크인`, `${onlineText(a)} 앱·누리집에서 해요. 공항 카운터는 ${a.counter}. 좌석을 같이 앉게 정하고, 짐이 있으면 공항에서 맡겨요.`, 'vault');
-    else add(2, 'checkin', '항공사 온라인 체크인', `${a ? `${a.name}: ${a.counter}. ` : ''}보통 출발 24~48시간 전에 열려요(항공사마다 달라요). 좌석을 같이 앉게 정해요.`);
+    if(a && a.online) add(Math.max(1, Math.ceil(a.online[0] / 24)), 'checkin', `${a.name} ${fl.fno} 온라인 체크인`, `${onlineText(a)} 앱·누리집에서 해요. 공항 카운터는 ${counterFor(a, fl.from)}. 좌석을 같이 앉게 정하고, 짐이 있으면 공항에서 맡겨요.`, 'vault');
+    else add(2, 'checkin', '항공사 온라인 체크인', `${a ? `${a.name}: ${counterFor(a, fl.from)}. ` : ''}보통 출발 24~48시간 전에 열려요(항공사마다 달라요). 좌석을 같이 앉게 정해요.`);
   }
   add(1, 'idcopy', '여권 사본 넣어 두기', '여권을 잃어버리면 여행증명서를 빨리 받아요. 이 폰에만 저장돼요.', 'idbox');
   add(1, 'cal', '일정을 폰 캘린더에 넣기', '공항 가기 1시간 전 같은 알림을 폰이 울려 줘요.', 'icsbox');
@@ -57,6 +58,7 @@ export function prepTasks(s){
     packlist:Object.values(s.pack || {}).some(x => x && !x.hide),
     places:Object.keys(s.picked || {}).length >= 3,
     backup:!!s.lastBackup,
+    hoteladd:(s.vault || []).some(x => x && x.kind === 'hotel') || (s.hotels || []).length > 0,
     hotelcard:addrOk((s.safety || {}).addr) || (s.hotels || []).some(h => addrOk(h.addr)),
     kidcard:!!s.sphone,
     gsave:(ps => ps.length > 0 && ps.every(p => s.gsaved && s.gsaved[p.id]))(pickedPlaces(s)),

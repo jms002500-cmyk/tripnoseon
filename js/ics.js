@@ -2,10 +2,11 @@
 // 시각은 어림: 그날 나서는 시각(보통 9:30, 첫날은 비행기 도착 뒤)부터 이동 시간(transit.js 어림)과 머무는 시간을 차례로 더함.
 // 순수 함수(테스트 대상). 파일 만들기·보내기는 app.js.
 import { legMinutes } from './transit.js';
-import { DAY_START, dayEnd, hm, toMin, depMin, effFlight } from './flight.js';
+import { DAY_START, dayEnd, hm, toMin, depMin, effFlight, hrText } from './flight.js';
 import { movesOn, moveEnds, moveMin, howOf, legOf, isEmptyMove } from './moves.js';
 import { prepTasks } from './prep.js';
 import { flightDir, addDay } from './bookings.js';
+import { lateOf, LATE_AT } from './logic.js';
 import { PACE } from './data.js';
 
 export const TZ_OFFSET = { tokyo:9, hksz:8 };   // 현지 시각 → UTC (두 곳 다 서머타임 없음)
@@ -23,13 +24,14 @@ export function homeTime(s, m){
   return { min:(x + 1440) % 1440, day:0 };
 }
 
-// 그날 장소마다 어림 시각 [{ p, start, end }] (분). 하루 종일 곳은 나서는 시각 ~ 하루 끝
+// 그날 장소마다 어림 시각 [{ p, start, end }] (분). 하루 종일 곳은 나서는 시각 ~ 하루 끝. 저녁 곳(logic.js lateOf)은 그 시각부터
 export function dayTimes(s, d){
   const base = PACE[s.pace].hours; let t = d.arrive ? d.arrive.ready : DAY_START;
   if(d.full) return [{ p:d.full, start:t, end:Math.max(t + 60, dayEnd(base)) }];
   let prev = d.from; const out = [];
   (d.items || []).forEach(p => {
-    t += prev ? legMinutes(prev, p) : 0; const end = t + Math.round(p.hours * 60);
+    t += prev ? legMinutes(prev, p) : 0; if(lateOf(p) === 2 && t < LATE_AT[2]) t = LATE_AT[2];   // 야시장·야경은 저녁에 (그 사이 저녁 먹기). 해 질 녘 곳은 순서만 뒤로
+    const end = t + Math.round(p.hours * 60);
     out.push({ p, start:t, end }); t = end; prev = p;
   });
   return out;
@@ -78,7 +80,7 @@ export function buildIcs(s, P, vault, now, ctx){
       if(j === 0) al.push([30, `${tag} 첫 장소 ${p.name}: 30분 뒤 출발`]);
       else if(p.book || s.must[p.id]) al.push([30, `${p.name}: 30분 뒤`]);
       add(d.key, start, end, `${tag} · ${p.name}`, { id:p.id, loc:[p.name, p.ja].filter(Boolean).join(' '), alarms:al,
-        desc:[p.full ? '하루 종일' : `약 ${p.hours}시간`, p.book ? '예약 필요' : '', p.note || '', '시각은 트립노선 어림이에요. 실제와 다를 수 있어요.'].filter(Boolean).join('\n') });
+        desc:[p.full ? '하루 종일' : `약 ${hrText(p.hours)}`, p.book ? '예약 필요' : '', p.note || '', '시각은 트립노선 어림이에요. 실제와 다를 수 있어요.'].filter(Boolean).join('\n') });
     });
     if(d.depart && d.depart.leave >= 0){
       const h = out && howOf(out.how);

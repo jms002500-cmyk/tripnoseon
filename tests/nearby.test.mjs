@@ -22,7 +22,8 @@ test('내 주변: 가까운 순, 오늘 쉬는 곳은 뒤, 저녁엔 야경, 범
     const night = nearbyOf({ places:D.PLACES, eats:[], s, pt:tst, wd:1, hour:19 });
     const day = nearbyOf({ places:D.PLACES, eats:[], s, pt:tst, wd:1, hour:10 });
     const pos = (r, f) => r.items.findIndex(f);
-    assert.ok(pos(night, x => x.night) <= pos(day, x => x.night));
+    const pd = pos(day, x => x.night);   // 낮엔 야경이 뒤로 가거나 목록에서 빠짐 (v0.84)
+    assert.ok(pos(night, x => x.night) >= 0 && (pd < 0 || pos(night, x => x.night) <= pd));
     // 장소가 먼 곳: 범위 밖이면 가장 가까운 몇 곳만, far 표시
     const sea = nearbyOf({ places:D.PLACES, eats:D.EATS, s, pt:{ lat:22.0, lng:113.7 }, wd:1, hour:10 });
     assert.ok(sea.far && sea.radius === null && sea.items.length <= 5 && sea.eats.length === 0);

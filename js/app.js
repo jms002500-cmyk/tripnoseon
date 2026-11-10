@@ -19,6 +19,7 @@ import { READ_SCHEMA, readPrompt, readAppPrompt, readParse, readDrafts, mergeRea
 import { parseDocText } from './docparse.js';
 import { AIRPORTS, aptOf, aptLabel, normHHMM, hm } from './flight.js';
 import { airportWays } from './airportways.js';
+import { BAG_WAYS } from './bags.js';
 import { flightDir, fsegsFill } from './bookings.js';
 import { pdfText, imageText } from './localread.js';
 import { applyBooking, applyAll, applyPlace, applyMove, PLACE_KINDS, bookingSpend, bookingSpendOf } from './bookings.js';
@@ -960,6 +961,9 @@ function act(a, v){
       if(!s.sh.near.pt || Date.now() - (s.sh.near.at || 0) > 3 * 60000) nearLocate(); else render(); return;   // 3분 안에 찾은 위치는 다시 씀
     case 'nearagain': nearLocate(true); return;
     case 'nearclose': if(s.sh.near) s.sh.near.open = false; render(); return;
+    case 'nearat': {   // 위치를 못 받을 때: 오늘 일정 장소·숙소 중 지금 있는 곳을 골라 그 근처로 (좌표는 화면에서만)
+      const [ll, name] = String(v).split('|'); const [lat, lng] = String(ll || '').split(',').map(Number); if(!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      s.sh.near = { open:true, busy:false, err:'', at:Date.now(), pt:{ lat, lng, acc:0 }, pick:name || '' }; render(); return; }
     case 'vdoc': s.sh.vdoc = v; render(); return;   // 일정 줄의 서류 바로가기 (js/docs.js)
     case 'vdocclose': s.sh.vdoc = null; render(); return;
     case 'vdocedit': s.sh.vdoc = null; s.mode = null; s.step = VAULT_STEP; s.vedit = v; s.vdraft = null; save(); render(); focusVaultForm(); return;
@@ -1178,6 +1182,9 @@ function act(a, v){
     case 'installhide': s.installHide = true; break;
     case 'tsize': s.textSize = v === 'big' || v === 'bigger' ? v : ''; break;
     // 오가는 길 (js/moves.js). 고칠 때마다 새 객체로 바꿔 함께 짜기가 바뀐 걸 알게
+    case 'bags': {   // 숙소 옮기는 날 짐 (js/bags.js, 함께 짜기로 공유). 같은 걸 다시 누르면 풂
+      const [k, w] = String(v).split('|'); if(!/^\d{4}-\d{2}-\d{2}$/.test(k || '') || !BAG_WAYS.includes(w)) return;
+      const b = Object.assign({}, s.bags); if(b[k] === w) delete b[k]; else b[k] = w; s.bags = b; break; }
     case 'fsegck': {   // 체크인 했어요 / 안 했어요 (사람마다, 함께 짜기로 공유)
       const [id, k] = String(v).split('|'); const x = (s.fsegs || {})[id]; if(!x) return;
       const ck = new Set(x.ck || []); if(ck.has(k)) ck.delete(k); else ck.add(k);
@@ -1322,7 +1329,7 @@ document.addEventListener('keydown', e => { if(e.key !== 'Enter' && e.key !== ' 
 /* ---------- 📍 내 주변 (js/nearby.js) ---------- */
 // 버튼을 눌렀을 때만 위치를 한 번 받음. 좌표는 화면(s.sh.near, 저장 안 함)에서만 씀
 function nearLocate(fresh){   // fresh: '다시 찾기'는 1분 안에 받은 위치도 다시 쓰지 않음 (걸어서 옮긴 뒤)
-  const s = state; s.sh.near = Object.assign({}, s.sh.near, { open:true, busy:true, err:'' }); render();
+  const s = state; s.sh.near = Object.assign({}, s.sh.near, { open:true, busy:true, err:'', pick:'' }); render();
   if(!('geolocation' in navigator)){ s.sh.near.busy = false; s.sh.near.err = 'none'; render(); return; }
   navigator.geolocation.getCurrentPosition(pos => {
     const n = state.sh.near || {}; Object.assign(n, { busy:false, err:'', at:Date.now(), pt:{ lat:pos.coords.latitude, lng:pos.coords.longitude, acc:Math.round(pos.coords.accuracy || 0) } });

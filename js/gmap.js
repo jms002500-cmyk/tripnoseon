@@ -5,6 +5,7 @@
 // 구글 지도는 이 시트를 처음 열 때만 불러옴(앱 첫 화면을 가볍게, 혼자 계획만 하는 사람은 구글에 아무것도 안 보냄).
 // app.js가 상태·날짜를 넘기고(getState, getDays), 담기·빼기는 콜백(onPick, onToggle)으로 돌려줌.
 // 계산(종류·영업시간·같은 장소 찾기)은 gplace.js. #view 밖(body 끝)에 붙어서 다시 그려도 지도가 남음.
+import { hrText } from './flight.js';
 import { mapsConfig } from './maps-config.js';
 import { REGION } from './data.js';
 import { esc } from './ui.js';
@@ -100,7 +101,7 @@ function showKnown(p){
   want++; clearTemp(); kp = p;   // 앞서 보던 구글 장소 카드·파란 핀은 치움
   const s = cb.getState(); const on = !!s.picked[p.id];
   const tag = s.must[p.id] ? '꼭 갈 곳' : on ? '담은 곳' : '아직 안 담은 추천';
-  const meta = [p.kind, p.full ? '하루 종일' : p.hours ? `약 ${p.hours}시간` : ''].filter(Boolean).join(' · ');
+  const meta = [p.kind, p.full ? '하루 종일' : p.hours ? `약 ${hrText(p.hours)}` : ''].filter(Boolean).join(' · ');
   info(`<div class="gmcard"><b>${esc(p.name)}</b><span class="fine">${esc(tag)}${meta ? ' · ' + esc(meta) : ''}</span>${p.note ? `<p class="fine">${esc(p.note)}</p>` : ''}
     <div class="pfoot"><select data-gmday aria-label="담을 날">${dayOptions(dayOf(s, p))}</select>
       <button type="button" class="primary small" data-gm="move" data-v="${esc(p.id)}">${on ? '이 날로' : '일정에 담기'}</button>

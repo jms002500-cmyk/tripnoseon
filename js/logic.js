@@ -4,6 +4,7 @@ import { ratesOf } from './ledger.js';
 import { arriveInfo, departInfo, capBetween } from './flight.js';
 import { legOverride } from './moves.js';
 import { bestPrice } from './prices.js';
+import { bagCapCut } from './bags.js';
 
 export function clone(o){ return JSON.parse(JSON.stringify(o)); }
 
@@ -308,6 +309,22 @@ export function compareHotels(s, sort){
   return { rows, noLoc, hasDisney, nights:n, people:ppl, dayCount:dayPicks.length };
 }
 
+// 저녁에 가야 좋은 곳: 2 = 저녁에만(야시장·빛 쇼·야경), 1 = 해 질 녘이 좋음, 0 = 아무 때나. 자료에 eve를 적었으면 그 값
+const NIGHT_KIND = /야경|일루미네이션/, NIGHT_NAME = /야시장|night\s*market|夜市|灯光秀|燈光|light\s*show|빛 쇼|조명 쇼/i;
+export function lateOf(p){
+  if(!p) return 0; if(p.eve === 0 || p.eve === 1 || p.eve === 2) return p.eve;
+  return NIGHT_KIND.test(p.kind || '') || NIGHT_NAME.test(`${p.name || ''} ${p.ja || ''}`) ? 2 : 0;
+}
+export const LATE_AT = { 1:16 * 60 + 30, 2:18 * 60 };   // 이 시각 전에 가면 덜 좋음 (12월 홍콩 해 지는 때 5시 40분쯤)
+export const NIGHT_END = 21 * 60 + 30;                  // 저녁 곳이 있는 날은 이때까지 다님
+export const lateText = p => ({ 1:'해 질 녘이 좋아요', 2:'저녁에 가요' })[lateOf(p)] || '';
+// 하루 순서: 낮 곳을 가까운 순으로 돈 뒤 해 질 녘 곳, 마지막에 저녁 곳 (각각 앞 곳에서 가까운 순)
+export function orderDay(items, start){
+  const out = []; let cur = start;
+  [0, 1, 2].forEach(k => { const list = items.filter(p => lateOf(p) === k); if(!list.length) return; const o = orderNN(list, cur || list[0]); out.push(...o); cur = o[o.length - 1]; });
+  return out;
+}
+
 // 가장 가까운 곳부터 차례로 (간단한 동선 정렬)
 export function orderNN(items, start){
   const left = items.slice(); const out = []; let cur = start;
@@ -329,6 +346,7 @@ export function plan(s){
   const hotel = hotelOf(s); const fa = fullAssign(s, days); const unassigned = []; const auto = []; const dc = dayCities(s, days);
   // 짐 들고 국경을 넘는 날(홍콩 → 선전 숙소)은 체크아웃·출입국에 2시간쯤 빼고 계산
   res.forEach(d => { if(dc[d.i].size > 1){ d.cap = Math.max(Math.min(2, d.cap), d.cap - 2); d.cross = true; } });
+  res.forEach(d => { const c = bagCapCut(s, d); if(c) d.cap = Math.max(0, d.cap - c); });   // 짐 맡겼다 찾으러 되돌아가는 시간 (js/bags.js)
   pickedPlaces(s).forEach(p => {
     if(p.full){
       const di = fa[p.id];
@@ -361,7 +379,7 @@ export function plan(s){
     if(best){ best.items.push(p); best.used += p.hours; }
     else unassigned.push({ p, why: blockedByCity ? `${CITY_KO[placeCity(p)] || '그 도시'}에서 자는 날에 시간이 없어요${blockedByClosed ? '(휴무일 포함)' : ''}. 다른 날로 옮기면 국경을 오가야 해요` : blockedByClosed ? '남은 날짜가 휴무일이에요' : '시간이 모자라요' });
   });
-  res.forEach(d => { d.items = orderNN(d.items, d.from); });
+  res.forEach(d => { d.items = orderDay(d.items, d.from); });   // 야시장·야경은 그날 맨 뒤
   return { days:res, unassigned, hotel };
 }
 

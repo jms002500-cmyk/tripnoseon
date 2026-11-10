@@ -7,9 +7,9 @@ import { budgetOf } from './budget.js';
 
 export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'cityOnly', 'start', 'end', 'flight', 'fsegs', 'moves',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
-  'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights', 'prep', 'by'];
+  'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights', 'prep', 'by', 'bags'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
-export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights', 'prep', 'by', 'fsegs'];
+export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights', 'prep', 'by', 'fsegs', 'bags'];
 // id가 있는 객체 배열(오가는 길·직접 담은 곳·숙소 후보·나누는 사람). 서버에는 배열 대신
 //   p.<칸>Items {id: 항목} + p.<칸>Order [id 순서]로 둬서 항목 하나씩 따로 보냄 → 두 사람이 다른 항목을 동시에 더하고·고치고·지워도 둘 다 남음.
 //   순서는 통째로 보내지만 순서에 없는 항목도 버리지 않고 뒤에 붙여서(id 순), 순서끼리 덮어써도 항목은 안 사라짐.
@@ -168,6 +168,7 @@ export function cleanShared(s){
   Object.keys(s.assign).forEach(id => { if(!(typeof s.assign[id] === 'number' && Number.isFinite(s.assign[id]))) delete s.assign[id]; });
   Object.keys(s.nights).forEach(k => { if(typeof s.nights[k] !== 'string') delete s.nights[k]; });
   s.spend = mapOfObjs(s.spend);
+  { const o = {}; const v = isMap(s.bags) ? s.bags : {}; Object.keys(v).filter(k => DATE.test(k)).slice(0, 12).forEach(k => { if(['keep', 'first', 'car', 'carry'].includes(v[k])) o[k] = v[k]; }); s.bags = o; }   // 짐 옮기는 날 (js/bags.js)
   Object.values(s.spend).forEach(e => {
     fixNums(e, ['amt', 'at'], 0); fixStrs(e, ['d', 'what', 'cat', 'pay', 'by', 'pl', 'vid', 'src']);
     if(!has(e, 'amt')) e.amt = 0;
@@ -350,6 +351,7 @@ export function describeChange(prev, next){
   if(prev.lrate !== next.lrate) parts.push('정산 환율 바꿈');
   if(!same(prev.dlock || {}, next.dlock || {})) parts.push(Object.keys(next.dlock || {}).length > Object.keys(prev.dlock || {}).length ? '일정 확정' : '일정 확정 풀기');
   if(!same(budgetOf(prev), budgetOf(next))) parts.push('예산 바꿈');
+  if(!same(prev.bags || {}, next.bags || {})) parts.push('짐 옮기는 방법 고름');
   if(!parts.length && !same(prev, next)) parts.push('일정 수정');
   return parts.join(' · ').slice(0, 190);
 }

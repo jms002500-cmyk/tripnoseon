@@ -4,7 +4,7 @@
 import { legMinutes } from './transit.js';
 import { dayEnd } from './flight.js';
 import { PACE, cityOfArea } from './data.js';
-import { placeCity, closedOn } from './logic.js';
+import { placeCity, closedOn, lateOf, LATE_AT, NIGHT_END } from './logic.js';
 import { doneKey } from './today.js';
 
 export const dayEndMin = (s, d) => d.depart && d.depart.leave >= 0 ? d.depart.leave - 30 : dayEnd(PACE[s.pace].hours);
@@ -29,8 +29,10 @@ export function catchUp(s, P, di, date, now){
   const done = s.tdone || {}; const isDone = p => !!done[doneKey(date, p.id)];
   const left = d.items.filter(p => !isDone(p)); if(!left.length) return null;
   const last = d.items.filter(isDone).pop(); const from = last || d.from;   // 마지막으로 다녀온 곳(없으면 숙소)에서 출발
-  const need = list => { let t = 0, prev = from; list.forEach(p => { t += (prev ? legMinutes(prev, p) : 0) + Math.round(p.hours * 60); prev = p; }); return t; };
-  const end = dayEndMin(s, d); const keep = left.slice(); const out = [];
+  // 저녁 곳(야시장·야경)은 그 시각 전에 닿으면 기다렸다가 (그 사이 저녁 먹기)
+  const need = list => { let t = 0, prev = from; list.forEach(p => { t += prev ? legMinutes(prev, p) : 0; if(lateOf(p) === 2 && now + t < LATE_AT[2]) t = LATE_AT[2] - now; t += Math.round(p.hours * 60); prev = p; }); return t; };
+  const late = !(d.depart && d.depart.leave >= 0) && left.some(p => lateOf(p) === 2);   // 저녁 곳이 남은 날은 밤 9시 반까지
+  const end = late ? Math.max(dayEndMin(s, d), NIGHT_END) : dayEndMin(s, d); const keep = left.slice(); const out = [];
   while(keep.length && now + need(keep) > end){
     let k = -1; for(let j = keep.length - 1; j >= 0; j--) if(!s.must[keep[j].id]){ k = j; break; }
     out.push(keep.splice(k < 0 ? keep.length - 1 : k, 1)[0]);
