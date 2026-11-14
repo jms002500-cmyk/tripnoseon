@@ -112,7 +112,7 @@ export function riders(s){
 export function dayTrips(d, hotel){
   const stops = d.full ? [d.full] : (d.items || []);
   if(!stops.length) return { legs:[], rides:0, fareA:0, fareC:0, outs:[], travelMin:0 };
-  const pts = [d.from || hotel].concat(stops, [d.to || hotel]);   // 나눠 자는 날은 출발·돌아갈 숙소가 다름
+  const pts = [d.start || d.from || hotel].concat(stops, [d.to || hotel]);   // 나눠 자는 날은 출발·돌아갈 숙소가 다름. 짐을 먼저 옮긴 날(d.start)은 새 숙소에서 출발
   const legs = []; for(let i = 1; i < pts.length; i++){ const segs = legSegments(pts[i-1], pts[i]);
     legs.push({ from:pts[i-1], to:pts[i], km:dist(pts[i-1], pts[i]), segs, min:legMinutes(pts[i-1], pts[i], segs), mode:legMode(segs) }); }
   const subs = legs.flatMap(l => l.segs.filter(x => x.kind === 'subway'));

@@ -1,6 +1,6 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, PLACES, loadRegion, cityOfArea } from './data.js';
-import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity, pinPlan } from './logic.js';
+import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, rebag, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity, pinPlan } from './logic.js';
 import { REPLIES, talkWords, pickVoice } from './asktalk.js';
 import { VIEWS, SHEET, ASKSHEET, NEARSHEET, DOCSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, wayWhere, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
 import { DEST } from './guide.js';
@@ -432,7 +432,7 @@ function render(){
   { const c = tripClock(new Date(), REGION.tz); s.sh.today = c.date; s.sh.nowMin = c.min; s.sh.devOff = -new Date().getTimezoneOffset(); s.sh.homeOff = tzOffset(HOME_TZ); }   // 여행지 시각 (폰 시간대가 한국 그대로여도)
   const todayMode = s.mode === 'today', sosMode = s.mode === 'sos', recMode = s.mode === 'record', helpMode = s.mode === 'help';
   if(todayMode || sosMode || recMode || helpMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
-  document.getElementById('view').innerHTML = (sosMode || recMode || helpMode ? '' : installCard(s) + idWipeCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : helpMode ? vHelp(s) : VIEWS[s.step](s));
+  document.getElementById('view').innerHTML = (sosMode || recMode || helpMode ? '' : (todayMode ? '' : installCard(s)) + idWipeCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : helpMode ? vHelp(s) : VIEWS[s.step](s));
   document.getElementById('line').style.setProperty('--n', STEPS.length);
   document.getElementById('line').hidden = todayMode || sosMode || recMode || helpMode;   // 여행 중 화면은 자리를 아낌
   document.getElementById('bar').innerHTML = (helpMode
@@ -1197,7 +1197,10 @@ function act(a, v){
       const o = Object.assign({}, s.outck); if(o[k]) delete o[k]; else o[k] = true; s.outck = o; break; }
     case 'bags': {   // 숙소 옮기는 날 짐 (js/bags.js, 함께 짜기로 공유). 같은 걸 다시 누르면 풂
       const [k, w] = String(v).split('|'); if(!/^\d{4}-\d{2}-\d{2}$/.test(k || '') || !BAG_WAYS.includes(w)) return;
-      const b = Object.assign({}, s.bags); if(b[k] === w) delete b[k]; else b[k] = w; s.bags = b; break; }
+      const b = Object.assign({}, s.bags); if(b[k] === w) delete b[k]; else b[k] = w;
+      // 짐 방법을 바꿔도 다른 날 일정은 그대로 (js/logic.js rebag: 다른 날 곳은 지금 날짜에 고정하고 이날 곳만 다시 놓음)
+      const r = rebag(s, k, b); s.bags = b; s.assign = r.assign;
+      if(r.out.length) toast(`이렇게 옮기면 이날 못 가는 곳이 생겨요: ${r.out.slice(0, 2).map(p => p.name).join(', ')}${r.out.length > 2 ? ` 등 ${r.out.length}곳` : ''}. 일정 단계 '아직 일정에 못 넣은 곳'에서 다른 날로 옮길 수 있어요.`); break; }
     case 'fsegck': {   // 체크인 했어요 / 안 했어요 (사람마다, 함께 짜기로 공유)
       const [id, k] = String(v).split('|'); const x = (s.fsegs || {})[id]; if(!x) return;
       const ck = new Set(x.ck || []); if(ck.has(k)) ck.delete(k); else ck.add(k);
@@ -1206,8 +1209,9 @@ function act(a, v){
     case 'mvjump': {   // 여행지 비행기 칸에서 공항 오가는 길 정하기 → 일정 단계 '오가는 길'에서 그 구간을 열어 둠
       const tidy = (s.moves || []).filter(m => !isEmptyMove(m)); const ex = tidy.find(m => m.k === v);
       const m = ex || { id:v, k:v, date:'', time:'', how:'', min:null, from:'', to:'', booked:false, note:'' };
+      const ask = s.mode === 'today';   // 오늘 화면 '집에서 언제 나서야 할까요?'에서 옴 → 시각·걸리는 시간 칸으로
       s.moves = ex ? tidy : tidy.concat(m); s.sh.mvEdit = m.id; s.mode = null; s.step = PLAN_STEP;
-      save(); render(); { const b = document.getElementById('movebox'); if(b) b.scrollIntoView({ block:'start' }); } return;
+      save(); render(); { const tm = ask ? document.getElementById('mvmin') : null; const b = (tm && tm.closest('.dates')) || document.querySelector('#movebox li.on') || document.getElementById('movebox'); if(b){ scrollBelowTop(b); flash(b); } } return;
     }
     case 'mvway': {   // 추천 방법 카드에서 고름 → 수단(how), 메모가 비어 있으면 방법 이름
       const m = (s.moves || []).find(x => x.id === s.sh.mvEdit); if(!m) return;

@@ -433,6 +433,7 @@ function catchBox(s, P, i, date){
   </div>`;
   return `${msg}<div class="box warnbox">
     <h2>⏰ 오늘 남은 곳을 다 가기 어려워요</h2>
+    ${c.left.length === d.items.length && d.items.length > 1 && sh.nowMin >= 13 * 60 ? `<p class="pnote"><b>이미 다녀온 곳이 있나요?</b> 먼저 표시하면 남은 곳만 다시 계산해요. <button type="button" class="link" data-act="jump" data-v="routebox">다녀온 곳 표시하러 ↓</button></p>` : ''}
     <p class="pnote">지금 ${koTime(sh.nowMin)}이에요. 남은 ${c.left.length}곳을 다 가면 ${koTime(c.allFinish)}쯤 끝나요(${d.depart ? '공항 갈 준비' : '보통 하루 끝'} ${koTime(c.end)}). 아래 ${c.drop.length}곳을 옮기면 ${koTime(c.finish)}쯤 끝나요.</p>
     <ul class="implist">${c.drop.map(x => `<li class="imp"><div class="sbody"><b>${esc(x.p.name)}${s.must[x.p.id] ? ' ★' : ''}</b><span>${x.to != null ? `${x.to + 1}일차 · ${P.days[x.to].label}에 자리가 있어요` : '들어갈 뒷날이 없어요'}</span></div>
       ${x.to != null ? `<button type="button" class="link" data-act="cumove" data-v="${esc(x.p.id)}|${x.to}">${x.to + 1}일차로</button>` : ''}<button type="button" class="link" data-act="cumove" data-v="${esc(x.p.id)}|-1">오늘 빼기</button></li>`).join('')}</ul>
@@ -456,7 +457,7 @@ export function vRecord(s){
     <ul class="facts"><li><span>다녀온 곳</span><b>${R.doneCount ? `${R.doneCount}곳` : `${R.placeCount}곳 계획`}</b></li><li><span>쓴 돈</span><b>${R.total ? lmoney(R.total, R.base) : '—'}</b></li><li><span>날짜</span><b>${P.days.length}일</b></li></ul>
     <div class="pfoot noprint"><button type="button" class="primary small" data-act="rshare">글로 보내기</button><button type="button" class="ghost small" data-act="rprint">PDF로 저장·인쇄</button></div>
     <p class="fine noprint">사진과 한마디는 이 폰에만 저장돼요(함께 짜기로 안 보내요). 다녀왔어요(✓) 표시는 오늘 화면에서 해요.</p>
-    ${R.days.map(x => { const d = x.d; const pts = [d.from].concat(x.places.map(y => y.p)).filter(Boolean);
+    ${R.days.map(x => { const d = x.d; const pts = [d.start || d.from].concat(x.places.map(y => y.p)).filter(Boolean);
       return `<article class="pcard rday" style="--day:${DAY_COLORS[d.i % DAY_COLORS.length]}">
         <header>${badge(d.i)}<div><h3>${d.i + 1}일차 · ${d.label}</h3><p>${x.spent ? `쓴 돈 ${lmoney(x.spent, R.base)}` : '적은 지출 없음'}</p></div></header>
         ${x.places.length ? mapSVG('plan', s, { days:[d], hotel:P.hotel }, pts) : ''}
@@ -1627,20 +1628,22 @@ export function vPlan(s){
     ${whoBox(s, 'plan')}
     ${mapSVG('plan', s, P)}
     ${moveBox(s, P)}
-    ${(sh => sh.total ? `<p class="fine">담은 곳 ${sh.total}곳 중 실내는 ${sh.indoor}곳이에요. 날짜마다 '☔ 비 오면?'을 누르면 가까운 실내 장소로 바꿀 수 있어요.</p>` : '')(indoorShare(s))}
+    ${(sh => sh.total ? `<p class="fine">${sh.skip > 0 ? '하루 종일 가는 곳을 뺀 ' : '담은 곳 '}${sh.total}곳 중 실내는 ${sh.indoor}곳이에요. 날짜마다 '☔ 비 오면?'을 누르면 가까운 실내 장소로 바꿀 수 있어요.</p>` : '')(indoorShare(s))}
     ${P.days.map(d => { const col = DAY_COLORS[d.i % DAY_COLORS.length]; const pct = d.cap ? Math.min(100, d.used / d.cap * 100) : 0;
       const T = dayTrips(d, P.hotel); const mvMin = d.cross ? 0 : etcMinutes(s, d.key);   // 숙소 옮기며 국경 넘는 날은 이미 2시간 뺐음
-      const tight = !d.full && (T.travelMin || mvMin) && d.used + (T.travelMin + mvMin) / 60 > d.cap + 0.5;
+      const tight = !d.full && (T.travelMin || mvMin) && d.used + (T.travelMin + mvMin) / 60 > d.cap + 1 + (d.cross && !d.start ? 2 : 0);   // 하루 끝은 다닐 시간 + 2시간 30분(js/flight.js dayEnd): 식사 1시간 30분을 빼면 이동 여유 1시간. 국경 넘는 날은 뺀 2시간이 이동 시간(국경 구간)에도 들어 있어 두 번 세지 않게
+      const back = d.start && d.cross ? d.items.filter(p => { const c = placeCity(p); return c && c !== (AREAS[d.to && (d.to.key || d.to.area)] || {}).city; }) : [];   // 짐을 먼저 옮기는데 떠나온 도시 장소가 남아 있음
       const body = d.full
         ? `<div class="fullday${whoDim(s, d.full)}"><b>${esc(d.full.name)}</b>${whoTag(s, d.full)}<span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(d.from, d.full))}" target="_blank" rel="noopener">숙소에서 ${T.legs[0] ? `약 ${minText(T.legs[0].min)} · ${esc(T.legs[0].mode)} · ` : ''}길찾기 ↗</a>${docBtns(s, docsOf(s, { place:d.full.id }))}${closedOn(d.full, d) ? '<p class="warnline">이날은 쉬는 날이에요. 다른 날로 옮겨 주세요.</p>' : (d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
         : d.items.length
           ? `<ol class="stops">${d.items.map((p, j) => { const cl = closedOn(p, d);
-              const prev = j ? d.items[j-1] : d.from;
+              const prev = j ? d.items[j-1] : (d.start || d.from);
               return `<li${whoDim(s, p) ? ' class="whodim"' : ''}><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${hrText(p.hours)}${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${docBtns(s, docsOf(s, { place:p.id }))}${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? departLine(d) : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day${d.locked ? ' locked' : ''}" style="--day:${col}">
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${d.full || d.cap > 0 || d.used > 0 || (!d.arrive && !d.depart) ? `${kindLabel(d.kind)} · ` : ''}${d.full ? '하루 종일' : d.cap > 0 || d.used > 0 ? `${hrText(d.used)} / 약 ${hrText(d.cap)}` : d.arrive ? '도착해서 쉬는 날' : d.depart ? '짐 싸고 공항 가는 날' : '쉬는 날'}${T.travelMin ? ` · 이동 약 ${minText(T.travelMin)}` : ''}${(r => r ? ` · 예보 ${esc(r.text || '')}${probText(r) ? `${r.psr ? ' · ' : ' '}${esc(probText(r))}` : ''}` : '')(dayRain(wxOf(s, P), ymdStr(d.date)))}</p></div></header>
         ${tight ? `<p class="warnline">이동까지 넣으면 약 ${minText(Math.round(d.used * 60 + T.travelMin + mvMin))}이라 하루가 빠듯해요. 한 곳을 다른 날로 옮겨 보세요.</p>` : ''}
+        ${back.length ? `<p class="warnline">짐을 먼저 옮기는 날이라 새 숙소(${esc(d.to.name)}) 쪽에서 다녀요. 국경 건너편 장소: ${esc(back.slice(0, 2).map(p => p.name).join(', '))}${back.length > 2 ? ` 등 ${back.length}곳` : ''} — 다른 날로 옮기거나 짐 옮기는 방법을 바꿔 보세요.</p>` : ''}
         ${crowdWarn(s, d)}
         ${dayMoves(s, d, mctx, 'start')}
         ${split ? `<p class="fine">🏨 ${d.from.name !== d.to.name ? `🧳 숙소 옮기는 날: ${esc(d.from.name)} → ${esc(d.to.name)}${d.cross ? ' · 짐 옮기고 국경 넘는 2시간을 빼고 짰어요' : ''}` : `${esc(d.to.name)}`}</p>` : ''}
@@ -2521,7 +2524,7 @@ export function vToday(s){
   </section>`;
   const P = plan(s); const n = P.days.length;
   const i = dayToShow(s, today, s.tday, n); const d = P.days[i]; const date = shownDate(s, today);
-  const col = DAY_COLORS[i % DAY_COLORS.length]; const hotel = d.from, home = d.to;   // 나눠 자는 날은 출발·돌아갈 숙소가 다름
+  const col = DAY_COLORS[i % DAY_COLORS.length]; const hotel = d.start || d.from, home = d.to;   // 나눠 자는 날은 출발·돌아갈 숙소가 다름. 짐을 먼저 옮긴 날(d.start)은 새 숙소에서 출발
   const stops = d.items; const nx = nextStopIndex(stops, date, s.tdone);
   const isDone = p => !!(s.tdone || {})[doneKey(date, p.id)];
   const vault = dayVault(bookings(s.vault), date, stops.map(p => p.id).concat(d.full ? [d.full.id] : []));
@@ -2531,10 +2534,11 @@ export function vToday(s){
 
   let next;
   if(d.full) next = `<div class="tnext" style="--day:${col}">
-      <span class="fine">하루 종일</span><b>${esc(d.full.name)}</b><span class="meta">${esc(d.full.note || '')}</span>
+      <span class="fine">하루 종일</span><b>${esc(d.full.name)}</b>
       ${(d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 문 여는 시간보다 일찍 가면 좋아요.</p>' : ''}
       <span class="meta">🚶 숙소에서 ${esc(legText(hotel, d.full))} (어림)</span>
       <a class="primary tgo" href="${esc(gdir(hotel, d.full))}" target="_blank" rel="noopener">숙소에서 길찾기 ↗</a>
+      <span class="meta">${esc(d.full.note || '')}</span>
       ${mtrBox(s, date, hotel)}
       <button type="button" class="ghost small" data-act="tspend" data-v="${esc(d.full.id)}">💴 여기서 쓴 돈 적기</button>
     </div>`;
@@ -2543,9 +2547,10 @@ export function vToday(s){
       <span class="fine">다음 장소 · ${stops.length}곳 중 ${nx + 1}번째</span><b>${esc(p.name)}</b>
       <span class="meta">${esc(AREAS[p.area].name)} · 약 ${hrText(p.hours)}${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
       ${lateOf(p) && LATE_AT[lateOf(p)] > (sh.nowMin || 0) && date === today ? `<p class="pnote">${lateOf(p) === 2 ? '🌙 저녁에 가는 곳이에요. 6시쯤부터 가면 좋아요.' : '🌇 해 질 녘(4시 반 뒤)에 가면 좋아요.'}</p>` : ''}
+      ${d.start && !nx ? `<p class="pnote">🧳 먼저 새 숙소(${esc(d.to.name)})에 짐을 맡기고 가요 · <a class="link" href="${esc(gdir(d.from, d.to))}" target="_blank" rel="noopener">새 숙소까지 길찾기 ↗</a></p>` : ''}
+      <span class="meta">🚶 ${nx ? '앞 장소에서' : d.start ? '새 숙소에서' : '숙소에서'} ${esc(legText(fromFor(stops, nx, hotel), p))} (어림)</span>
+      <a class="primary tgo" href="${esc(gdir(fromFor(stops, nx, hotel), p))}" target="_blank" rel="noopener">${nx ? '앞 장소에서' : d.start ? '새 숙소에서' : '숙소에서'} 길찾기 ↗</a>
       ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
-      <span class="meta">🚶 ${nx ? '앞 장소에서' : '숙소에서'} ${esc(legText(fromFor(stops, nx, hotel), p))} (어림)</span>
-      <a class="primary tgo" href="${esc(gdir(fromFor(stops, nx, hotel), p))}" target="_blank" rel="noopener">${nx ? '앞 장소에서' : '숙소에서'} 길찾기 ↗</a>
       ${mtrBox(s, date, fromFor(stops, nx, hotel))}
       <button type="button" class="ghost small" data-act="tdone" data-v="${esc(p.id)}">다녀왔어요</button>
     </div>`; }
@@ -2563,7 +2568,7 @@ export function vToday(s){
     <div class="scroller" role="group" aria-label="날짜 고르기">${P.days.map(x => `<button type="button" class="chip" data-act="tday" data-v="${x.i}" aria-pressed="${x.i === i}">${x.i + 1}일차${x.i === ph.index ? ' · 오늘' : ''}</button>`).join('')}</div>
     ${todayWeatherLine(dayWeather(wxOf(s, P), date), REGION.key === 'hksz' && ph.phase === 'during' && date === today && hkDates(P, AREAS).has(today) ? freshNow(s.hko, Date.now()) : null)}
     ${clockBox(s, ph)}
-    <div class="pfoot"><button type="button" class="ghost small" data-act="nearopen">📍 내 주변 가볼 만한 곳</button>${(m => m && mealSlots(d, hotel, d.to).some(x => x.meal === m[0]) ? `<button type="button" class="ghost small" data-act="jump" data-v="foodbox">🍜 ${m[1]}때예요 · 근처 식당 ↓</button>` : '')(ph.phase === 'during' && date === today ? (sh.nowMin >= 690 && sh.nowMin <= 810 ? ['lunch', '점심'] : sh.nowMin >= 1050 && sh.nowMin <= 1170 ? ['dinner', '저녁'] : null) : null)}</div>
+    ${(m => m && mealSlots(d, hotel, d.to).some(x => x.meal === m[0]) ? `<div class="pfoot"><button type="button" class="ghost small" data-act="jump" data-v="foodbox">🍜 ${m[1]}때예요 · 근처 식당 ↓</button></div>` : '')(ph.phase === 'during' && date === today ? (sh.nowMin >= 690 && sh.nowMin <= 810 ? ['lunch', '점심'] : sh.nowMin >= 1050 && sh.nowMin <= 1170 ? ['dinner', '저녁'] : null) : null)}
     ${ph.phase === 'before' ? (pv => pv.total ? `<p class="fine">준비물 ${pv.total}개 중 ${pv.done}개 챙김 · <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 보기</button></p>`
       : `<p class="fine">출발 전에 <button type="button" class="link" data-act="go" data-v="${STEP('준비물')}">준비물 체크리스트</button>를 만들어 두세요.</p>`)(packView(s.pack, 'all')) : ''}
     ${ph.phase === 'before' ? prepBox(s, 'today') : ''}
@@ -2573,13 +2578,14 @@ export function vToday(s){
     ${checkoutBox(s, d, ph.phase === 'during' && date === today ? sh.nowMin : null)}
     ${ph.phase === 'during' && date === today && (sh.nowMin || 0) >= EVE_FROM ? tomorrowBox(s, P, i, today) : ''}
     ${next}
+    <div class="pfoot"><button type="button" class="ghost small" data-act="nearopen">📍 내 주변 가볼 만한 곳</button></div>
     ${(ci => borderBox(s, date, ci) + crossLate(s, d, ci))(crossInfo(s, d))}
     ${ph.phase === 'during' && date === today ? catchBox(s, P, i, date) : ''}
     ${locBox(s, today)}
     ${rainBox(s, P, d)}
-    ${stops.length ? `<div class="box"><h2>이날 동선<small>${stops.length}곳 중 ${stops.filter(isDone).length}곳 다녀옴</small></h2>
+    ${stops.length ? `<div class="box" id="routebox"><h2>이날 동선<small>${stops.length}곳 중 ${stops.filter(isDone).length}곳 다녀옴</small></h2>
       <ol class="stops tstops" style="--day:${col}">
-        <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${esc(hotel.name)}</b><span>숙소에서 출발${hotel.name !== home.name ? ' · 🧳 짐 챙기기' : ''}</span></div></li>
+        <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${d.start ? `${esc(d.from.name)} → ${esc(hotel.name)}` : esc(hotel.name)}</b><span>${d.start ? '짐을 새 숙소에 맡기고 출발' : `숙소에서 출발${hotel.name !== home.name ? ' · 🧳 짐 챙기기' : ''}`}</span>${d.start ? `<a class="link" href="${esc(gdir(d.from, hotel))}" target="_blank" rel="noopener">${esc(legText(d.from, hotel))} · 새 숙소까지 길찾기 ↗</a>` : ''}</div></li>
         ${stops.map((p, j) => `<li class="${isDone(p) ? 'done' : ''}${j === nx ? ' nx' : ''}"><span class="num">${j + 1}</span>
           <div class="sbody"><b>${esc(p.name)}</b><span>약 ${hrText(p.hours)}${lateText(p) ? ` · ${lateOf(p) === 2 ? '🌙' : '🌇'} ${lateText(p)}` : ''}${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
             <span class="tacts"><a class="link" href="${esc(gdir(fromFor(stops, j, hotel), p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${esc(legText(fromFor(stops, j, hotel), p))} · 길찾기 ↗</a><button type="button" class="link" data-act="tspend" data-v="${esc(p.id)}">💴 여기서 쓴 돈</button>${nx >= 0 && j > nx && !isDone(p) ? `<button type="button" class="link" data-act="tdoneupto" data-v="${esc(p.id)}">✓ 여기까지 다녀왔어요</button>` : ''}</span>${docBtns(s, docsOf(s, { place:p.id }))}</div>

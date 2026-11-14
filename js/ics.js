@@ -26,9 +26,9 @@ export function homeTime(s, m){
 
 // 그날 장소마다 어림 시각 [{ p, start, end }] (분). 하루 종일 곳은 나서는 시각 ~ 하루 끝. 저녁 곳(logic.js lateOf)은 그 시각부터
 export function dayTimes(s, d){
-  const base = PACE[s.pace].hours; let t = d.arrive ? d.arrive.ready : DAY_START;
+  const base = PACE[s.pace].hours; let t = d.arrive ? d.arrive.ready : DAY_START + (d.lead || 0);   // 짐을 먼저 옮긴 날은 새 숙소에 닿은 뒤부터
   if(d.full) return [{ p:d.full, start:t, end:Math.max(t + 60, dayEnd(base)) }];
-  let prev = d.from; const out = [];
+  let prev = d.start || d.from; const out = [];
   (d.items || []).forEach(p => {
     t += prev ? legMinutes(prev, p) : 0; if(lateOf(p) === 2 && t < LATE_AT[2]) t = LATE_AT[2];   // 야시장·야경은 저녁에 (그 사이 저녁 먹기). 해 질 녘 곳은 순서만 뒤로
     const end = t + Math.round(p.hours * 60);

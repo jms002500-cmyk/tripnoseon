@@ -2,7 +2,7 @@
 // 그날 끝(보통 날 끝 시각, 마지막 날은 공항 가러 나서기 30분 전)을 넘기면 꼭 갈 곳이 아닌 곳부터 뒤에서 빼서 뒷날로 옮기길 권함.
 // 순수 함수(테스트 대상). 화면은 views.js vToday, 옮기기는 app.js(오늘 남기는 곳은 오늘에 고정 → 다른 날이 다시 섞여도 오늘은 그대로).
 import { legMinutes } from './transit.js';
-import { dayEnd } from './flight.js';
+import { dayEnd, DAY_START } from './flight.js';
 import { PACE, cityOfArea } from './data.js';
 import { placeCity, closedOn, lateOf, LATE_AT, NIGHT_END } from './logic.js';
 import { doneKey } from './today.js';
@@ -29,15 +29,18 @@ export function catchUp(s, P, di, date, now){
   const d = P.days[di]; if(!d || d.full) return null;
   const done = s.tdone || {}; const isDone = p => !!done[doneKey(date, p.id)];
   const left = d.items.filter(p => !isDone(p)); if(!left.length) return null;
-  const last = d.items.filter(isDone).pop(); const from = last || d.from;   // 마지막으로 다녀온 곳(없으면 숙소)에서 출발
+  const last = d.items.filter(isDone).pop(); const from = last || d.start || d.from;   // 마지막으로 다녀온 곳(없으면 숙소. 짐을 먼저 옮긴 날은 새 숙소)에서 출발
   // 저녁 곳(야시장·야경)은 그 시각 전에 닿으면 기다렸다가 (그 사이 저녁 먹기)
-  const need = list => { let t = 0, prev = from; list.forEach(p => { t += prev ? legMinutes(prev, p) : 0; if(lateOf(p) === 2 && now + t < LATE_AT[2]) t = LATE_AT[2] - now; t += Math.round(p.hours * 60); prev = p; }); return t; };
+  // 짐을 먼저 옮기는 날(d.lead) 아침에 아직 아무 데도 안 갔으면, 새 숙소에 닿는 시각(나서는 시각 + d.lead)부터 셈
+  const t0 = !last && d.lead ? Math.max(now, DAY_START + d.lead) : now;
+  const need = list => { let t = 0, prev = from; list.forEach(p => { t += prev ? legMinutes(prev, p) : 0; if(lateOf(p) === 2 && t0 + t < LATE_AT[2]) t = LATE_AT[2] - t0; t += Math.round(p.hours * 60); prev = p; }); return t; };
   const fly = d.depart && d.depart.leave >= 0;
   const end = fly ? dayEndMin(s, d) : Math.max(dayEndMin(s, d), left.some(p => lateOf(p) === 2) ? NIGHT_END : EVE_END); const keep = left.slice(); const out = [];
-  // 뺄 순서: 낮에는 꼭 갈 곳이 아닌 곳부터 뒤에서. 저녁(17시 뒤)에는 낮에만 갈 수 있는 곳부터 빼고, 해 질 녘·저녁 곳은 가장 늦게 가는 곳을 남김
+  // 뺄 순서: 해 질 녘·저녁 곳(야시장·야경)은 언제든 맨 나중에 뺌 — 그 시간에만 갈 수 있고 낮 곳을 하나 줄이면 갈 수 있으니까.
+  //   낮에는 꼭 갈 곳이 아닌 곳부터 뒤에서, 저녁(17시 뒤)에는 앞에서부터(낮에만 갈 수 있는 곳) 빼서 가장 늦게 가는 곳을 남김
   const evening = now >= 17 * 60;
-  const tier = p => (evening && lateOf(p) >= 1 ? 2 : 0) + (s.must[p.id] ? 1 : 0);
-  while(keep.length && now + need(keep) > end){
+  const tier = p => (lateOf(p) >= 1 ? 2 : 0) + (s.must[p.id] ? 1 : 0);
+  while(keep.length && t0 + need(keep) > end){
     let k = -1, bt = Infinity;
     for(let j = keep.length - 1; j >= 0; j--){ const x = tier(keep[j]); if(x < bt || (evening && x === bt)){ bt = x; k = j; } }
     out.push(keep.splice(k, 1)[0]);
@@ -45,7 +48,7 @@ export function catchUp(s, P, di, date, now){
   out.sort((a, b) => left.indexOf(a) - left.indexOf(b));
   const extra = {};
   const drop = out.map(p => { const to = moveTarget(s, P, di, p, extra); if(to != null) extra[to] = (extra[to] || 0) + p.hours; return { p, to }; });
-  return { left, keep, drop, finish:now + need(keep), allFinish:now + need(left), end };
+  return { left, keep, drop, finish:t0 + need(keep), allFinish:t0 + need(left), end };
 }
 
 // 옮기기 적용: 오늘 남기는 곳·다녀온 곳은 오늘에 고정하고 오늘을 확정(비운 시간에 다른 곳이 자동으로 끼어들지 않게).

@@ -66,5 +66,5 @@ export function undoSwap(s, u){
 // 담은 곳 중 실내 비율 (일정 단계 위 안내용)
 export function indoorShare(s){
   const ps = pickedPlaces(s).filter(p => p.indoor !== undefined && !p.full);
-  return { indoor:ps.filter(p => p.indoor === true).length, total:ps.length };
+  return { indoor:ps.filter(p => p.indoor === true).length, total:ps.length, skip:pickedPlaces(s).length - ps.length };   // skip: 하루 종일 가는 곳 등 세지 않은 곳
 }

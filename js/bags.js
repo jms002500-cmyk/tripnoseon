@@ -35,6 +35,8 @@ export function bagRows(s, d, end){
 
 // 고른 대로 그날 다닐 시간에서 뺄 시간 (맡겼다 찾기만)
 export const bagCapCut = (s, d) => moveDay(d) && (s.bags || {})[d.key] === 'keep' ? KEEP_BACK : 0;
+// '먼저 옮기기'를 고른 날인지: 아침에 새 숙소에 짐을 맡기고 그 근처에서 다님 → 그날 다니는 출발점은 새 숙소 (js/logic.js plan이 d.start·d.lead로 넣음)
+export const bagFirst = (s, d) => moveDay(d) && (s.bags || {})[d.key] === 'first';
 
 // 숙소 나서기 전 확인 (오는 날·숙소 옮기는 날 오늘 화면). 체크는 이 폰에만: s.outck { 'YYYY-MM-DD|키': true }
 export function checkoutList(s, d){

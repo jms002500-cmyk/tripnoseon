@@ -809,3 +809,6 @@ details.addways{display:flex; flex-direction:column; gap:12px}
 details.addways[open]>summary{margin-bottom:10px}
 details.box>summary{cursor:pointer; font-weight:600; color:var(--accent-ink); min-height:36px}
 details.box[open]>summary{margin-bottom:8px}
+/* v0.87: 작은 누름 칸 */
+.chk{min-height:36px}
+.gsdone summary{min-height:36px; padding-block:8px; margin:0}

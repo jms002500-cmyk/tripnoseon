@@ -76,7 +76,7 @@ test('디즈니 날에 비가 오면 비 안 오는 다른 날을 제안', () =>
 });
 
 test('담은 곳 실내 비율', () => {
-  assert.deepEqual(indoorShare(trip({ picked:{ uenozoo:true, kahaku:true, tdl:true, ginza:true } })), { indoor:1, total:3 });
+  assert.deepEqual(indoorShare(trip({ picked:{ uenozoo:true, kahaku:true, tdl:true, ginza:true } })), { indoor:1, total:3, skip:1 });   // skip: 하루 종일 가는 곳(tdl)은 세지 않음
 });
 
 test('하루 종일 곳을 그곳이 쉬는 날(요일·날짜 휴관)로는 옮기자고 하지 않음 (일정 짜기 fullAssign과 같게)', () => {

@@ -16,7 +16,7 @@ export function mealSlots(day, hotel, home){
   const out = [];
   if(day.full){ out.push({ meal:'dinner', time:'20:00', at:home, why:`${day.full.name}에서 돌아와서 숙소 근처` }); return out; }
   const items = day.items || [];
-  const start = day.kind === 'arrive' ? 14 : 10;
+  const start = day.kind === 'arrive' ? 14 : 10 + (day.lead || 0) / 60;   // 짐을 먼저 옮긴 날은 그만큼 늦게 시작
   const early = day.depart && day.depart.leave >= 0 && day.depart.leave < 13 * 60 + 30;   // 오는 날 1시 반 전에 공항으로 나서면 점심은 공항에서
   if(early){}
   else if(day.kind !== 'arrive' && items.length){

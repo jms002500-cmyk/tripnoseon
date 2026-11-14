@@ -4,7 +4,7 @@ import { ratesOf } from './ledger.js';
 import { arriveInfo, departInfo, capBetween } from './flight.js';
 import { legOverride } from './moves.js';
 import { bestPrice } from './prices.js';
-import { bagCapCut } from './bags.js';
+import { bagCapCut, bagFirst } from './bags.js';
 
 export function clone(o){ return JSON.parse(JSON.stringify(o)); }
 
@@ -358,6 +358,10 @@ export function plan(s){
   // 짐 들고 국경을 넘는 날(홍콩 → 선전 숙소)은 체크아웃·출입국에 2시간쯤 빼고 계산
   res.forEach(d => { if(dc[d.i].size > 1){ d.cap = Math.max(Math.min(2, d.cap), d.cap - 2); d.cross = true; } });
   res.forEach(d => { const c = bagCapCut(s, d); if(c) d.cap = Math.max(0, d.cap - c); });   // 짐 맡겼다 찾으러 되돌아가는 시간 (js/bags.js)
+  // '먼저 옮기기'를 고른 날: 아침에 새 숙소에 짐을 맡긴 뒤 그 근처에서 다님 → 출발점은 새 숙소(d.start), 그만큼 늦게 시작(d.lead 분).
+  //   국경을 넘는 날이면 떠나는 도시의 장소는 자동으로 안 넣음(다시 국경을 넘어야 하니까. 손으로는 옮길 수 있음)
+  res.forEach(d => { if(!bagFirst(s, d)) return; d.start = d.to; d.lead = d.cross ? 120 : hopMin(d.from, d.to) + 20;
+    const c = d.cross && d.to && d.to.key ? cityOfArea(d.to.key) : ''; if(c) dc[d.i] = new Set([c]); });
   pickedPlaces(s).forEach(p => {
     if(p.full){
       const di = fa[p.id];
@@ -380,22 +384,35 @@ export function plan(s){
       if(d.full || d.locked) return;
       if(d.used + p.hours > d.cap + 0.01) return;
       if((d.n || 0) + stopN(p) > maxN + 0.01) return;   // 하루 장소 수 한도
-      const hop = d.items.length ? Math.min(...d.items.map(q => hopMin(q, p))) : hopMin(d.from, p);
+      const hop = d.items.length ? Math.min(...d.items.map(q => hopMin(q, p))) : hopMin(d.start || d.from, p);
       if(d.used * 60 + (d.trav || 0) + hop + p.hours * 60 > (d.cap + 3) * 60) return;   // 이동까지 더하면 하루가 넘치는 날
       if(closedOn(p, d)){ blockedByClosed = true; return; }
       if(offCity(dc[d.i], p)){ blockedByCity = true; return; }   // 그날 자는 도시가 아니면 국경 왕복이라 자동으로는 안 넣음 (손으로는 옮길 수 있음)
       let c;
       if(d.items.some(q => q.area === p.area)) c = dist(p, centroid(d.items)) * 0.2;
       else if(d.items.length){ const k = dist(p, centroid(d.items)); c = k <= 4 ? 1 + k : 8 + k; }
-      else c = 5 + (dist(p, d.from) + dist(p, d.to)) * 0.05 + (d.kind === 'full' || d.kind === 'single' ? 0 : 2);
+      else c = 5 + (dist(p, d.start || d.from) + dist(p, d.to)) * 0.05 + (d.kind === 'full' || d.kind === 'single' ? 0 : 2);
       if(lateOf(p) === 2 && d.from && d.to && d.from.name !== d.to.name) c += 30;   // 저녁 곳은 숙소 옮기는 날을 피함 (짐 들고 밤늦게 이동)
       if(c < bestCost){ bestCost = c; best = d; bestHop = hop; }
     });
     if(best){ best.items.push(p); best.used += p.hours; best.n = (best.n || 0) + stopN(p); best.trav = (best.trav || 0) + bestHop; }
     else unassigned.push({ p, why: blockedByCity ? `${CITY_KO[placeCity(p)] || '그 도시'}에서 자는 날에 시간이 없어요${blockedByClosed ? '(휴무일 포함)' : ''}. 다른 날로 옮기면 국경을 오가야 해요` : blockedByClosed ? '남은 날짜가 휴무일이에요' : '시간이 모자라요' });
   });
-  res.forEach(d => { d.items = orderDay(d.items, d.from); });   // 야시장·야경은 그날 맨 뒤
+  res.forEach(d => { d.items = orderDay(d.items, d.start || d.from); });   // 야시장·야경은 그날 맨 뒤
   return { days:res, unassigned, hotel };
+}
+
+// 숙소 옮기는 날 짐 방법(s.bags)을 바꿀 때: 그날 다닐 시간·도시가 달라져 전체가 다시 묶이면, 다른 날 곳은 지금 날짜에 고정하고 그날 곳만 다시 놓음.
+//   key: 그 날짜, bags: 바꾼 뒤 값 → { assign: 새 s.assign, out: 이 때문에 새로 일정에서 빠진 곳들 }
+export function rebag(s, key, bags){
+  const P0 = plan(s); const at0 = {}; P0.days.forEach(d => d.items.forEach(p => { at0[p.id] = d.i; }));
+  const u0 = new Set(P0.unassigned.map(u => u.p.id)); const d0 = P0.days.find(d => d.key === key);
+  const s1 = Object.assign({}, s, { bags }); let assign = s.assign;
+  if(d0 && plan(s1).days.some(d => d.i !== d0.i && d.items.some(p => at0[p.id] !== d.i))){
+    assign = pinPlan(s, P0); d0.items.forEach(p => { if(s.assign[p.id] == null) delete assign[p.id]; });
+  }
+  const P1 = plan(Object.assign({}, s1, { assign }));
+  return { assign, out:P1.unassigned.filter(u => !u0.has(u.p.id)).map(u => u.p) };
 }
 
 // 추천 순서대로 남은 시간을 채울 장소 id 목록
