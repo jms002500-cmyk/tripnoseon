@@ -309,19 +309,19 @@ export function compareHotels(s, sort){
   return { rows, noLoc, hasDisney, nights:n, people:ppl, dayCount:dayPicks.length };
 }
 
-// 저녁에 가야 좋은 곳: 2 = 저녁에만(야시장·빛 쇼·야경), 1 = 해 질 녘이 좋음, 0 = 아무 때나. 자료에 eve를 적었으면 그 값
+// 언제 가면 좋은 곳인지: 2 = 저녁에만(야시장·빛 쇼·야경), 1 = 해 질 녘부터가 좋음, 0.5 = 오후부터(점심 뒤에 가게가 여는 시장), 0 = 아무 때나. 자료에 eve를 적었으면 그 값
 const NIGHT_KIND = /야경|일루미네이션/, NIGHT_NAME = /야시장|night\s*market|夜市|灯光秀|燈光|light\s*show|빛 쇼|조명 쇼/i;
 export function lateOf(p){
-  if(!p) return 0; if(p.eve === 0 || p.eve === 1 || p.eve === 2) return p.eve;
+  if(!p) return 0; if(p.eve === 0 || p.eve === 0.5 || p.eve === 1 || p.eve === 2) return p.eve;
   return NIGHT_KIND.test(p.kind || '') || NIGHT_NAME.test(`${p.name || ''} ${p.ja || ''}`) ? 2 : 0;
 }
 export const LATE_AT = { 1:16 * 60 + 30, 2:18 * 60 };   // 이 시각 전에 가면 덜 좋음 (12월 홍콩 해 지는 때 5시 40분쯤)
 export const NIGHT_END = 21 * 60 + 30;                  // 저녁 곳이 있는 날은 이때까지 다님
-export const lateText = p => ({ 1:'해 질 녘이 좋아요', 2:'저녁에 가요' })[lateOf(p)] || '';
-// 하루 순서: 낮 곳을 가까운 순으로 돈 뒤 해 질 녘 곳, 마지막에 저녁 곳 (각각 앞 곳에서 가까운 순)
+export const lateText = p => ({ 0.5:'오후에 가요', 1:'해 질 녘이 좋아요', 2:'저녁에 가요' })[lateOf(p)] || '';
+// 하루 순서: 아무 때나 가는 곳(사원·공원) → 오후부터 여는 곳 → 해 질 녘 곳 → 저녁 곳 (각각 앞 곳에서 가까운 순)
 export function orderDay(items, start){
   const out = []; let cur = start;
-  [0, 1, 2].forEach(k => { const list = items.filter(p => lateOf(p) === k); if(!list.length) return; const o = orderNN(list, cur || list[0]); out.push(...o); cur = o[o.length - 1]; });
+  [0, 0.5, 1, 2].forEach(k => { const list = items.filter(p => lateOf(p) === k); if(!list.length) return; const o = orderNN(list, cur || list[0]); out.push(...o); cur = o[o.length - 1]; });
   return out;
 }
 
@@ -336,6 +336,16 @@ export function orderNN(items, start){
   return out;
 }
 
+// 하루에 자동으로 넣는 장소 수 한도 (동행 단계의 속도). 30분 이하로 지나가는 곳은 반 곳으로 셈
+export const MAX_STOPS = { relaxed:4, normal:5, packed:7 };
+const stopN = p => p.hours <= 0.5 ? 0.5 : 1;
+// 두 곳 사이 이동 어림(분): 1km 안은 걸어서, 그보다 멀면 지하철 (하루 시간 계산용, 국경은 안 넘음)
+const hopMin = (a, b) => { if(!a || !b || a.lat == null || b.lat == null) return 0; const k = dist(a, b); return k <= 1 ? Math.round(k * 1.3 / 4.5 * 60) : Math.round(10 + k * 1.3 / 30 * 60); };
+// 손으로 한 곳을 옮길 때: 지금 일정의 다른 곳은 그 날짜에 그대로 고정 (옮긴 곳을 기준으로 나머지가 다시 묶여 다른 날까지 바뀌지 않게)
+export function pinPlan(s, P){
+  const a = Object.assign({}, s.assign); (P || plan(s)).days.forEach(d => d.items.forEach(p => { if(a[p.id] == null) a[p.id] = d.i; })); return a;
+}
+
 // 날짜별 일정 초안
 //  1) 하루 종일 쓰는 곳을 먼저 배치
 //  2) 사용자가 직접 옮긴 곳(s.assign) 배치 (-1은 빼두기)
@@ -344,6 +354,7 @@ export function plan(s){
   const days = buildDays(s); const dh = dayHotels(s, days);
   const res = days.map((d, i) => ({ ...d, full:null, items:[], used:0, locked:isLocked(s, d), from:dh[i].from, to:dh[i].to }));
   const hotel = hotelOf(s); const fa = fullAssign(s, days); const unassigned = []; const auto = []; const dc = dayCities(s, days);
+  const maxN = MAX_STOPS[s.pace] || MAX_STOPS.normal;
   // 짐 들고 국경을 넘는 날(홍콩 → 선전 숙소)은 체크아웃·출입국에 2시간쯤 빼고 계산
   res.forEach(d => { if(dc[d.i].size > 1){ d.cap = Math.max(Math.min(2, d.cap), d.cap - 2); d.cross = true; } });
   res.forEach(d => { const c = bagCapCut(s, d); if(c) d.cap = Math.max(0, d.cap - c); });   // 짐 맡겼다 찾으러 되돌아가는 시간 (js/bags.js)
@@ -355,7 +366,7 @@ export function plan(s){
     }
     const m = s.assign[p.id];
     if(m === -1){ unassigned.push({ p, why:'직접 빼둔 곳' }); return; }
-    if(m != null && m >= 0 && m < res.length && !res[m].full){ res[m].items.push(p); res[m].used += p.hours; return; }
+    if(m != null && m >= 0 && m < res.length && !res[m].full){ res[m].items.push(p); res[m].used += p.hours; res[m].n = (res[m].n || 0) + stopN(p); return; }
     auto.push(p);
   });
   // 꼭 갈 곳을 먼저 (시간이 모자라면 꼭 갈 곳이 아닌 곳이 빠지게), 그다음 동네 단위로 묶기: 큰 묶음(그리고 꼭 갈 곳이 있는 묶음)부터 배치
@@ -364,19 +375,23 @@ export function plan(s){
   auto.sort((a, b) => (s.must[b.id]?1:0) - (s.must[a.id]?1:0) || (groupMust[b.area]||0) - (groupMust[a.area]||0) || groupHours[b.area] - groupHours[a.area]
     || a.area.localeCompare(b.area) || (s.must[b.id]?1:0) - (s.must[a.id]?1:0) || b.hours - a.hours);
   auto.forEach(p => {
-    let best = null, bestCost = Infinity, blockedByClosed = false, blockedByCity = false;
+    let best = null, bestCost = Infinity, bestHop = 0, blockedByClosed = false, blockedByCity = false;
     res.forEach(d => {
       if(d.full || d.locked) return;
       if(d.used + p.hours > d.cap + 0.01) return;
+      if((d.n || 0) + stopN(p) > maxN + 0.01) return;   // 하루 장소 수 한도
+      const hop = d.items.length ? Math.min(...d.items.map(q => hopMin(q, p))) : hopMin(d.from, p);
+      if(d.used * 60 + (d.trav || 0) + hop + p.hours * 60 > (d.cap + 3) * 60) return;   // 이동까지 더하면 하루가 넘치는 날
       if(closedOn(p, d)){ blockedByClosed = true; return; }
       if(offCity(dc[d.i], p)){ blockedByCity = true; return; }   // 그날 자는 도시가 아니면 국경 왕복이라 자동으로는 안 넣음 (손으로는 옮길 수 있음)
       let c;
       if(d.items.some(q => q.area === p.area)) c = dist(p, centroid(d.items)) * 0.2;
       else if(d.items.length){ const k = dist(p, centroid(d.items)); c = k <= 4 ? 1 + k : 8 + k; }
       else c = 5 + (dist(p, d.from) + dist(p, d.to)) * 0.05 + (d.kind === 'full' || d.kind === 'single' ? 0 : 2);
-      if(c < bestCost){ bestCost = c; best = d; }
+      if(lateOf(p) === 2 && d.from && d.to && d.from.name !== d.to.name) c += 30;   // 저녁 곳은 숙소 옮기는 날을 피함 (짐 들고 밤늦게 이동)
+      if(c < bestCost){ bestCost = c; best = d; bestHop = hop; }
     });
-    if(best){ best.items.push(p); best.used += p.hours; }
+    if(best){ best.items.push(p); best.used += p.hours; best.n = (best.n || 0) + stopN(p); best.trav = (best.trav || 0) + bestHop; }
     else unassigned.push({ p, why: blockedByCity ? `${CITY_KO[placeCity(p)] || '그 도시'}에서 자는 날에 시간이 없어요${blockedByClosed ? '(휴무일 포함)' : ''}. 다른 날로 옮기면 국경을 오가야 해요` : blockedByClosed ? '남은 날짜가 휴무일이에요' : '시간이 모자라요' });
   });
   res.forEach(d => { d.items = orderDay(d.items, d.from); });   // 야시장·야경은 그날 맨 뒤

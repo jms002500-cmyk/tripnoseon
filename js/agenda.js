@@ -7,7 +7,7 @@ import { AFTER_LANDING, DAY_START, hm, toMin, minText, depMin, effFlight, before
 import { homeTime, TZ_OFFSET, dayTimes } from './ics.js';
 import { bagRows } from './bags.js';
 import { bookings } from './vault.js';
-import { airlineOf, checkinOpenDate, onlineText, checkinState, counterFor } from './airlines.js';
+import { airlineOf, checkinOpenDate, onlineText, checkinState, counterFor, counterKnown } from './airlines.js';
 
 const DAY_WORD = { '-1':'전날', '1':'다음 날' };   // 밤 비행기라 집 ↔ 공항이 한국 날짜로 하루 다를 때 (ics.js homeTime)
 
@@ -28,6 +28,7 @@ export function dayAgenda(s, d, ctx){
   });
   const a = d.arrive, z = d.depart && d.depart.leave >= 0 ? d.depart : null;
   if(pre){
+    if(pre.leave == null) out.push({ min:loc(pre.at) - 41, until:loc(pre.at), icon:'🏠', text:'집에서 언제 나서야 할까요?', sub:'집에서 공항까지 걸리는 시간을 넣으면 나서는 시각을 계산해 드려요', kind:'ask', act:'mvjump', v:'go' });
     if(pre.leave != null && !go0) out.push({ min:loc(pre.leave), kst:pre.leave, home:true, icon:'🏠', text:'집에서 나서기', sub:'비행기 시각에 맞춰 계산 · 집 → 공항 걸리는 시간 기준', kind:'pre' });
     const os = Object.values(s.fsegs || {}).find(x => x && x.dir === 'out') || {}; const oa = airlineOf(os.fno);
     out.push({ min:loc(pre.at), kst:pre.at, home:true, icon:'🛂', text:'공항 도착 · 체크인·짐 부치기', sub:`국제선 2시간 30분 전${oa ? ` · ${oa.name} ${counterFor(oa, os.from)}` : ''}`, kind:'pre' });
@@ -49,13 +50,13 @@ export function dayAgenda(s, d, ctx){
   // 오는 편 온라인 체크인이 열리는 날 (여행 중): 그날 아침에 알림
   Object.values(s.fsegs || {}).filter(x => x && x.dir === 'back' && x.fno && checkinOpenDate(x.fno, x.date) === d.key).forEach(x => { const a = airlineOf(x.fno);
     const st = checkinState(x, d.key); if(st && st.done) return;
-    out.push({ min:DAY_START, icon:'📲', text:`오는 편 ${x.fno} 온라인 체크인 열림`, sub:`${a.name} · ${onlineText(a)} · 좌석을 같이 앉게 정해요${st && st.left.length && st.left.length < (x.who || []).length ? ` · 아직 ${st.left.length}명` : ''}`, kind:'note' }); });
+    out.push({ min:DAY_START, until:1440, icon:'📲', text:`오는 편 ${x.fno} 온라인 체크인 열림`, sub:`${a.name} · ${onlineText(a)} · 좌석을 같이 앉게 정해요${st && st.left.length && st.left.length < (x.who || []).length ? ` · 아직 ${st.left.length}명` : ''}`, kind:'note' }); });
   // 비행기 타는 날: 체크인 안 한 사람이 있으면 공항 카운터에서 (마감 전에). 숙소·집을 나서기 전에 보이게 그보다 30분 앞에
   Object.values(s.fsegs || {}).filter(x => x && x.date === d.key && (x.who || []).length).forEach(x => { const st = checkinState(x, d.key); if(!st || st.done) return; const a = airlineOf(x.fno);
     const k0 = x.dir === 'out' && pre ? (pre.leave != null ? pre.leave : pre.at) - 30 : null;   // 가는 날은 한국 시각
     const at = k0 != null ? loc(k0) : x.dir === 'back' && z ? Math.min(DAY_START, z.leave - 30) : DAY_START;
     const until = k0 != null ? loc(k0 + 30) : x.dir === 'back' && z ? z.leave : null;   // 나설 때까지는 '지난 일'로 안 넘김 (nextUp)
-    out.push({ min:at, ...(k0 != null ? { kst:k0, home:true } : {}), ...(until != null ? { until } : {}), icon:'⚠️', text:`${x.dir === 'back' ? '오는' : '가는'} 편 ${x.fno} 아직 체크인 안 한 사람 ${st.left.length}명`, sub:`${k0 != null ? '집을 나서기 전에' : x.dir === 'back' && z ? '숙소를 나서기 전에' : '오늘'} 앱·누리집에서 하거나 공항 카운터에서${a ? ` (${counterFor(a, x.from)})` : ''} · 했으면 여행지 비행기 칸에서 표시`, kind:'note' }); });
+    out.push({ min:at, ...(k0 != null ? { kst:k0, home:true } : {}), ...(until != null ? { until } : {}), icon:'⚠️', text:`${x.dir === 'back' ? '오는' : '가는'} 편 ${x.fno} 아직 체크인 안 한 사람 ${st.left.length}명`, sub:`${k0 != null ? '집을 나서기 전에' : x.dir === 'back' && z ? '숙소를 나서기 전에' : '오늘'} 앱·누리집에서 하거나 공항 카운터에서${a && counterKnown(a, x.from) ? ` (${counterKnown(a, x.from)})` : ''} · 했으면 여행지 비행기 칸에서 표시`, kind:'note' }); });
   // 숙소 옮기는 날 짐 (js/bags.js): 맡겼다 찾기면 마지막 장소를 마친 뒤 찾으러
   { const T = (d.items || []).length && s.pace ? dayTimes(s, d) : []; bagRows(s, d, T.length ? T[T.length - 1].end : null).forEach(x => out.push(x)); }
   bookingRows(bookings(s.vault), d.key, new Set((s.moves || []).map(m => m.id))).forEach(b => out.push({ min:b.time, icon:b.icon, text:b.text, sub:'예약', kind:'book', vid:b.id }));
@@ -82,7 +83,7 @@ export function planText(s, P, ctx, head){
   if(f.arr || f.dep) lines.push(`✈️ ${[f.arr ? `가는 날 ${f.arr} 도착` : '', f.dep ? (depMin(f) >= 1440 ? `마지막 날 밤 → 다음 날 ${f.dep} 출발` : `오는 날 ${f.dep} 출발`) : ''].filter(Boolean).join(' · ')} (현지 시각)`);
   P.days.forEach((d, i) => {
     lines.push('', `${d.i + 1}일차 ${d.label}`);
-    dayAgenda(s, d, ctx).filter(x => !x.guess).forEach(x => lines.push(`  ${x.home && x.kst != null ? `${hm(x.kst)}(한국${x.kday ? `, ${DAY_WORD[x.kday]}` : ''})` : x.min != null ? hm(x.min) : '     '} ${x.icon ? x.icon + ' ' : ''}${x.text}`));
+    dayAgenda(s, d, ctx).filter(x => !x.guess && x.kind !== 'ask').forEach(x => lines.push(`  ${x.home && x.kst != null ? `${hm(x.kst)}(한국${x.kday ? `, ${DAY_WORD[x.kday]}` : ''})` : x.min != null ? hm(x.min) : '     '} ${x.icon ? x.icon + ' ' : ''}${x.text}`));
     const names = d.full ? [d.full.name] : d.items.map(p => p.name);
     lines.push(names.length ? `  📍 ${names.join(' → ')}` : '  📍 쉬어 가는 날');
     if(i < P.days.length - 1 && d.to && d.to.name) lines.push(`  🏨 ${d.to.name}`);

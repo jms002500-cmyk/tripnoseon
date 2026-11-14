@@ -13,8 +13,8 @@ const keys = list => list.map(x => x.key);
 
 test('12월 도쿄 + 12살 + 디즈니: 겨울옷·핫팩·돼지코·아이·디즈니 준비물', () => {
   const k = keys(suggestPacking(dec(), WX));
-  ['passport', 'vjw', 'yen', 'plug', 'padding', 'gloves', 'hotpack', 'lipbalm', 'kidpass', 'kidcard', 'kidphone', 'dapp', 'dsheet', 'dwarm'].forEach(x => assert.ok(k.includes(x), x));
-  ['diaper', 'stroller', 'teamlab'].forEach(x => assert.ok(!k.includes(x), x));
+  ['passport', 'yen', 'plug', 'padding', 'gloves', 'hotpack', 'lipbalm', 'kidpass', 'kidcard', 'kidphone', 'dapp', 'dsheet', 'dwarm'].forEach(x => assert.ok(k.includes(x), x));
+  ['diaper', 'stroller', 'teamlab', 'vjw', 'insurance'].forEach(x => assert.ok(!k.includes(x), x));   // 입국 등록·보험 들기는 '출발 전 할 일'에만 (v0.86)
   const pad = suggestPacking(dec(), WX).find(x => x.key === 'padding');
   assert.equal(pad.why, '12월 도쿄 아침 4° 안팎이에요.');
   assert.match(suggestPacking(dec(), WX).find(x => x.key === 'umbrella').why, /22%/);

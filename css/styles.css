@@ -793,3 +793,19 @@ details.more summary, .vmore>summary, .flman>summary, .alinfo>summary{min-height
 /* 숙소 나서기 전 확인 · 내일 미리 보기 */
 .ckout .chips{flex-wrap:wrap}
 .tmrw{border-color:var(--accent)}
+/* v0.86: 오늘 화면 줄이기 */
+.clockline{display:flex; flex-direction:column; gap:6px}
+.clockline>details>summary{font-size:var(--fs-md); color:var(--ink); font-weight:500; font-variant-numeric:tabular-nums}
+.clockline>details[open]{display:flex; flex-direction:column; gap:8px}
+.eat .eatc{width:100%}
+.eatc>summary{display:flex; flex-direction:column; gap:2px; cursor:pointer; padding:6px 0; min-height:44px; list-style:none}
+.eatc>summary::-webkit-details-marker{display:none}
+.eatc>summary b::after{content:" ▾"; color:var(--muted); font-weight:400}
+.eatc[open]>summary b::after{content:" ▴"}
+.eatc>summary span{font-size:var(--fs-sm); color:var(--muted)}
+.eatc .sbody{padding:4px 0 8px}
+/* v0.86: 접어 둔 칸 */
+details.addways{display:flex; flex-direction:column; gap:12px}
+details.addways[open]>summary{margin-bottom:10px}
+details.box>summary{cursor:pointer; font-weight:600; color:var(--accent-ink); min-height:36px}
+details.box[open]>summary{margin-bottom:8px}

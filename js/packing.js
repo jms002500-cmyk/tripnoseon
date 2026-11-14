@@ -110,8 +110,11 @@ export function suggestPacking(s, wx){
     if(winter) add('dwarm', 'fun', '디즈니 저녁용 무릎담요·핫팩', '저녁 퍼레이드·불꽃놀이를 기다리면 많이 추워요.');
   }
   if(ids.has('teamlab')) add('teamlab', 'wear', '무릎까지 걷을 수 있는 바지', '팀랩 플래닛은 물속을 걸어요.');
-  return out;
+  // 준비물은 가방에 넣는 물건만: 해야 하는 일(보험 들기·입국 등록·앱 깔기·로밍 정하기·여권 만료일 확인)은 '출발 전 할 일'(js/prep.js)에만 둠
+  //   홍콩·선전은 '해외 결제 카드'가 '비접촉 결제 되는 해외 카드'와 겹쳐서 하나만
+  return out.filter(x => !PACK_TASKS.includes(x.key) && !(hksz && x.key === 'card'));
 }
+export const PACK_TASKS = ['insurance', 'vjw', 'alipay', 'cnCard', 'roam', 'amap', 'passValid'];
 
 // 앱 안에서 하는 준비물 → 그 화면 (views.js 버튼, app.js 'pkgo')
 export const PACK_GO = { appid:'idbox', tickets:'vault', appmove:'movebox', appcal:'icsbox', appsos:'sos' };

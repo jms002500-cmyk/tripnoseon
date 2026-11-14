@@ -116,8 +116,11 @@ export function counterFor(a, ap){
   if(!a || !a.counter) return '';
   const m = /^([^:：]{1,6})[:：]\s*/.exec(a.counter); const code = m ? AP_WORD[m[1].trim()] : '';
   if(!code || !ap || code === ap) return a.counter;
-  return '카운터 마감은 이 공항 안내를 확인하세요 (국제선은 보통 출발 50~60분 전)';
+  return COUNTER_ANY;
 }
+export const COUNTER_ANY = '카운터 마감은 공항 안내 확인 (보통 출발 50~60분 전)';
+// 그 공항에 맞는 카운터 안내가 있을 때만 (일반 문구는 '')
+export const counterKnown = (a, ap) => { const x = counterFor(a, ap); return x && x !== COUNTER_ANY ? x : ''; };
 export const onlineText = a => a && a.online ? `출발 ${a.online[0]}시간 전부터 ${a.online[1]}까지` : '';
 // 이 편에 해당하는 보조배터리 규정: 출발 공항 나라 규정 + 홍콩은 오가는 편 모두
 export function powerbankRules(from, to){

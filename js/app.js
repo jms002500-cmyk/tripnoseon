@@ -1,6 +1,6 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
 import { AREAS, STEPS, DEFAULT, REGIONS, REGION, PLACES, loadRegion, cityOfArea } from './data.js';
-import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity } from './logic.js';
+import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity, pinPlan } from './logic.js';
 import { REPLIES, talkWords, pickVoice } from './asktalk.js';
 import { VIEWS, SHEET, ASKSHEET, NEARSHEET, DOCSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, wayWhere, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
 import { DEST } from './guide.js';
@@ -422,6 +422,9 @@ function render(){
   const s = state;
   if(s.sh && s.sh.pq && (s.mode || STEPS[s.step] !== '장소 담기')) s.sh.pq = '';   // 다른 화면으로 가면 검색을 풂
   document.documentElement.dataset.size = s.textSize || '';   // 큰 글씨 모드 (css html[data-size])
+  // '정하기'를 열었다가 아무것도 안 넣고 다른 화면으로 가면 내가 만든 빈 이동은 지움 (함께 짜는 여행에 빈 줄이 남지 않게)
+  if(s.sh && s.sh.mvEdit && (s.mode || s.step !== PLAN_STEP)){ const id = s.sh.mvEdit; s.sh.mvEdit = null; const m = (s.moves || []).find(x => x.id === id);
+    if(m && isEmptyMove(m)){ s.moves = s.moves.filter(x => x.id !== id); save(); } }
   renderNet(); locSync();
   document.getElementById('line').innerHTML =
     `<span class="fill" style="width:${(s.step / (STEPS.length-1)) * (100 - 100 / STEPS.length)}%"></span>` +
@@ -431,6 +434,7 @@ function render(){
   if(todayMode || sosMode || recMode || helpMode) document.querySelectorAll('#line .stn.now').forEach(li => { li.classList.remove('now'); li.querySelector('button').removeAttribute('aria-current'); });
   document.getElementById('view').innerHTML = (sosMode || recMode || helpMode ? '' : installCard(s) + idWipeCard(s)) + (sosMode ? vSafety(s) : todayMode ? vToday(s) : recMode ? vRecord(s) : helpMode ? vHelp(s) : VIEWS[s.step](s));
   document.getElementById('line').style.setProperty('--n', STEPS.length);
+  document.getElementById('line').hidden = todayMode || sosMode || recMode || helpMode;   // 여행 중 화면은 자리를 아낌
   document.getElementById('bar').innerHTML = (helpMode
     ? `<button type="button" class="ghost" data-act="tclose">돌아가기</button><button type="button" class="primary" data-act="helpgo" data-v="today">오늘 하루 보기</button>`
     : sosMode
@@ -957,6 +961,7 @@ function act(a, v){
     case 'sos': packTick('appsos'); s.mode = s.mode === 'sos' ? null : 'sos'; s.sh.sbig = null; scroll = true; break;
     case 'helpopen': s.mode = s.mode === 'help' ? null : 'help'; scroll = true; break;
     case 'helpgo': goTo(v); return;
+    case 'jump': { const el = /^[a-z0-9_-]{1,30}$/i.test(v || '') ? document.getElementById(v) : null; if(el){ if(el.tagName === 'DETAILS') el.open = true; scrollBelowTop(el); flash(el); } return; }   // 같은 화면의 그 칸으로
     case 'nearopen': s.sh.near = Object.assign({}, s.sh.near, { open:true }); if(s.sh.ask) s.sh.ask.open = false; s.sh.open = false;
       if(!s.sh.near.pt || Date.now() - (s.sh.near.at || 0) > 3 * 60000) nearLocate(); else render(); return;   // 3분 안에 찾은 위치는 다시 씀
     case 'nearagain': nearLocate(true); return;
@@ -994,6 +999,11 @@ function act(a, v){
     case 'tdone': {   // 다녀옴 표시: 오늘 화면에서 보고 있는 날짜 기준
       const k = doneKey(entryDate(s, new Date(), REGION.tz), v); s.tdone = Object.assign({}, s.tdone);   // 화면(vToday)과 같은 여행지 날짜
       if(s.tdone[k]) delete s.tdone[k]; else s.tdone[k] = true; break;
+    }
+    case 'tdoneupto': {   // 여기까지 다녀왔어요: 그날 동선에서 이 장소와 그 앞의 곳을 한 번에 다녀옴으로
+      const date = entryDate(s, new Date(), REGION.tz); const d = plan(s).days.find(x => x.key === date); const i = d ? d.items.findIndex(p => p.id === v) : -1; if(i < 0) return;
+      s.tdone = Object.assign({}, s.tdone); d.items.slice(0, i + 1).forEach(p => { s.tdone[doneKey(date, p.id)] = true; });
+      toast(`${i + 1}곳을 다녀온 것으로 표시했어요.`); break;
     }
     case 'who': s.who = v; if(v === 'solo') s.adults = 1; else if(v === 'couple') s.adults = 2; break;
     case 'adults': s.adults = Math.min(10, Math.max(1, s.adults + (+v))); break;
@@ -1315,6 +1325,7 @@ function goTo(to){
     if(d.open) s.sh[d.open] = true;   // 펼친 채로 (가족 일정이 실시간으로 와서 다시 그려도)
     save(); render();
     const el = d.el ? document.querySelector(d.el) : null;
+    if(el){ const dt = el.closest('details'); if(dt && !dt.open) dt.open = true; }   // 접힌 칸(장소 담기의 '다른 방법으로 담기' 등) 안이면 펼침
     if(el){ scrollBelowTop(el); flash(el); } else window.scrollTo(0, 0);
     return;
   }
@@ -1578,6 +1589,8 @@ const LAYERS = [
   [() => !!state.sh.sbig, () => { state.sh.sbig = null; state.sh.sreply = null; try{ speechSynthesis.cancel(); }catch(e){} render(); }],
   [() => !!state.mode, () => { state.mode = null; save(); render(); window.scrollTo({ top:0 }); }]
 ];
+// 화면(오늘·긴급·도움)을 닫으며 history.go로 되돌릴 때 브라우저가 예전 스크롤 위치(맨 위)로 돌려놓지 않게: '바로 가기'로 간 칸이 그대로 보이도록
+try{ history.scrollRestoration = 'manual'; }catch(e){}
 const layerCount = () => LAYERS.filter(l => l[0]()).length;
 const histDepth = () => (history.state && history.state.tnl) || 0;
 let histWait = 0, histTimer = null, histPopping = false;
@@ -1822,7 +1835,7 @@ function onChange(e){
     s.fullDay[id] = nv;
   }
   else if(t.dataset.night){ const k = t.dataset.night; const o = Object.assign({}, s.nights); if(t.value) o[k] = t.value; else delete o[k]; s.nights = o; }
-  else if(t.dataset.move){ const id = t.dataset.move; if(t.value === '') delete s.assign[id]; else s.assign[id] = +t.value; }
+  else if(t.dataset.move){ const id = t.dataset.move; s.assign = pinPlan(s); if(t.value === '') delete s.assign[id]; else s.assign[id] = +t.value; }   // 다른 곳은 지금 날짜에 그대로 (logic.js pinPlan)
   else if(t.dataset.import != null){
     const f = t.files && t.files[0]; if(!f) return;
     f.text().then(txt => {

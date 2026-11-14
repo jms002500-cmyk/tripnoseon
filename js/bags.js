@@ -30,7 +30,7 @@ export function bagRows(s, d, end){
   if(w === 'first') return [{ min:DAY_START - 10, icon:'🧳', text:`체크아웃 → ${B}에 먼저 짐 맡기기`, sub:d.cross ? '짐 들고 국경 넘기 · 아침이 덜 붐벼요' : '체크인 전이어도 프런트에 맡아 줘요', kind:'bag' }];
   if(w === 'car') return [{ min:DAY_START - 10, icon:'🚐', text:`체크아웃 → 국경 넘는 차로 ${B}까지`, sub:'탈 시각을 오가는 길에 넣으면 그 시각으로 보여요', kind:'bag' }];
   if(w === 'carry') return [{ min:DAY_START - 10, icon:'🧳', text:'체크아웃 · 짐 들고 다니기', sub:'큰 캐리어는 계단·긴 통로에서 힘들어요', kind:'bag' }];
-  return [{ min:DAY_START - 10, icon:'🧳', text:'숙소 옮기는 날 · 짐을 어떻게 할지 정해요', sub:`${A} → ${B} · 오늘 화면·일정 단계의 '짐 옮기는 날'에서 골라요`, kind:'note' }];
+  return [{ min:DAY_START - 10, icon:'🧳', text:'숙소 옮기는 날 · 짐을 어떻게 할지 정해요', sub:`${A} → ${B} · 바로 아래 '짐 옮기는 날'에서 골라요`, kind:'note' }];
 }
 
 // 고른 대로 그날 다닐 시간에서 뺄 시간 (맡겼다 찾기만)

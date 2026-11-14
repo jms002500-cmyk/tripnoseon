@@ -15,7 +15,7 @@ export const EVE_FROM = 18 * 60;   // 이 시각부터 오늘 화면에 내일 �
 export function tomorrowOf(s, P, i, today, opt = {}){
   const d = P && P.days && P.days[i + 1]; if(!d) return null;
   const tips = [];
-  const ag = dayAgenda(s, d, opt.ctx || {}).filter(x => x.min != null && !x.guess && x.kind !== 'note' && x.kind !== 'arr');
+  const ag = dayAgenda(s, d, opt.ctx || {}).filter(x => x.min != null && !x.guess && x.kind !== 'note' && x.kind !== 'arr' && x.kind !== 'ask');
   const leave = d.depart && d.depart.leave >= 0 ? d.depart.leave : null;
   const place = d.full || (d.items || [])[0] || null;
   if(leave != null){
@@ -31,6 +31,8 @@ export function tomorrowOf(s, P, i, today, opt = {}){
   const w = dayWeather(opt.wx, d.key);
   if(w && w.kind === 'forecast' && w.rain >= 50) tips.push({ icon:'☔', t:'내일 비 소식', d:'우산을 챙기고, 실외 장소는 내일 화면의 \'비 오면?\'으로 바꿀 수 있어요.', day:d.i });
   const vs = dayVault(bookings(s.vault), d.key, (d.items || []).map(p => p.id).concat(d.full ? [d.full.id] : []));
+  { const linked = new Set(bookings(s.vault).map(v => v.placeId).filter(Boolean));   // 날짜 지정 표가 필요한 곳인데 보관함에 연결된 표가 없음
+    (d.full ? [d.full] : d.items || []).filter(p => p.book && !linked.has(p.id)).forEach(p => tips.unshift({ icon:'🎟️', t:`${p.name} 입장권·예약이 보관함에 없어요`, d:'미리 사야 하는 곳이에요. 샀으면 보관함에 넣어 두면 내일 입구에서 바로 꺼내요.', go:'vault' })); }
   if(vs.length) tips.push({ icon:'🎫', t:`내일 꺼낼 예약 ${vs.length}건`, d:vs.slice(0, 3).map(v => v.title).filter(Boolean).join(' · ') || '보관함에 있어요' });
   return { d, leave, first:ag[0] || null, place, start:leave != null ? leave : DAY_START, w, tips };
 }

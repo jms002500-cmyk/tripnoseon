@@ -40,8 +40,10 @@ test('첫날 오늘 화면: 공항 도착·출발(한국 시각)이 현지 도�
   const s = Object.assign({}, S, { flight:{ ap:'HKG', arr:'10:40', dep:'18:30', ap2:'', way:'', odep:'08:00', rarr:'23:05' }, moves:[],
     fsegs:{ f1:{ dir:'back', fno:'OZ700', date:'2027-03-10', from:'HKG', to:'ICN', dep:'18:30', arr:'23:05', who:['a1'] } } });
   const L = dayAgenda(s, { i:0, key:'2027-03-06', arrive:{ at:640, ap:{ name:'홍콩 국제공항' }, transfer:50 } }, {});
-  assert.deepEqual(L.slice(0, 3).map(x => [x.text, x.kst, x.home, x.kind]), [['공항 도착 · 체크인·짐 부치기', 330, true, 'pre'], ['출발', 480, true, 'flight'], ['홍콩 국제공항 도착', undefined, undefined, 'arr']]);
-  assert.equal(L[0].min, 270);   // 한국 05:30 = 홍콩 04:30 (줄 세우기는 현지 시각)
+  assert.equal(L[0].kind, 'ask');   // 집 → 공항 시간을 안 넣었으면 먼저 물어봄 (v0.86)
+  const L1 = L.filter(x => x.kind !== 'ask');
+  assert.deepEqual(L1.slice(0, 3).map(x => [x.text, x.kst, x.home, x.kind]), [['공항 도착 · 체크인·짐 부치기', 330, true, 'pre'], ['출발', 480, true, 'flight'], ['홍콩 국제공항 도착', undefined, undefined, 'arr']]);
+  assert.equal(L1[0].min, 270);   // 한국 05:30 = 홍콩 04:30 (줄 세우기는 현지 시각)
   const z = dayAgenda(s, { i:4, key:'2027-03-10', depart:{ at:1110, leave:900, ap:{ name:'홍콩 국제공항' }, transfer:50 } }, {});
   assert.deepEqual(z.map(x => x.text).slice(-2), ['홍콩 국제공항 출발', '인천국제공항 도착']);
   assert.equal(z[z.length - 1].kst, 1385);

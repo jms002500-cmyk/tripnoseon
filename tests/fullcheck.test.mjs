@@ -66,7 +66,7 @@ test('카운터 안내: 홍콩공항 것은 인천에서 떠날 때 안 보여 �
   const hx = airlineOf('HX700'), ke = airlineOf('KE900');
   assert.match(counterFor(hx, 'HKG'), /^홍콩공항/);
   assert.doesNotMatch(counterFor(hx, 'ICN'), /홍콩공항/);
-  assert.match(counterFor(hx, 'ICN'), /이 공항 안내/);
+  assert.match(counterFor(hx, 'ICN'), /공항 안내 확인/);
   assert.equal(counterFor(ke, 'HKG'), ke.counter);
   assert.equal(counterFor(null, 'ICN'), '');
 });

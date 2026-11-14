@@ -2,6 +2,7 @@
 // 받아 그 시간 영업 여부·평점·걸어서 몇 분과 함께 보여 줌. 순수 함수(테스트 대상). 네트워크는 gmap.js.
 // (2026-10-27 OpenStreetMap Overpass로 먼저 해 봤지만 공개 서버가 자주 응답하지 않아 구글로 바꿈)
 import { openAtPeriods } from './gplace.js';
+import { hm } from './flight.js';
 
 export const RADIUS = 500;         // 미터. 아이와 걸어서 7분 안팎
 const WALK_M_PER_MIN = 75;
@@ -13,7 +14,7 @@ export const walkMin = km => Math.max(1, Math.round(km * 1000 / WALK_M_PER_MIN))
 export function mealSlots(day, hotel, home){
   home = home || hotel;   // 저녁 뒤 돌아갈 숙소 (나눠 자는 날은 다를 수 있음)
   const out = [];
-  if(day.full){ out.push({ meal:'dinner', time:'18:30', at:home, why:`${day.full.name} 다녀온 뒤 숙소 근처` }); return out; }
+  if(day.full){ out.push({ meal:'dinner', time:'20:00', at:home, why:`${day.full.name}에서 돌아와서 숙소 근처` }); return out; }
   const items = day.items || [];
   const start = day.kind === 'arrive' ? 14 : 10;
   const early = day.depart && day.depart.leave >= 0 && day.depart.leave < 13 * 60 + 30;   // 오는 날 1시 반 전에 공항으로 나서면 점심은 공항에서
@@ -25,7 +26,9 @@ export function mealSlots(day, hotel, home){
   } else if(day.kind !== 'arrive') out.push({ meal:'lunch', time:'12:30', at:hotel, why:'숙소 근처' });
   if(day.kind !== 'depart'){
     const last = items.length ? items[items.length - 1] : home;
-    out.push({ meal:'dinner', time:'18:30', at:last, why:items.length ? `${last.name} 근처` : '숙소 근처' });
+    const rd = day.arrive && day.arrive.ready != null ? day.arrive.ready : null;   // 도착하는 날 숙소에 들어가는 시각: 그보다 이른 저녁은 못 먹음
+    const late = rd != null && rd > 18 * 60 + 30;
+    out.push({ meal:'dinner', time:late ? hm(Math.min(rd, 22 * 60)) : '18:30', at:late ? home : last, why:late ? '숙소에 도착한 뒤 근처' : items.length ? `${last.name} 근처` : '숙소 근처' });
   }
   return out;
 }

@@ -35,7 +35,8 @@ export const DEST = {
   ask:{ act:'askopen' },
   near:{ act:'nearopen' },
   size:{ step:'동행', el:'.sizes' },
-  help:{ mode:'help' }
+  help:{ mode:'help' },
+  localguide:{ mode:'help', el:'#help-local' }
 };
 
 // 상황별 묶음. t: 이럴 때(사용자 말로), d: 무엇을 해 주는지, how: 어디서(바로 가기가 못 데려가는 곳이면 길 안내)

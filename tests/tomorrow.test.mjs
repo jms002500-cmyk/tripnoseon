@@ -59,7 +59,7 @@ test('국경 닫는 시각: 일정에서 지나는 곳이 닫기 1시간 안쪽�
 test('알리페이·위챗페이 준비: 선전 가는 여행만 출발 10일 전, 준비물에서 체크하면 저절로', () => {
   const s = Object.assign(clone(D.DEFAULT), { city:'hksz', cityOnly:'', start:'2027-03-06', end:'2027-03-10' });
   const t = prepTasks(s).find(x => x.key === 'payapp');
-  assert.ok(t && t.dday === 10 && !t.done && t.go === 'pack');
+  assert.ok(t && t.dday === 10 && !t.done);
   assert.ok(prepTasks(Object.assign({}, s, { pack:{ sg_alipay:{ t:'알리페이', done:true } } })).find(x => x.key === 'payapp').done);
   assert.ok(!prepTasks(Object.assign({}, s, { cityOnly:'hk' })).some(x => x.key === 'payapp'));
 });
