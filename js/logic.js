@@ -191,12 +191,22 @@ export const MAX_MEALS = 2;     // 하루에 자동으로 넣는 식당 (점심�
 export const LUNCH_BY = 13.5;   // 이 시각 전에 다니기 시작하는 날만 점심 자리가 있음
 // 식당은 원래 비워 둔 식사 시간(하루 끝 계산의 식사 1시간 30분)에 먹어서, 다닐 시간·하루 장소 수에는 안 셈
 const useOf = p => mealStop(p) ? 0 : p.hours;
+// 짐 들고 국경 넘는 날(plan의 d.cross, 짐을 먼저 옮긴 날 d.start는 빼고) → [떠나는 도시, 자는 도시] | null
+const stayCity = h => h && (h.key || h.area) && AREAS[h.key || h.area] ? cityOfArea(h.key || h.area) : '';
+export const crossOf = d => d && d.cross && !d.start && stayCity(d.from) && stayCity(d.to) && stayCity(d.from) !== stayCity(d.to) ? [stayCity(d.from), stayCity(d.to)] : null;
 // 그날 다니기 시작하는 시각(시): 도착하는 날 오후 2시, 짐을 먼저 옮긴 날은 그만큼 늦게 (food.js mealSlots와 같은 기준)
 export const dayStartH = d => d.kind === 'arrive' ? 14 : 10 + (d.lead || 0) / 60;
 // 그날 식당이 점심인지 저녁인지 (orderDay가 첫 식당을 점심 자리, 다음 식당을 저녁 자리에 둠) → { 장소 id: '점심' | '저녁' }
+//   시각 어림: 다니기 시작하는 시각 + 앞 곳마다 머무는 시간·이동 30분 + 도시가 바뀌면(국경) 1시간 30분. 3시 전 첫 식당이 점심
+export const BORDER_H = 1.5;
+const cityOf = p => p && (p.area || p.lat != null) ? placeCity(p) : '';
 export function mealLabels(d){
-  const out = {}; const lunch = dayStartH(d) < LUNCH_BY;
-  (d.items || []).filter(mealStop).forEach((p, i) => { out[p.id] = lunch && i === 0 ? '점심' : '저녁'; });
+  const out = {}; let t = dayStartH(d), lunch = t < LUNCH_BY, prev = '';
+  (d.items || []).forEach(p => {
+    const c = cityOf(p); if(prev && c && c !== prev) t += BORDER_H; if(c) prev = c;
+    if(mealStop(p)){ out[p.id] = lunch && t < 15 ? '점심' : '저녁'; if(out[p.id] === '점심') lunch = false; }
+    t += p.hours + 0.5;
+  });
   return out;
 }
 // 메인 → 그날 번호 { 장소 id: 날 i }
@@ -363,7 +373,16 @@ export const NIGHT_END = 21 * 60 + 30;                  // 저녁 곳이 있는 
 export const lateText = p => ({ 0.5:'오후에 가요', 1:'해 질 녘이 좋아요', 2:'저녁에 가요' })[lateOf(p)] || '';
 // 하루 순서: 아무 때나 가는 곳(사원·공원) → 오후부터 여는 곳 → 해 질 녘 곳 → 저녁 곳 (각각 앞 곳에서 가까운 순)
 //   식당(mealStop)은 따로 빼서 점심 자리(12시쯤 있을 곳 다음)·저녁 자리(저녁 곳 바로 앞, 없으면 맨 끝)에 끼움. t0: 다니기 시작하는 시각
-export function orderDay(items, start, t0 = 10){
+//   cities: 짐 들고 국경 넘는 날 [떠나는 도시, 자는 도시] → 떠나는 도시 곳을 먼저 다 돌고 넘어가서 자는 도시 곳 (식당도 각 도시 안에서 점심·저녁 자리)
+export function orderDay(items, start, t0 = 10, cities){
+  if(cities && cities[0] && cities[1] && cities[0] !== cities[1]){
+    const after = items.filter(p => cityOf(p) === cities[1]), before = items.filter(p => !after.includes(p));
+    if(before.length && after.length){
+      const A = orderDay(before, start, t0);
+      const t1 = t0 + A.reduce((t, p) => t + p.hours + 0.5, 0) + BORDER_H;
+      return A.concat(orderDay(after, A[A.length - 1], t1));
+    }
+  }
   const meals = items.filter(p => mealStop(p) && lateOf(p) === 0); const rest = items.filter(p => !meals.includes(p));
   const out = []; let cur = start;
   [0, 0.5, 1, 2].forEach(k => { const list = rest.filter(p => lateOf(p) === k); if(!list.length) return; const o = orderNN(list, cur || list[0]); out.push(...o); cur = o[o.length - 1]; });
@@ -448,6 +467,10 @@ export function plan(s){
       if(d.full || d.locked) return;
       if(d.used + useOf(p) > d.cap + 0.01) return;
       if(meal && (!(d.cap > 0) || d.items.filter(mealStop).length >= MAX_MEALS)){ if(d.cap > 0) blockedByMeal = true; return; }   // 식당은 하루 점심·저녁 두 곳까지
+      if(meal && crossOf(d)){   // 짐 들고 국경 넘는 날: 떠나는 도시 식당은 점심 한 곳(점심 자리가 있는 날만), 자는 도시 식당은 저녁 한 곳 (v0.92.2, 폰에서 찾음: 선전에 넘어간 뒤 홍콩 저녁)
+        const [, cTo] = crossOf(d); const here = cityOf(p) === cTo;
+        if(d.items.some(q => mealStop(q) && (cityOf(q) === cTo) === here) || (!here && dayStartH(d) >= LUNCH_BY)){ blockedByMeal = true; return; }
+      }
       if((d.n || 0) + stopN(p) > maxN + 0.01) return;   // 하루 장소 수 한도
       const hop = d.items.length ? Math.min(...d.items.map(q => hopMin(q, p))) : hopMin(d.start || d.from, p);
       if(d.used * 60 + (d.trav || 0) + hop + useOf(p) * 60 > (d.cap + 3) * 60) return;   // 이동까지 더하면 하루가 넘치는 날
@@ -463,10 +486,11 @@ export function plan(s){
       if(c < bestCost){ bestCost = c; best = d; bestHop = hop; }
     });
     if(best){ best.items.push(p); best.used += useOf(p); best.n = (best.n || 0) + stopN(p); best.trav = (best.trav || 0) + bestHop; }
-    else unassigned.push({ p, why: blockedByCity ? `${CITY_KO[placeCity(p)] || '그 도시'}에서 자는 날에 시간이 없어요${blockedByClosed ? '(휴무일 포함)' : ''}. 다른 날로 옮기면 국경을 오가야 해요`
-      : blockedByMeal ? `날마다 점심·저녁 식당 자리(하루 ${MAX_MEALS}곳)가 다 찼어요. 날짜를 직접 고르면 더 넣을 수 있어요` : blockedByClosed ? '남은 날짜가 휴무일이에요' : '시간이 모자라요' });
+    else unassigned.push({ p, why: blockedByMeal ? `${CITY_KO[placeCity(p)] ? CITY_KO[placeCity(p)] + '에서 ' : ''}점심·저녁 식당 자리(하루 ${MAX_MEALS}곳)가 다 찼어요. 날짜를 직접 고르면 더 넣을 수 있어요`
+      : blockedByCity ? `${CITY_KO[placeCity(p)] || '그 도시'}에서 자는 날에 시간이 없어요${blockedByClosed ? '(휴무일 포함)' : ''}. 다른 날로 옮기면 국경을 오가야 해요`
+      : blockedByClosed ? '남은 날짜가 휴무일이에요' : '시간이 모자라요' });
   });
-  res.forEach(d => { d.items = orderDay(d.items, d.start || d.from, dayStartH(d)); });   // 야시장·야경은 그날 맨 뒤, 식당은 점심·저녁 자리
+  res.forEach(d => { d.items = orderDay(d.items, d.start || d.from, dayStartH(d), crossOf(d)); });   // 야시장·야경은 그날 맨 뒤, 식당은 점심·저녁 자리, 국경 넘는 날은 떠나는 도시 먼저
   return { days:res, unassigned, hotel };
 }
 

@@ -105,6 +105,43 @@ test('이날 담기로 식당이 두 곳을 넘으면 새 식당에서 먼 식�
   assert.deepEqual(pullToDay(s, 'hk_history', di, false).moved, []);
 });
 
+test('국경 넘는 날: 떠나는 도시 곳을 먼저, 식당은 떠나는 도시 점심 한 곳·자는 도시 저녁 한 곳 (폰에서 찾음)', async () => {
+  await D.loadRegion('hksz');
+  // 침사추이 2밤 → 화교성(OCT) 2밤: 3일차(3/10)에 짐 들고 국경을 넘음
+  const s = Object.assign(trip(), { nights:{ '2027-03-08':'area:tst', '2027-03-09':'area:tst', '2027-03-10':'area:oct', '2027-03-11':'area:oct' } });
+  const hkM = (id, lat, lng) => ({ id, name:id, custom:true, src:'google', kind:'먹거리', hours:1, indoor:true, tags:[], kid:'all', area:'tst', lat, lng });
+  s.custom = [hkM('ghk1', 22.3046, 114.1699), hkM('ghk2', 22.3036, 114.1711), { ...hkM('gsz1', 22.5401, 113.9720), area:'oct' }];
+  ['hk_k11', 'hk_history', 'sz_window', 'ghk1', 'ghk2', 'gsz1'].forEach(id => { s.picked[id] = true; });
+  ['hk_k11', 'hk_history', 'sz_window', 'ghk1', 'ghk2', 'gsz1'].forEach(id => { s.assign[id] = 2; });   // 모두 국경 넘는 날로
+  const d = plan(s).days[2];
+  assert.ok(d.cross);
+  const city = p => D.AREAS[p.area].city;
+  const ids = d.items.map(p => p.id);
+  const firstSz = d.items.findIndex(p => city(p) === 'sz');
+  assert.ok(firstSz > 0 && d.items.slice(firstSz).every(p => city(p) === 'sz'), ids.join(','));   // 홍콩 곳을 다 돈 뒤 선전
+  const L = mealLabels(d);
+  assert.equal(L.gsz1, '저녁');                                   // 넘어간 뒤 첫 식당은 저녁
+  assert.equal([L.ghk1, L.ghk2].filter(x => x === '점심').length, 1);
+  // 자동으로는: 홍콩 식당은 점심 한 곳만, 자는 도시(선전) 식당은 저녁 한 곳
+  const t = Object.assign(trip(), { nights:s.nights, custom:s.custom });
+  ['hk_k11', 'hk_history', 'sz_window'].forEach(id => { t.picked[id] = true; t.assign[id] = 2; });
+  ['ghk1', 'ghk2', 'gsz1'].forEach(id => { t.picked[id] = true; });
+  const Q = plan(t); const c = Q.days[2];
+  assert.ok(c.items.filter(p => mealStop(p) && city(p) === 'hk').length <= 1);
+  assert.ok(c.items.filter(p => mealStop(p) && city(p) === 'sz').length <= 1);
+  const bad = c.items.findIndex(p => city(p) === 'sz'); assert.ok(bad < 0 || c.items.slice(bad).every(p => city(p) === 'sz'));
+});
+
+test('식당 자리가 다 차서 못 넣으면 그렇게 알려 줌', async () => {
+  await D.loadRegion('hksz');
+  const s = trip();
+  s.custom = Array.from({ length:14 }, (_, i) => ({ id:'gm' + i, name:'테스트 식당 ' + i, custom:true, src:'google', kind:'먹거리', hours:1, indoor:true, tags:[], kid:'all', area:'tst', lat:22.300 + i * 0.0005, lng:114.170 }));
+  s.custom.forEach(p => { s.picked[p.id] = true; });   // 5일 여행에 식당 14곳 (하루 두 곳이면 넘침)
+  const U = plan(s).unassigned.filter(u => mealStop(u.p));
+  assert.ok(U.length > 0);
+  assert.ok(U.every(u => /식당 자리/.test(u.why)), U.map(u => u.why).join(' | '));
+});
+
 test('지도: 가족 식당 층을 켜면 담은 식당은 식당 핀 하나로만', async () => {
   await D.loadRegion('hksz');
   const s = trip(); s.picked.eat_hk_dtf = true;
