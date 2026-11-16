@@ -196,7 +196,7 @@ export const REGIONS = {
   tokyo:{ key:'tokyo', country:'jp', name:'도쿄', cur:'JPY', curs:['JPY'], center:{ lat:35.6812, lng:139.7671 }, radiusKm:80, tz:'Asia/Tokyo',
     gl:'jp', codes:['jp'], viewbox:'139.40,35.90,140.05,35.45', bounds:{ minLng:139.555, maxLng:139.915, minLat:35.600, maxLat:35.748 },
     data:{ AREAS:TOKYO_AREAS, PLACES:TOKYO_PLACES, LINES:[], BORDER:[], EVENTS:[], EATS:[] } },
-  hksz:{ key:'hksz', country:'hk', name:'홍콩·선전', cur:'HKD', curs:['HKD', 'CNY'], center:{ lat:22.40, lng:114.10 }, radiusKm:60, tz:'Asia/Hong_Kong',
+  hksz:{ key:'hksz', country:'hk', name:'홍콩·선전', cur:'HKD', curs:['HKD', 'CNY'], center:{ lat:22.40, lng:114.10 }, radiusKm:60, tz:'Asia/Hong_Kong', checked:'2026년 11월',   // checked: 장소·식당 자료를 확인한 때 (화면의 '정보가 바뀔 수 있어요' 안내)
     gl:'hk', codes:['hk', 'cn'], viewbox:'113.80,22.75,114.45,22.15', bounds:{ minLng:113.88, maxLng:114.30, minLat:22.19, maxLat:22.62 },
     data:null, load:() => import('./regions/hksz-data.js') }
 };
@@ -206,7 +206,7 @@ export let PLACES = TOKYO_PLACES;
 export let LINES = [];      // 약도에 그릴 노선 [{ name, color, pts:[[lat,lng]…] }] (도쿄는 map.js가 야마노테선·게이요선을 그림)
 export let BORDER = [];     // 국경 넘는 곳 [{ key, name, local, lat, lng, how, minutes }] (홍콩↔선전)
 export let EVENTS = [];     // 날짜가 정해진 행사 [{ id, name, city, from, to, wd?, place?, time, where?, fee?, note, tbc? }] (logic.js tripEvents, 화면은 일정 단계)
-export let EATS = [];       // 앱이 고른 가족 식당 (js/eats.js, 홍콩·선전은 js/regions/hksz-eats.js). 장소(PLACES)와 따로라 일정에 안 들어감
+export let EATS = [];       // 앱이 고른 가족 식당 (js/eats.js, 홍콩·선전은 js/regions/hksz-eats.js). 장소(PLACES)와 따로 두고, 담은 식당만 장소로 일정에 (logic.js eatPlace)
 export const regionOf = s => REGIONS[s && s.city] || REGIONS.tokyo;
 // 불러온 지역으로 바꿈 (아직 안 불러왔으면 false)
 export function useRegion(key){

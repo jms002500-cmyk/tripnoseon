@@ -1,5 +1,5 @@
 // 앱 진입점: 상태 저장/불러오기, 화면 그리기, 이벤트 처리
-import { AREAS, STEPS, DEFAULT, REGIONS, REGION, PLACES, loadRegion, cityOfArea } from './data.js';
+import { AREAS, STEPS, DEFAULT, REGIONS, REGION, PLACES, EATS, loadRegion, cityOfArea } from './data.js';
 import { clone, buildDays, setTripDate, fullAssign, autoPickIds, allPlaces, plan, rebag, lockDay, unlockDay, keepLockedAssign, nightHotel, suggestSplit, splitNights, onlyCity, placeCity, pinPlan } from './logic.js';
 import { REPLIES, talkWords, pickVoice } from './asktalk.js';
 import { VIEWS, SHEET, ASKSHEET, NEARSHEET, DOCSHEET, numSay, pickSearch, vToday, vSafety, vRecord, vHelp, recordHead, moveCtx, wayWhere, idWipeCard, askOrderBox, askCartBar, askBigHtml, askTalkCur } from './views.js';
@@ -989,7 +989,7 @@ function act(a, v){
     case 'vdoc': s.sh.vdoc = v; render(); return;   // 일정 줄의 서류 바로가기 (js/docs.js)
     case 'vdocclose': s.sh.vdoc = null; render(); return;
     case 'vdocedit': s.sh.vdoc = null; s.mode = null; s.step = VAULT_STEP; s.vedit = v; s.vdraft = null; save(); render(); focusVaultForm(); return;
-    case 'nearpick': { const p = allPlaces(s).concat(PLACES).find(x => x.id === v); if(!p) return; s.picked[p.id] = true; toast(`'${p.name}'을(를) 담았어요.`); break; }
+    case 'nearpick': { const p = allPlaces(s).concat(PLACES, EATS).find(x => x.id === v); if(!p) return; s.picked[p.id] = true; toast(`'${p.name}'을(를) 담았어요.`); break; }
     case 'neartoday': {   // 오늘 일정에 넣기 (하루 종일 장소는 그날을 통째로)
       const p = allPlaces(s).concat(PLACES).find(x => x.id === v); const d = buildDays(s).find(x => x.key === s.sh.today); if(!p || !d) return;
       s.picked[p.id] = true; if(p.full){ s.fullDay[p.id] = d.i; delete s.assign[p.id]; } else { s.assign[p.id] = d.i; delete s.fullDay[p.id]; }
@@ -1109,9 +1109,11 @@ function act(a, v){
     case 'hgmap': openLiveMap(null, 'hotel'); return;   // 숙소 동네 단계: 구글 지도에서 숙소 찾아 후보로
     case 'mapreco': openLiveMap(null, '', { theme:s.themeFilter && s.themeFilter !== 'all' ? s.themeFilter : 'all' }); return;   // 테마 상자: 추천 장소를 지도에 한눈에
     case 'mapeats': openLiveMap(null, '', { theme:'', eats:true, rec:false }); return;   // 식당 상자: 가족 식당을 지도에
-    case 'mainpull': case 'mainadd': {   // 이날의 메인 근처: 다른 날 곳을 이날로 · 안 담은 추천을 이날 담기 (하루 종일 메인 날이면 먹을 곳으로)
-      const [id, di] = String(v).split('|'); const d = plan(s).days[+di]; if(!d) break;
-      pullToDay(s, id, +di, !!d.full); break;
+    case 'mainpull': case 'mainadd': case 'eatday': {   // 이날의 메인 근처: 다른 날 곳을 이날로 · 안 담은 추천을 이날 담기 (하루 종일 메인 날이면 먹을 곳으로)
+      const [id, di] = String(v).split('|'); const d = plan(s).days[+di]; if(!d) break;   // eatday: 그날 카드 안 가족 식당을 이날 일정으로 (v0.92.0)
+      pullToDay(s, id, +di, !!d.full);
+      if(a === 'eatday'){ const e = EATS.find(x => x.id === id); if(e) toast(`'${e.name}'을(를) ${+di + 1}일차 ${d.full ? '먹을 곳' : '식사 자리'}에 넣었어요.`); }
+      break;
     }
     case 'mapday': {   // 메인 근처 지도: 추천 전체·가족 식당을 메인 가운데로
       const d = plan(s).days[+v]; if(!d || !d.main) return;

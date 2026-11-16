@@ -52,6 +52,8 @@
 //     hk_avenue  심포니 오브 라이트(幻彩詠香江)는 2026-02 예산안에서 '하반기에 끝내고 새 빛 쇼로 바꿈' 발표, 마지막 날짜 미정.
 //                9/9~9/20 멈췄다 9/21 다시 함(info.gov.hk P2026090900545·P2026092100182) → 12월에 하는지 확인하라고 안내
 //     hk_peak    피크 타워 빛 영상 쇼 '匯映山頂' 2026-06-13부터 1년, 매일 19:30·20:30·21:30 약 10분(hk01·orangenews 2026-06)
+//     hk_statuesq 황후상 광장(2026-11-16 더함): 윈터페스트 크리스마스 타운 자리를 담을 수 있게. 좌표는 위키백과(22.28106, 114.15974)와
+//                OpenStreetMap Nominatim(22.28178, 114.16012, 약 90m 차이) 사이 값
 //     hk_wheel   클락켄플랩 음악 축제 12/4~6 센트럴 하버프런트 행사장(The Standard·Time Out 2026-10-07 1차 라인업 기사)
 //     hk_disney  'A Disney Christmas' 2026-11-20 ~ 2027-01-03(디즈니 공식 페이지·2026-09-17 발표 요약 bestcalendar.jp, 공식 페이지 검색 요약엔 11/17로 나와 시작일만 다름)
 //                트리 점등식(드론·눈), 겨울왕국 구역 겨울 마켓(처음). 공식 'Disney Christmas Live in Concert!' 좌석 패스 12/6까지·HK$299부터
@@ -169,6 +171,7 @@ export const PLACES = [
   {id:'hk_lkf', kind:'먹거리', indoor:'part', name:'란콰이퐁', ja:'蘭桂坊', addr:'Lan Kwai Fong, D\'Aguilar Street, Central, Hong Kong', area:'central', lat:22.2810, lng:114.1555, hours:1.5, tags:['맛집'], kid:'adult', note:'바·식당이 모인 골목이에요. 밤늦게까지 붐벼요.'},
   {id:'hk_centralmarket', kind:'먹거리', indoor:true, name:'센트럴 마켓', ja:'中環街市', addr:'Central Market, 93 Queen\'s Road Central, Central, Hong Kong', area:'central', lat:22.2848, lng:114.1557, hours:1, tags:['맛집','쇼핑'], kid:'all', note:'1930년대 시장 건물을 고친 푸드홀·상점가예요.'},
   {id:'hk_zoo', kind:'수족관·동물원', indoor:false, name:'홍콩 동식물공원', ja:'香港動植物公園', addr:'Hong Kong Zoological and Botanical Gardens, Albany Road, Central, Hong Kong', mapq:'香港動植物公園', area:'central', lat:22.2780, lng:114.1562, hours:1, tags:['자연·산책'], kid:'kids', note:'무료로 들어가는 도심 속 작은 동물원·식물원이에요.'},
+  {id:'hk_statuesq', eve:1, kind:'공원·정원', indoor:false, name:'황후상 광장', ja:'皇后像廣場', addr:'Statue Square, Des Voeux Road Central, Central, Hong Kong', mapq:'Statue Square, Hong Kong', area:'central', lat:22.2812, lng:114.1599, hours:0.5, tags:['관광명소','문화·역사'], kid:'all', note:'옛 대법원 건물(지금 종심법원)과 HSBC 본점 앞 광장이에요. 연말엔 홍콩 관광청 윈터페스트의 큰 크리스마스 트리와 마켓이 이 둘레 정원에 서요(2026년 날짜·시간은 발표 전이라 가기 전에 확인하세요). 불이 켜지는 저녁이 예뻐요.'},
   {id:'hk_wheel', kind:'전망대', indoor:'part', name:'홍콩 관람차', ja:'香港摩天輪', addr:'Hong Kong Observation Wheel, 33 Man Kwong Street, Central, Hong Kong', area:'central', lat:22.2852, lng:114.1618, hours:0.5, tags:['관광명소'], kid:'all', note:'센트럴 바닷가 대관람차예요. 밤에 타면 항구 야경이 좋아요. 2026년 12월 4~6일(금~일)엔 바로 옆 센트럴 하버프런트에서 음악 축제(클락켄플랩)가 열려 둘레가 붐벼요.'},
   {id:'hk_maritime', kind:'박물관·미술관', indoor:true, name:'홍콩 해사박물관', ja:'香港海事博物館', addr:'Hong Kong Maritime Museum, Central Pier 8, Central, Hong Kong', area:'central', lat:22.2866, lng:114.1620, hours:1.5, tags:['체험','문화·역사'], kid:'all', note:'배 모형과 함께 홍콩 항구와 바닷길 이야기를 보여 주는 박물관이에요. 센트럴 8번 부두 2층이라 스타페리를 내려 바로 가요. 평일 9시 반~5시 반, 주말·공휴일 10시~7시에 열고 음력설 첫 이틀만 쉬어요.'},
   // 홍콩 · 코즈웨이베이·완차이
@@ -312,13 +315,13 @@ export const EVENTS = [
   { id:'ev_hkdlconcert', name:'디즈니 크리스마스 라이브 콘서트', city:'hk', from:'2026-12-05', to:'2026-12-06', place:'hk_disney',
     time:'성 앞 무대 · 공연 시간은 디즈니 앱에서', fee:'성 앞 좌석은 좌석 패스를 따로 사요(HK$299부터)',
     note:'두 주말만 하는 성 앞 크리스마스 콘서트예요. 12월 6일(일)이 마지막 공연 날이에요.' },
-  { id:'ev_winterfest', name:'홍콩 윈터페스트 크리스마스 타운', city:'hk', from:'2026-11-01', to:'2027-01-10', tbc:true,
+  { id:'ev_winterfest', name:'홍콩 윈터페스트 크리스마스 타운', city:'hk', from:'2026-11-01', to:'2027-01-10', tbc:true, place:'hk_statuesq',
     where:'센트럴 스테츄 스퀘어 가든 (皇后像廣場花園)', time:'지난해엔 평일 오후 4시~밤 11시 반, 주말 오전 11시부터',
     note:'홍콩 관광청이 해마다 큰 크리스마스 트리와 마켓을 꾸미는 곳이에요. 올해는 2026년 11월~2027년 1월 초라고만 나와 있고 날짜·시간은 아직 발표 전이에요.' },
   { id:'ev_peaklight', name:'피크 타워 빛 영상 쇼', city:'hk', from:'2026-06-13', to:'2027-06-12', place:'hk_peak',
     time:'매일 저녁 7시 반·8시 반·9시 반, 10분쯤', where:'빅토리아 피크 피크 타워',
     note:'2026년 6월부터 1년 동안 해요. 날씨나 계절에 따라 시간이 바뀔 수 있어요.' },
-  { id:'ev_clockenflap', name:'클락켄플랩 음악 축제', city:'hk', from:'2026-12-04', to:'2026-12-06',
+  { id:'ev_clockenflap', name:'클락켄플랩 음악 축제', city:'hk', from:'2026-12-04', to:'2026-12-06', place:'hk_wheel',
     where:'센트럴 하버프런트 행사장 (홍콩 관람차 옆)', fee:'표를 따로 사요',
     note:'어른 위주 야외 공연 축제예요. 이 주말엔 센트럴 바닷가와 MTR 센트럴·홍콩역이 붐벼요.' },
   { id:'ev_ijc', name:'국제 기수 대회 (해피밸리 수요일 밤 경마)', city:'hk', from:'2026-12-09', to:'2026-12-09', place:'hk_racecourse',

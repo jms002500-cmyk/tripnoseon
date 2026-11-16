@@ -55,10 +55,10 @@ export function mainChoices(s, d){
   return allPlaces(s).filter(p => s.picked && s.picked[p.id]).sort((a, b) => rank(a) - rank(b) || String(a.name).localeCompare(String(b.name), 'ko'));
 }
 
-// 이날 근처로 옮기기·담기 (하루 종일 메인 날이면 날짜를 풀어 '먹을 곳'으로 붙게, 아니면 다른 곳은 그대로 두고 그날로)
+// 이날 근처로 옮기기·담기 (하루 종일 날이면 먹을 곳은 그날 '먹을 곳'으로·다른 곳은 날짜를 풀고, 아니면 다른 곳은 그대로 두고 그날로)
 export function pullToDay(s, id, di, full){
   const a = full ? Object.assign({}, s.assign) : pinPlan(s);   // 담기 전 일정 기준으로 다른 곳을 고정 (담은 뒤에 재면 다른 곳이 한 번 섞임)
   s.picked = Object.assign({}, s.picked, { [id]:true });
-  if(full) delete a[id]; else a[id] = di;
+  if(full && !isFood(allPlaces(s).find(p => p.id === id))) delete a[id]; else a[id] = di;
   s.assign = a;
 }

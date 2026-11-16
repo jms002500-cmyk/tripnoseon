@@ -3,6 +3,7 @@
 // (2026-10-27 OpenStreetMap Overpass로 먼저 해 봤지만 공개 서버가 자주 응답하지 않아 구글로 바꿈)
 import { openAtPeriods } from './gplace.js';
 import { hm } from './flight.js';
+import { mealLabels } from './logic.js';
 
 export const RADIUS = 500;         // 미터. 아이와 걸어서 7분 안팎
 const WALK_M_PER_MIN = 75;
@@ -16,19 +17,23 @@ export function mealSlots(day, hotel, home){
   const out = [];
   if(day.full){ out.push({ meal:'dinner', time:'20:00', at:home, why:`${day.full.name}에서 돌아와서 숙소 근처` }); return out; }
   const items = day.items || [];
+  const ML = mealLabels(day); const planned = w => items.find(p => ML[p.id] === w) || null;   // 일정에 넣은 식당 (v0.92.0)
   const start = day.kind === 'arrive' ? 14 : 10 + (day.lead || 0) / 60;   // 짐을 먼저 옮긴 날은 그만큼 늦게 시작
   const early = day.depart && day.depart.leave >= 0 && day.depart.leave < 13 * 60 + 30;   // 오는 날 1시 반 전에 공항으로 나서면 점심은 공항에서
   if(early){}
   else if(day.kind !== 'arrive' && items.length){
     let t = start, at = items[0];
     for(const p of items){ if(t >= 12.5) break; at = p; t += p.hours + 0.5; }
-    out.push({ meal:'lunch', time:'12:30', at, why:`${at.name} 근처` });
+    const pl = planned('점심');
+    out.push(pl ? { meal:'lunch', time:'12:30', at:pl, why:`담아 둔 ${pl.name}`, planned:pl } : { meal:'lunch', time:'12:30', at, why:`${at.name} 근처` });
   } else if(day.kind !== 'arrive') out.push({ meal:'lunch', time:'12:30', at:hotel, why:'숙소 근처' });
   if(day.kind !== 'depart'){
     const last = items.length ? items[items.length - 1] : home;
     const rd = day.arrive && day.arrive.ready != null ? day.arrive.ready : null;   // 도착하는 날 숙소에 들어가는 시각: 그보다 이른 저녁은 못 먹음
     const late = rd != null && rd > 18 * 60 + 30;
-    out.push({ meal:'dinner', time:late ? hm(Math.min(rd, 22 * 60)) : '18:30', at:late ? home : last, why:late ? '숙소에 도착한 뒤 근처' : items.length ? `${last.name} 근처` : '숙소 근처' });
+    const pl = late ? null : planned('저녁');
+    out.push(pl ? { meal:'dinner', time:'18:30', at:pl, why:`담아 둔 ${pl.name}`, planned:pl }
+      : { meal:'dinner', time:late ? hm(Math.min(rd, 22 * 60)) : '18:30', at:late ? home : last, why:late ? '숙소에 도착한 뒤 근처' : items.length ? `${last.name} 근처` : '숙소 근처' });
   }
   return out;
 }

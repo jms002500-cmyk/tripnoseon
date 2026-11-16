@@ -155,7 +155,9 @@ export function pinList(s, opt){
   const o = opt && typeof opt === 'object' ? opt : { rec:opt !== false };
   const th = o.theme ? themeOf(o.theme) : null;
   const out = [];
+  const eatsOn = Array.isArray(o.eats);
   allPlaces(s).forEach(p => {
+    if(p.eat && eatsOn) return;   // 담은 가족 식당은 식당 층에서 (v0.92.0)
     const pos = latLngOf(p); const kind = pinKind(s, p); if(!pos) return;
     if(kind === 'rec' && (o.rec === false || (th && !th.test(p)))) return;
     out.push({ kind, pos, title:p.name || '', place:p });

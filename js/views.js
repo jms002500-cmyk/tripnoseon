@@ -13,7 +13,7 @@ import { transitPlan, transitTip, transitYen as tyen, transitRange, PASSES, CHEC
 // 한 구간 이동 시간 한 줄: '약 15분 · 지하철' (직선거리 어림)
 const legText = (a, b) => { const segs = legSegments(a, b); return `약 ${minText(legMinutes(a, b, segs))} · ${legMode(segs)}`; };
 const STEP = name => STEPS.indexOf(name);   // 단계 번호는 이름으로 찾음 (단계를 끼워 넣어도 버튼이 안 틀리게)
-import { searchPlaces, datesReversed, nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, closedOn, tripEvents, dayEvents, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf, tripCities, onlyCity, placeCity, dist, lateOf, LATE_AT, lateText } from './logic.js';
+import { searchPlaces, datesReversed, nightHotel, isSplitStay, parseDate, buildDays, kindLabel, fitScore, fullAssign, capacity, rankAreas, plan, allPlaces, pickedPlaces, closedText, closedOn, mealLabels, tripEvents, dayEvents, compareHotels, nights, avgToPicks, suggestSplit, autoNight, hotelOf, tripCities, onlyCity, placeCity, dist, lateOf, LATE_AT, lateText } from './logic.js';
 import { partyNote, RK_RADIUS } from './rakuten.js';
 import { koHotelName } from './janame.js';
 import { clothesTip } from './weather.js';
@@ -374,7 +374,8 @@ export function NEARSHEET(s){
         ${x.picked ? '' : `<button type="button" class="link" data-act="nearpick" data-v="${esc(p.id)}">담기</button>`}</span></div></li>`; };
   const eat = e => `<li class="nearit"><div class="sbody"><b>${eatIcon(e)} ${esc(e.name)}</b>${e.local ? `<span class="ja" lang="${REGION.key === 'tokyo' ? 'ja' : 'zh-HK'}">${esc(e.local)}</span>` : ''}
       <span>${esc(e.kind || '')} · ${esc(kmText(e.km))} · 걸어서 약 ${e.walk}분${priceText(e.price) ? ` · ${esc(priceText(e.price))}` : ''}${e.off ? ' · <span class="closed">오늘 쉬어요</span>' : ''}</span>
-      <span class="nearacts"><a class="link" href="${esc(nearDirUrl(pt, Object.assign({}, e, { mapq:e.mapq || e.addr || e.local }), true))}" target="_blank" rel="noopener">🚶 길찾기 ↗</a>${inSz ? `<a class="link" href="${esc(eatAmapUrl(e))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}</span></div></li>`;
+      <span class="nearacts"><a class="link" href="${esc(nearDirUrl(pt, Object.assign({}, e, { mapq:e.mapq || e.addr || e.local }), true))}" target="_blank" rel="noopener">🚶 길찾기 ↗</a>${inSz ? `<a class="link" href="${esc(eatAmapUrl(e))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}
+        ${s.picked[e.id] ? '<span class="nb on">담은 곳</span>' : `<button type="button" class="link" data-act="nearpick" data-v="${esc(e.id)}">담기</button>`}</span></div></li>`;
   return wrap(`<p class="fine">${n.pick ? `고른 곳 <b>${esc(n.pick)}</b> 기준` : `${age < 1 ? '방금' : `${age}분 전`} 찾은 위치 기준${pt.acc ? ` · 오차 약 ${esc(kmText(pt.acc / 1000))}` : ''}`} · <button type="button" class="link" data-act="nearagain">${n.busy ? '찾는 중…' : '지금 위치로 다시 찾기'}</button></p>
     ${(() => { if(!pd || n.pick) return ''; const at = pd.items.findIndex(p => p.lat != null && dist(pt, p) <= 0.3); if(at < 1) return ''; const before = pd.items.slice(0, at).filter(p => !(s.tdone || {})[doneKey(s.sh.today, p.id)]); if(!before.length) return '';
       return `<p class="pnote">지금 <b>${esc(pd.items[at].name)}</b> 근처예요. 앞의 ${before.length}곳도 다녀오셨으면 <button type="button" class="link" data-act="tdoneupto" data-v="${esc(pd.items[at - 1].id)}">다녀옴으로 표시</button></p>`; })()}
@@ -746,12 +747,20 @@ function stationNear(p){
   const n = nearStations(p, 1, 1.2)[0]; return n ? `${stationKo(n.code)} ${distText(n.km)}` : '';
 }
 
+// 앱에 넣어 둔 장소·식당 자료는 확인한 때의 값이라 바뀔 수 있음 (2026-11-16 사용자 요청: 정보가 바뀔 수 있다는 걸 꼭 알려 주기)
+//   REGION.checked: 그 지역 자료를 확인한 때 (없으면 대략값). short: 일정·오늘 하루처럼 글이 많은 화면용 짧은 글
+export function infoNote(short){
+  const when = REGION.checked ? `${esc(REGION.checked)}에 확인한 값이에요` : '대략값이에요';
+  return short ? `<p class="fine infonote">ℹ️ 장소·식당 정보는 ${when}. 바뀌었을 수 있으니 가기 전에 구글 지도에서 영업 여부를 확인하세요.</p>`
+    : `<p class="fine infonote">ℹ️ 앱에 담긴 장소·식당 정보는 ${when}. 그 뒤에 문을 닫거나 영업시간·요금·가격이 바뀌었을 수 있으니, 가기 전에 '구글 지도 ↗'로 한 번 확인하세요.</p>`;
+}
+
 // 받아 둔 구글 평점 한 조각 ' · 구글 ★4.4 (5,178명)' (js/grating.js, 추천 지도에서 받음 — 목록을 그릴 때 구글을 부르지 않음)
 const grBit = id => { const t = rateText(grOf(id)); return t ? ` · <span class="gr">${esc(t)}</span>` : ''; };
 
 // 테마로 골라 보기: 테마를 누르면 우리 가족에 맞는 곳 5곳을 바로 담을 수 있게, 아래 목록도 그 테마로 거름 (js/themes.js)
 function themeBox(s){
-  const all = allPlaces(s); const n = themeCounts(all); const cur = themeOf(s.themeFilter);
+  const all = allPlaces(s).filter(p => !p.eat); const n = themeCounts(all); const cur = themeOf(s.themeFilter);
   const top = cur ? all.filter(cur.test).map(p => ({ p, f:fitScore(p, s) })).sort((a, b) => (b.f.score + (s.must[b.p.id] ? 100 : 0)) - (a.f.score + (s.must[a.p.id] ? 100 : 0))).slice(0, 5) : [];
   const row = ({ p, f }) => { const on = !!s.picked[p.id]; const st = stationNear(p);
     return `<li><div class="sbody"><b>${esc(p.name)}</b><span>${esc((AREAS[p.area] || {}).name || '')}${st ? ` · 🚇 ${esc(st)}` : ''}${f.why[0] ? ` · ${esc(f.why[0])}` : ''}${grBit(p.id)}</span></div>
@@ -769,7 +778,7 @@ function themeBox(s){
 
 // 목록 끝에서 바로 다른 테마로 (맨 위 테마 상자까지 다시 올라가지 않게)
 function themeEnd(s){
-  const n = themeCounts(allPlaces(s)); const cur = themeOf(s.themeFilter);
+  const n = themeCounts(allPlaces(s).filter(p => !p.eat)); const cur = themeOf(s.themeFilter);
   return `<div class="box" id="themeend"><h2>${cur ? `다른 테마 보기` : '테마로 골라 보기'}</h2>
     <div class="chips" role="group" aria-label="다른 테마">${THEMES.filter(t => n[t.key] && (!cur || t.key !== cur.key)).map(t => chip('themenext', t.key, `${t.icon} ${t.label} ${n[t.key]}`, false)).join('')}</div>
     ${cur ? `<div class="pfoot">${chip('themenext', 'all', '테마 풀고 전체 보기', false)}</div>` : ''}
@@ -916,16 +925,16 @@ function importBox(s){
 export function pickSearch(s){
   const q = ((s.sh || {}).pq || '').trim(); if(!q) return '';
   const cities = tripCities(s); const inTrip = x => !cities.length || !AREAS[x.area] || cities.includes(AREAS[x.area].city);
-  const places = searchPlaces(allPlaces(s).filter(inTrip), q, AREAS), eats = searchPlaces(EATS.filter(inTrip), q, AREAS);
+  const places = searchPlaces(allPlaces(s).filter(p => !p.eat && inTrip(p)), q, AREAS), eats = searchPlaces(EATS.filter(inTrip), q, AREAS);
   if(!places.length && !eats.length) return `<p class="empty">'${esc(q)}'에 맞는 곳이 없어요. 다른 이름으로 찾거나 구글 지도에서 찾아 담아 보세요.</p><div><button type="button" class="ghost small" data-act="mapopen">구글 지도 열기</button></div>`;
   return `<p class="fine">장소 ${places.length}곳${eats.length ? ` · 식당 ${eats.length}곳` : ''}을 찾았어요.</p>
     <div class="list">${places.map(p => placeCard(p, s, 0)).join('')}</div>
-    ${eats.length ? `<div class="box"><h2>🍜 식당</h2><ul class="implist flist">${eats.map(eatRow).join('')}</ul></div>` : ''}`;
+    ${eats.length ? `<div class="box"><h2>🍜 식당</h2><ul class="implist flist">${eats.map(e => eatRow(s, e)).join('')}</ul></div>` : ''}`;
 }
 
 export function vPick(s){
   const cap = capacity(s); const pct = cap.total ? Math.min(100, cap.used / cap.total * 100) : 0; const over = cap.used > cap.total;
-  let list = allPlaces(s).map(p => ({ p, sc: fitScore(p, s).score + (s.must[p.id] ? 100 : 0) }));
+  let list = allPlaces(s).filter(p => !p.eat).map(p => ({ p, sc: fitScore(p, s).score + (s.must[p.id] ? 100 : 0) }));
   const theme = themeOf(s.themeFilter);
   if(theme) list = list.filter(x => inTheme(x.p, theme.key));
   if(s.areaFilter !== 'all') list = list.filter(x => x.p.area === s.areaFilter);
@@ -933,14 +942,15 @@ export function vPick(s){
   if(s.kindFilter !== 'all') list = list.filter(x => x.p.kind === s.kindFilter);
   if(s.sh && s.sh.whoFocus && sharedMany(s)) list = list.filter(x => (byOf(s, x.p.id) || {}).u === s.sh.whoFocus);   // 누가 담았는지: 그 사람 것만
   list.sort((a, b) => b.sc - a.sc);
-  const counts = {}; allPlaces(s).forEach(p => { counts[p.area] = (counts[p.area] || 0) + 1; });
+  const counts = {}; allPlaces(s).filter(p => !p.eat).forEach(p => { counts[p.area] = (counts[p.area] || 0) + 1; });
   // 동네·종류로 거르면 그곳만 번호를 달아 지도에 (너무 많으면 번호 없이 전체 약도)
   const focus = (theme || s.areaFilter !== 'all' || s.kindFilter !== 'all') && list.length && list.length <= 40 ? list.map(x => x.p) : null;
   const cities = tripCities(s); const areaKeys = Object.keys(AREAS).filter(k => !cities.length || cities.includes(AREAS[k].city));
   return `<section class="step">
     <p class="eyebrow">Step 4 · 장소 담기</p>
     <h1>가고 싶은 곳을 담아요</h1>
-    <p class="lead">고민은 나중에 하고 일단 담으세요. ${esc(partyText(s))}에게 맞는 순서로 보여드려요.</p>
+    <p class="lead">고민은 나중에 하고 일단 담으세요. ${esc(partyText(s))}에게 맞는 순서로 보여드려요. 식당도 담아 두면 일정의 점심·저녁 자리에 넣어 드려요.</p>
+    ${infoNote()}
     <div class="psearch"><input id="psearch" type="search" enterkeyhint="search" autocomplete="off" maxlength="40" aria-label="장소와 식당 찾기" placeholder="🔍 장소·식당 이름, 주소, 동네로 찾기" value="${esc((s.sh || {}).pq || '')}"></div>
     <div id="psres">${pickSearch(s)}</div>
     <div id="pickbody"${((s.sh || {}).pq || '').trim() ? ' hidden' : ''}>
@@ -1633,6 +1643,7 @@ export function vPlan(s){
     <p class="lead">${split
       ? `밤마다 자는 곳을 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${REGION.key === 'hksz' ? ' 국경을 오가지 않게 그날 자는 도시의 장소를 먼저 넣어요.' : ''}${buildDays(s).slice(0, -1).some(d => !(s.nights || {})[d.key] && autoNight(s, d.key)) ? ' 아직 정하지 않은 밤은 숙소 동네 단계의 나눠 자기 추천대로 계산했어요.' : ''}`
       : `${esc(P.hotel.name)}에 묵는 기준으로, 가까운 곳끼리 같은 날에 묶었어요.${s.hotelArea || P.hotel.cand ? '' : ' 숙소 동네를 아직 안 정해서 1순위 동네로 계산했어요.'}`}</p>
+    ${infoNote(true)}
     ${(U => U.length ? `<p class="warnline">담은 곳 ${U.length}곳을 일정에 못 넣었어요: ${esc(U.slice(0, 3).map(u => u.p.name).join(', '))}${U.length > 3 ? ' …' : ''} · <button type="button" class="link" data-act="jump" data-v="unbox">보러 가기 ↓</button></p>` : '')(P.unassigned.filter(u => u.why !== '직접 빼둔 곳'))}
     <div><button type="button" class="ghost small" data-act="replan">손으로 옮긴 것 지우고 다시 짜기</button></div>
     ${whoBox(s, 'plan')}
@@ -1640,7 +1651,7 @@ export function vPlan(s){
     ${moveBox(s, P)}
     ${(sh => sh.total ? `<p class="fine">${sh.skip > 0 ? '하루 종일 가는 곳을 뺀 ' : '담은 곳 '}${sh.total}곳 중 실내는 ${sh.indoor}곳이에요. 날짜마다 '☔ 비 오면?'을 누르면 가까운 실내 장소로 바꿀 수 있어요.</p>` : '')(indoorShare(s))}
     ${P.days.map(d => { const col = DAY_COLORS[d.i % DAY_COLORS.length]; const pct = d.cap ? Math.min(100, d.used / d.cap * 100) : 0;
-      const T = dayTrips(d, P.hotel); const mvMin = d.cross ? 0 : etcMinutes(s, d.key);   // 숙소 옮기며 국경 넘는 날은 이미 2시간 뺐음
+      const T = dayTrips(d, P.hotel); const ML = mealLabels(d); const mvMin = d.cross ? 0 : etcMinutes(s, d.key);   // 숙소 옮기며 국경 넘는 날은 이미 2시간 뺐음
       const tight = !d.full && (T.travelMin || mvMin) && d.used + (T.travelMin + mvMin) / 60 > d.cap + 1 + (d.cross && !d.start ? 2 : 0);   // 하루 끝은 다닐 시간 + 2시간 30분(js/flight.js dayEnd): 식사 1시간 30분을 빼면 이동 여유 1시간. 국경 넘는 날은 뺀 2시간이 이동 시간(국경 구간)에도 들어 있어 두 번 세지 않게
       const back = d.start && d.cross ? d.items.filter(p => { const c = placeCity(p); return c && c !== (AREAS[d.to && (d.to.key || d.to.area)] || {}).city; }) : [];   // 짐을 먼저 옮기는데 떠나온 도시 장소가 남아 있음
       const body = d.full
@@ -1648,7 +1659,7 @@ export function vPlan(s){
         : d.items.length
           ? `<ol class="stops">${d.items.map((p, j) => { const cl = closedOn(p, d);
               const prev = j ? d.items[j-1] : (d.start || d.from);
-              return `<li${whoDim(s, p) ? ' class="whodim"' : ''}><span class="num">${j+1}</span><div class="sbody"><b>${d.main && d.main.id === p.id ? '🎯 ' : ''}${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${hrText(p.hours)}${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${docBtns(s, docsOf(s, { place:p.id }))}${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
+              return `<li${whoDim(s, p) ? ' class="whodim"' : ''}><span class="num">${j+1}</span><div class="sbody"><b>${d.main && d.main.id === p.id ? '🎯 ' : ''}${ML[p.id] ? '🍴 ' : ''}${esc(p.name)}</b><span>${ML[p.id] ? `${ML[p.id]} · ` : ''}${esc(AREAS[p.area].name)} · 약 ${hrText(p.hours)}${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${docBtns(s, docsOf(s, { place:p.id }))}${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? departLine(d) : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day${d.locked ? ' locked' : ''}" style="--day:${col}">
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${d.full || d.cap > 0 || d.used > 0 || (!d.arrive && !d.depart) ? `${kindLabel(d.kind)} · ` : ''}${d.full ? '하루 종일' : d.cap > 0 || d.used > 0 ? `${hrText(d.used)} / 약 ${hrText(d.cap)}` : d.arrive ? '도착해서 쉬는 날' : d.depart ? '짐 싸고 공항 가는 날' : '쉬는 날'}${T.travelMin ? ` · 이동 약 ${minText(T.travelMin)}` : ''}${(r => r ? ` · 예보 ${esc(r.text || '')}${probText(r) ? `${r.psr ? ' · ' : ' '}${esc(probText(r))}` : ''}` : '')(dayRain(wxOf(s, P), ymdStr(d.date)))}</p></div></header>
@@ -1708,21 +1719,21 @@ const NEAR_MAIN_TEXT = '2.5km';
 // 하루 종일 메인(디즈니 등) 날: 그 근처에 담아 둔 먹을 곳 (일정 시간에는 안 넣음)
 function mealsNear(s, d){
   if(!d.meals || !d.meals.length) return '';
-  return `<div class="mealsnear"><p class="fine">🍴 <b>${esc(d.full.name)}</b> 근처에 담아 둔 먹을 곳 ${d.meals.length}곳 · 하루 종일 일정이라 시간에는 안 넣어요</p>
+  return `<div class="mealsnear"><p class="fine">🍴 <b>${esc(d.full.name)}</b> 가는 날 먹을 곳 ${d.meals.length}곳 · 하루 종일 일정이라 시간에는 안 넣어요</p>
     <ul class="implist flist">${d.meals.map(p => `<li class="imp"><div class="sbody"><b>${esc(p.name)}</b><span>${esc(distText(dist(d.full, p)))}${grBit(p.id)}</span>
       <span class="lacts"><a class="link" href="${esc(gdir(d.full, p))}" target="_blank" rel="noopener">${esc(d.full.name)}에서 길찾기 ↗</a></span></div></li>`).join('')}</ul></div>`;
 }
 // 메인 근처 더 담기: 다른 날에 있는 근처 담은 곳 [이날로], 안 담은 근처 추천 [이날 담기], 근처 가족 식당, 근처 지도
 function mainNear(s, P, d){
   const N = nearMain(s, P, d); if(!N) return '';
-  const eats = eatsNear(EATS, d.main, { km:1.5, limit:5 });
+  const eats = eatsNear(EATS.filter(e => !N.other.some(o => o.p.id === e.id)), d.main, { km:1.5, limit:5 });   // 이미 담아 위 목록에 있는 식당은 빼고
   const what = d.full ? '먹을 곳' : '곳';
   const li = (o, act, label, sub) => `<li class="imp"><div class="sbody"><b>${esc(o.p.name)}</b><span>${sub} · ${esc(distText(o.km))}${grBit(o.p.id)}</span></div><button type="button" class="ghost small" data-act="${act}" data-v="${esc(o.p.id)}|${d.i}">${label}</button></li>`;
   const n = N.other.length + N.recs.length + eats.length;
   return `<details class="more mainnear" data-k="${esc(d.key)}"${((s.sh || {}).mainOpen || {})[d.key] ? ' open' : ''}><summary>🎯 ${esc(d.main.name)} 근처 ${NEAR_MAIN_TEXT} · 더 담기${n ? ` ${n}곳` : ''}</summary>
     ${N.other.length ? `<p class="fine"><b>다른 날에 담아 둔 근처 ${what}</b></p><ul class="implist">${N.other.map(o => li(o, 'mainpull', '이날로', o.day != null ? `지금 ${o.day + 1}일차` : '아직 날짜 없음')).join('')}</ul>` : ''}
     ${N.recs.length ? `<p class="fine"><b>근처 추천 ${what} (아직 안 담음)</b></p><ul class="implist">${N.recs.map(o => li(o, 'mainadd', '이날 담기', esc(kindName(o.p.kind)))).join('')}</ul>` : ''}
-    ${eats.length ? `<p class="fine"><b>🍜 근처 가족 식당</b> · 누르면 메뉴·지도가 펼쳐져요 (일정 시간엔 안 들어가요)</p><ul class="implist flist">${eats.map(e => eatRow(e, true)).join('')}</ul>` : ''}
+    ${eats.length ? `<p class="fine"><b>🍜 근처 가족 식당</b> · 이름을 누르면 메뉴·지도가 펼쳐져요. '이날 담기'를 누르면 ${d.full ? '이날 먹을 곳으로' : '이날 점심·저녁 자리에'} 넣어요</p><ul class="implist flist">${eats.map(e => eatRow(s, e, { d })).join('')}</ul>` : ''}
     ${n ? '' : `<p class="fine">메인 ${NEAR_MAIN_TEXT} 안에 더 담을 만한 곳이 없어요.</p>`}
     <div class="pfoot"><button type="button" class="ghost small" data-act="mapday" data-v="${d.i}">🗺 메인 근처 지도로 보기 (구글 평점도)</button></div>
   </details>`;
@@ -2186,27 +2197,29 @@ export function vLedger(s){
   </section>`;
 }
 
-/* 앱이 고른 가족 식당 (js/eats.js, 자료는 지역 파일의 EATS). 장소와 따로라 일정 시간을 잡아먹지 않음.
-   오늘 하루 화면의 끼니 자리 근처(foodSlot)와 장소 담기 단계(eatsBox)에서 보여 줌 */
-function eatRow(e, compact){
+/* 앱이 고른 가족 식당 (js/eats.js, 자료는 지역 파일의 EATS). 담으면 장소처럼 일정의 점심·저녁 자리에 들어감(logic.js eatPlace·mealStop, v0.92.0).
+   장소 담기 단계(eatsBox·검색), 이날의 메인 근처(mainNear), 끼니 자리 근처(foodSlot)에서 보여 줌. 이름을 누르면 펼쳐짐 */
+//   opt.d: 그날 카드 안이면 '이날 담기'(그날 일정으로, app.js eatday), 아니면 담기 켜고 끄기
+function eatPick(s, e, opt){
+  const on = !!(s.picked && s.picked[e.id]); const d = opt && opt.d;
+  if(d && (d.items.some(p => p.id === e.id) || (d.meals || []).some(p => p.id === e.id)))
+    return `<button type="button" class="pickbtn" data-act="pick" data-v="${esc(e.id)}" aria-pressed="true" aria-label="${esc(e.name)} 빼기">이날 담음 ✓</button>`;
+  if(d) return `<button type="button" class="pickbtn" data-act="eatday" data-v="${esc(e.id)}|${d.i}" aria-pressed="false">${on ? '이날로' : '이날 담기'}</button>`;
+  return `<button type="button" class="pickbtn" data-act="pick" data-v="${esc(e.id)}" aria-pressed="${on}" aria-label="${esc(e.name)} ${on ? '빼기' : '담기'}">${on ? '담음 ✓' : '담기'}</button>`;
+}
+function eatRow(s, e, opt){
   const pr = priceText(e.price); const sz = cityOfArea(e.area) === 'sz';
   const away = e.km == null ? '' : e.walk <= 15 ? ` · 걸어서 ${e.walk}분` : ` · 약 ${e.km.toFixed(1)}km`;
   const link = (u, t) => `<a class="link" href="${esc(u)}" target="_blank" rel="noopener">${t}</a>`;
   const line = `${esc(e.kind)} · ${pr ? `1인 약 ${esc(pr)}` : '가격 정보 없음'}${pricey(e) ? ' · 💸 특별한 한 끼' : ''}${away}${e.off ? ' · <span class="closed">이날 쉬어요</span>' : ''}${grBit(e.id)}`;
   const more = `<p class="fine">⏳ ${esc(e.queue)}<br>🕘 ${esc(e.hours)}${e.closed && e.closed.length ? ` · ${esc(closedText(e))}` : ''}${e.note ? `<br>${esc(e.note)}` : ''}</p>
-        <p class="fine">${e.book ? '출처 안내서 값이에요(공식 확인 전). 가기 전에 확인하세요.' : `출처 ${e.src.map(u => link(u, esc(srcName(u)) + ' ↗')).join(' · ')} (${esc(e.checked)} 확인)`}</p>`;
+        <p class="fine">${e.book ? '출처 안내서 값이에요(공식 확인 전).' : `출처 ${e.src.map(u => link(u, esc(srcName(u)) + ' ↗')).join(' · ')} (${esc(e.checked)} 확인)`} 그 뒤에 바뀌었을 수 있으니 가기 전에 구글 지도에서 확인하세요.</p>`;
   const body = `<span>${esc(e.menu)}</span>
       ${e.addr ? `<span>📍 ${esc(e.addr)}</span>` : ''}
       <span>👨‍👩‍👧 ${esc(e.kid)}${e.spicy ? ' 매운 메뉴도 있어요.' : ''}</span>
       <span class="lacts">${link(eatMapUrl(e), '구글 지도 ↗')}${sz ? link(eatAmapUrl(e), '가오더 지도 ↗') : ''}</span>`;
-  if(compact) return `<li class="imp eat"><details class="eatc"><summary><b>${eatIcon(e)} ${esc(e.name)}</b><span>${line}</span></summary>
-      <div class="sbody"><span>${esc(e.local)}</span>${body}${more}</div></details></li>`;
-  return `<li class="imp eat"><div class="sbody"><b>${eatIcon(e)} ${esc(e.name)}</b>
-      <span>${esc(e.local)} · ${line}</span>
-      ${body}
-      <details class="more"><summary>줄·영업시간·출처</summary>
-        ${more}
-      </details></div></li>`;
+  return `<li class="imp eat"><details class="eatc"><summary><b>${eatIcon(e)} ${esc(e.name)}</b><span>${line}</span></summary>
+      <div class="sbody"><span>${esc(e.local)}</span>${body}${more}</div></details>${eatPick(s, e, opt)}</li>`;
 }
 function eatsBox(s, cities){
   if(!EATS.length) return '';
@@ -2215,10 +2228,11 @@ function eatsBox(s, cities){
   const n = groups.reduce((x, g) => x + g.items.length, 0);
   if(!n) return one ? `<p class="fine">🍜 ${esc(one.name)}에는 앱이 고른 식당이 아직 없어요. 여행 중엔 '오늘 하루' 화면의 식당 찾기를 써 주세요.</p>` : '';
   return `<details class="box more eatbox"${(s.sh || {}).eatsOpen ? ' open' : ''}><summary>🍜 ${one ? esc(one.name) : '동네별'} 가족 식당 ${n}곳</summary>
-    <p class="fine">아이와 함께 가기 좋은 곳을 미슐랭 가이드·현지 매체 등 출처 두 곳 이상으로 확인해 골랐어요(2026년 11월). 일정 시간에는 안 들어가고, 여행 중 '오늘 하루' 화면에서 점심·저녁 자리 근처 식당으로 다시 보여 드려요. 가격·영업시간은 대략값이라 가기 전에 한 번 더 확인하세요.</p>
+    <p class="fine">아이와 함께 가기 좋은 곳을 미슐랭 가이드·현지 매체 등 출처 두 곳 이상으로 확인해 골랐어요(2026년 11월). <b>'담기'를 누르면 일정 단계에서 가까운 날의 점심·저녁 자리에 넣어 드려요</b>(하루 두 곳까지, 디저트·카페는 그냥 들르는 곳으로). 안 담아도 여행 중 '오늘 하루' 화면에서 점심·저녁 자리 근처 식당으로 다시 보여 드려요.</p>
+    <p class="fine">가격은 대략값이에요. 그 뒤에 문을 닫거나 영업시간이 바뀌었을 수 있으니 가기 전에 구글 지도에서 한 번 확인하세요.</p>
     <div class="pfoot"><button type="button" class="primary small" data-act="mapeats">🗺 가족 식당 지도로 보기</button></div>
     <p class="fine">지도에서 위치를 보고 구글 평점(별점·매긴 사람 수)도 받아 볼 수 있어요. 받은 평점은 아래 목록에도 나와요.</p>
-    ${groups.map(g => `<h3 class="vday">${cities.length > 1 ? CITY_FLAG[g.area.city] + ' ' : ''}${esc(g.area.name)}</h3><ul class="implist flist">${g.items.map(eatRow).join('')}</ul>`).join('')}
+    ${groups.map(g => `<h3 class="vday">${cities.length > 1 ? CITY_FLAG[g.area.city] + ' ' : ''}${esc(g.area.name)}</h3><ul class="implist flist">${g.items.map(e => eatRow(s, e)).join('')}</ul>`).join('')}
   </details>`;
 }
 
@@ -2230,12 +2244,15 @@ function foodRow(d, k, r){
       ${r.mapsUrl ? `<span class="lacts"><a class="link" href="${esc(r.mapsUrl)}" target="_blank" rel="noopener">구글 지도 ↗</a></span>` : ''}</div>
     <button type="button" class="ghost small" data-act="fadd" data-v="${d.i}|${k}|${esc(r.id)}">일정에 넣기</button></li>`;
 }
-function foodSlot(sh, d, m, k){
+function foodSlot(s, d, m, k){
+  const sh = s.sh || {};
   const st = (sh.food || {})[foodKey(m.at)]; const ml = m.meal === 'lunch' ? '점심' : '저녁';
   const list = st && st.items ? rankFood(st.items, d.wd, m.time, 8) : null;
   const near = eatsNear(EATS, m.at, { wd:d.wd, meal:true, cheap:m.meal === 'lunch' });   // 점심은 가벼운 곳 먼저
+  const pl = m.planned;
   return `<div class="fslot"><p><b>${ml} ${m.time}</b> · ${esc(m.why)}</p>
-    ${near.length ? `<p class="fine">앱이 고른 가족 식당 · 누르면 메뉴·주소·지도가 펼쳐져요 (가격은 대략값)</p><ul class="implist flist">${near.map(e => eatRow(e, true)).join('')}</ul>` : ''}
+    ${pl ? `<p class="pnote">🍴 ${ml}은 담아 둔 <b>${esc(pl.name)}</b>${pl.ja ? ` (${esc(pl.ja)})` : ''}에서 먹어요. <a class="link" href="${esc(gsaveUrl(pl))}" target="_blank" rel="noopener">구글 지도 ↗</a></p><p class="fine">아래는 다른 곳을 찾을 때 보세요.</p>` : ''}
+    ${near.length ? `<p class="fine">앱이 고른 가족 식당 · 이름을 누르면 메뉴·주소·지도가 펼쳐져요 (가격은 대략값)</p><ul class="implist flist">${near.map(e => eatRow(s, e, { d })).join('')}</ul>` : ''}
     ${list ? (list.length ? `<ul class="implist flist">${list.map(r => foodRow(d, k, r)).join('')}</ul>` : '<p class="fine">이 근처 500m 안에서 식당을 못 찾았어요.</p>')
       : `<div class="pfoot"><button type="button" class="primary small" data-act="ffind" data-v="${d.i}|${k}"${st && st.busy ? ' disabled' : ''}>${st && st.busy ? '찾는 중…' : `근처 ${ml} 식당 찾기`}</button></div>`}
     ${st && st.err ? `<p class="warnline">${esc(st.err)}</p>` : ''}
@@ -2245,7 +2262,7 @@ function foodSlot(sh, d, m, k){
 function foodBox(s, d, hotel){
   const slots = mealSlots(d, hotel, d.to); if(!slots.length) return '';
   return `<div class="box" id="foodbox"><h2>이날 식당<small>${slots.map(m => m.meal === 'lunch' ? '점심' : '저녁').join('·')}</small></h2>
-    ${slots.map((m, k) => foodSlot(s.sh || {}, d, m, k)).join('')}
+    ${slots.map((m, k) => foodSlot(s, d, m, k)).join('')}
     <p class="fine">버튼을 누르면 그 장소 좌표를 구글로 보내 근처 식당을 찾아요.${EATS.length ? ' 앱이 고른 식당의 지도 링크는 누르면 식당 이름과 주소가 구글(선전은 가오더)로 가요.' : ''} ${REGION.key === 'tokyo' ? '일본은 정기휴무·예약제·현금만 받는 곳이 많으니' : '선전(중국 본토)은 알리페이·위챗페이로 내는 곳이 많고 구글 지도 정보가 늦을 수 있으니'} 가기 전에 한 번 더 확인하세요.</p>
   </div>`;
 }
@@ -2572,7 +2589,7 @@ export function vToday(s){
   const P = plan(s); const n = P.days.length;
   const i = dayToShow(s, today, s.tday, n); const d = P.days[i]; const date = shownDate(s, today);
   const col = DAY_COLORS[i % DAY_COLORS.length]; const hotel = d.start || d.from, home = d.to;   // 나눠 자는 날은 출발·돌아갈 숙소가 다름. 짐을 먼저 옮긴 날(d.start)은 새 숙소에서 출발
-  const stops = d.items; const nx = nextStopIndex(stops, date, s.tdone);
+  const stops = d.items; const nx = nextStopIndex(stops, date, s.tdone); const TML = mealLabels(d);
   const isDone = p => !!(s.tdone || {})[doneKey(date, p.id)];
   const vault = dayVault(bookings(s.vault), date, stops.map(p => p.id).concat(d.full ? [d.full.id] : []));
   const L = ledgerSummary(s); const g = L.groups.find(x => x.d === date);
@@ -2634,11 +2651,11 @@ export function vToday(s){
       <ol class="stops tstops" style="--day:${col}">
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${d.start ? `${esc(d.from.name)} → ${esc(hotel.name)}` : esc(hotel.name)}</b><span>${d.start ? '짐을 새 숙소에 맡기고 출발' : `숙소에서 출발${hotel.name !== home.name ? ' · 🧳 짐 챙기기' : ''}`}</span>${d.start ? `<a class="link" href="${esc(gdir(d.from, hotel))}" target="_blank" rel="noopener">${esc(legText(d.from, hotel))} · 새 숙소까지 길찾기 ↗</a>` : ''}</div></li>
         ${stops.map((p, j) => `<li class="${isDone(p) ? 'done' : ''}${j === nx ? ' nx' : ''}"><span class="num">${j + 1}</span>
-          <div class="sbody"><b>${esc(p.name)}</b><span>약 ${hrText(p.hours)}${lateText(p) ? ` · ${lateOf(p) === 2 ? '🌙' : '🌇'} ${lateText(p)}` : ''}${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
+          <div class="sbody"><b>${TML[p.id] ? '🍴 ' : ''}${esc(p.name)}</b><span>${TML[p.id] ? `${TML[p.id]} · ` : ''}약 ${hrText(p.hours)}${lateText(p) ? ` · ${lateOf(p) === 2 ? '🌙' : '🌇'} ${lateText(p)}` : ''}${closed(p) ? ' · <span class="closed">이날 휴무예요</span>' : ''}</span>
             <span class="tacts"><a class="link" href="${esc(gdir(fromFor(stops, j, hotel), p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${esc(legText(fromFor(stops, j, hotel), p))} · 길찾기 ↗</a><button type="button" class="link" data-act="tspend" data-v="${esc(p.id)}">💴 여기서 쓴 돈</button>${nx >= 0 && j > nx && !isDone(p) ? `<button type="button" class="link" data-act="tdoneupto" data-v="${esc(p.id)}">✓ 여기까지 다녀왔어요</button>` : ''}</span>${docBtns(s, docsOf(s, { place:p.id }))}</div>
           <button type="button" class="tchk" data-act="tdone" data-v="${esc(p.id)}" aria-pressed="${isDone(p)}" aria-label="${esc(p.name)} 다녀옴">✓</button></li>`).join('')}
         <li><span class="num" aria-hidden="true">⌂</span><div class="sbody"><b>${hotel.name !== home.name ? `새 숙소로 · ${esc(home.name)}` : '숙소로 돌아가기'}</b><span class="fine">${esc(legText(stops[stops.length - 1], home))}</span><a class="link" href="${esc(gdir(stops[stops.length - 1], home))}" target="_blank" rel="noopener">마지막 장소에서 길찾기 ↗</a></div></li>
-      </ol></div>` : ''}
+      </ol>${infoNote(true)}</div>` : ''}
     ${foodBox(s, d, hotel)}
     ${vault.length ? `<h2 class="vday">이날 꺼낼 예약<small>${vault.length}건</small></h2><div class="list">${vault.map(it => todayVaultCard(it, s)).join('')}</div>`
       : `<p class="fine">이날 날짜로 넣은 예약이 없어요. 입장권·QR은 <button type="button" class="link" data-act="go" data-v="${STEP('보관함')}">보관함</button>에 날짜를 넣어 두면 여기에 떠요.</p>`}

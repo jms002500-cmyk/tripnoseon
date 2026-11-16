@@ -25,7 +25,7 @@ export function indoorAlternatives(s, P, dayIndex, place, limit){
   const onPlan = new Set(P.days.flatMap(x => x.items.map(p => p.id).concat(x.full ? [x.full.id] : [])));
   const kids = s.who === 'family' && (s.kids || []).length;
   return allPlaces(s)
-    .filter(p => p.indoor === true && !p.full && p.id !== place.id && !onPlan.has(p.id))
+    .filter(p => p.indoor === true && !p.full && !p.eat && p.id !== place.id && !onPlan.has(p.id))   // 담은 가족 식당은 대안으로 안 씀
     .filter(p => !closedOn(p, d))
     .filter(p => !(kids && p.kid === 'adult'))
     .map(p => {

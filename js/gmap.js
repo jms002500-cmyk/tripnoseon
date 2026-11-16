@@ -143,6 +143,7 @@ function drawPins(){
 }
 // 핀(또는 목록 줄)을 누르면: 구글에서 담은 곳·장소 ID가 있는 추천은 구글 카드, 앱 추천은 앱 카드, 식당은 식당 카드
 function openPin(x){
+  if(x.place && x.place.eat){ const e = EATS.find(q => q.id === x.place.id); if(e) return showEat(e); }   // 담은 가족 식당은 식당 카드로
   if(x.place) return x.place.gid ? showPlace(x.place.gid) : showKnown(x.place);
   if(x.eat) return showEat(x.eat);
   info(`<p><b>${esc(x.hotel.name)}</b> <span class="fine">숙소 후보</span></p>`);
@@ -167,7 +168,9 @@ function listInfo(){
   const row = o => {
     const t = o.x.place || o.x.eat; const v = grOf(o.id); const rt = rateText(v);
     const sub = [o.x.eat ? t.kind : kindTag(o.x), (AREAS[t.area] || {}).name, o.km != null ? kmText(o.km) : ''].filter(Boolean).join(' · ');
-    const pk = !o.x.place ? '' : o.x.kind === 'must' ? '<span class="pickbtn" aria-disabled="true">꼭 갈 곳</span>'
+    const eon = o.x.eat && !!(cb.getState().picked || {})[o.id];
+    const pk = o.x.eat ? `<button type="button" class="pickbtn" data-gm="lpick" data-id="${esc(o.id)}" aria-pressed="${eon}" aria-label="${esc(t.name)} ${eon ? '빼기' : '담기'}">${eon ? '담음 ✓' : '담기'}</button>`
+      : !o.x.place ? '' : o.x.kind === 'must' ? '<span class="pickbtn" aria-disabled="true">꼭 갈 곳</span>'
       : `<button type="button" class="pickbtn" data-gm="lpick" data-id="${esc(o.id)}" aria-pressed="${o.x.kind === 'on'}" aria-label="${esc(t.name)} ${o.x.kind === 'on' ? '빼기' : '담기'}">${o.x.kind === 'on' ? '담음 ✓' : '담기'}</button>`;
     return `<li><button type="button" data-gm="focus" data-id="${esc(o.id)}"><b>${o.x.eat ? eatIcon(t) + ' ' : ''}${esc(t.name)}</b><span>${esc(sub)}${rt ? ` · <em class="gr">${esc(rt)}</em>` : ''}</span></button>${pk}</li>`;
   };
@@ -233,13 +236,14 @@ async function rateAll(){
 // 가족 식당 카드 (앱이 고른 식당: 일정에는 안 들어감)
 function showEat(e){
   want++; clearTemp(); kp = null;
-  const pr = priceText(e.price); const area = AREAS[e.area] || {}; const v = grOf(e.id);
+  const pr = priceText(e.price); const area = AREAS[e.area] || {}; const v = grOf(e.id); const on = !!(cb.getState().picked || {})[e.id];
   info(`<div class="gmcard"><b>${eatIcon(e)} ${esc(e.name)}</b>
     <span class="fine">${esc([e.local, e.kind, pr ? `1인 약 ${pr}(대략값)` : '', area.name].filter(Boolean).join(' · '))}</span>
     <span class="fine gr" data-grline>${esc(rateText(v) || (v && v.none ? '구글 지도에서 이곳을 찾지 못했어요.' : '구글 평점 확인 중…'))}</span>
     ${e.menu ? `<span class="fine">🍽 ${esc(e.menu)}</span>` : ''}${e.kid ? `<span class="fine">👨‍👩‍👧 ${esc(e.kid)}</span>` : ''}
-    <span class="fine">앱이 고른 가족 식당이에요. 일정 시간에는 안 들어가고, 여행 중 '오늘 하루'의 점심·저녁 자리 근처로 다시 보여 드려요.</span>
-    <div class="pfoot"><a class="link" href="${esc((v && v.u) || eatMapUrl(e))}" target="_blank" rel="noopener" data-grlink>구글 지도 ↗</a>${area.city === 'sz' ? `<a class="link" href="${esc(eatAmapUrl(e))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}${backBtn()}</div></div>`);
+    <span class="fine">앱이 고른 가족 식당이에요. 담아 두면 일정에서 가까운 날의 점심·저녁 자리에 넣어 드려요.</span>
+    <span class="fine">ℹ️ 영업시간·가격은 바뀌었을 수 있어요. 가기 전에 구글 지도에서 확인하세요.</span>
+    <div class="pfoot"><button type="button" class="pickbtn" data-gm="etoggle" data-v="${esc(e.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button><a class="link" href="${esc((v && v.u) || eatMapUrl(e))}" target="_blank" rel="noopener" data-grlink>구글 지도 ↗</a>${area.city === 'sz' ? `<a class="link" href="${esc(eatAmapUrl(e))}" target="_blank" rel="noopener">가오더 지도 ↗</a>` : ''}${backBtn()}</div></div>`);
   if(!v) rateInto(e);
 }
 
@@ -261,6 +265,7 @@ function showKnown(p){
   info(`<div class="gmcard"><b>${esc(p.name)}</b><span class="fine">${esc(tag)}${meta ? ' · ' + esc(meta) : ''}${(AREAS[p.area] || {}).name ? ' · ' + esc(AREAS[p.area].name) : ''}</span>
     ${hotelMode() ? '' : `<span class="fine gr" data-grline>${esc(rateText(v) || (v && v.none ? '구글 지도에서 이곳을 찾지 못했어요.' : '구글 평점 확인 중…'))}</span>`}
     ${p.note ? `<p class="fine">${esc(p.note)}</p>` : ''}
+    ${p.custom || hotelMode() ? '' : '<span class="fine">ℹ️ 앱에 넣어 둔 정보라 바뀌었을 수 있어요. 가기 전에 구글 지도에서 확인하세요.</span>'}
     <div class="pfoot">${s.must[p.id] ? '<span class="fine">✓ 꼭 갈 곳으로 담겨 있어요</span>'
         : `<button type="button" class="pickbtn" data-gm="ktoggle" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button>`}
       <a class="link" href="${esc((v && v.u) || '#')}" target="_blank" rel="noopener" data-grlink${v && v.u ? '' : ' hidden'}>구글 지도 ↗</a>${backBtn()}</div>
@@ -353,6 +358,7 @@ function onClick(e){
     map.panTo(x.pos); if(map.getZoom() < 15) map.setZoom(15); openPin(x);
   }
   else if(a === 'back'){ want++; clearTemp(); kp = null; idleInfo(); }
+  else if(a === 'etoggle'){ const e = EATS.find(q => q.id === b.dataset.v); cb.onToggle(b.dataset.v); drawPins(); if(e) showEat(e); }   // 가족 식당 카드에서 담기·빼기
   else if(a === 'ktoggle'){ const p = kp && kp.id === b.dataset.v ? kp : null; cb.onToggle(b.dataset.v); drawPins(); if(p) showKnown(p); }
   else if(a === 'lpick'){   // 목록에서 바로 담기·빼기 (보던 자리 그대로)
     const el = sheet.querySelector('.msinfo'); const top = el.scrollTop;
