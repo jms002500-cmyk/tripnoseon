@@ -160,9 +160,11 @@ function listInfo(){
   const row = o => {
     const t = o.x.place || o.x.eat; const v = grOf(o.id); const rt = rateText(v);
     const sub = [o.x.eat ? t.kind : kindTag(o.x), (AREAS[t.area] || {}).name].filter(Boolean).join(' · ');
-    return `<li><button type="button" data-gm="focus" data-id="${esc(o.id)}"><b>${o.x.eat ? eatIcon(t) + ' ' : ''}${esc(t.name)}</b><span>${esc(sub)}${rt ? ` · <em class="gr">${esc(rt)}</em>` : ''}</span></button></li>`;
+    const pk = !o.x.place ? '' : o.x.kind === 'must' ? '<span class="pickbtn" aria-disabled="true">꼭 갈 곳</span>'
+      : `<button type="button" class="pickbtn" data-gm="lpick" data-id="${esc(o.id)}" aria-pressed="${o.x.kind === 'on'}" aria-label="${esc(t.name)} ${o.x.kind === 'on' ? '빼기' : '담기'}">${o.x.kind === 'on' ? '담음 ✓' : '담기'}</button>`;
+    return `<li><button type="button" data-gm="focus" data-id="${esc(o.id)}"><b>${o.x.eat ? eatIcon(t) + ' ' : ''}${esc(t.name)}</b><span>${esc(sub)}${rt ? ` · <em class="gr">${esc(rt)}</em>` : ''}</span></button>${pk}</li>`;
   };
-  info(`<p class="fine"><b>${esc(what)}</b> ${items.length}곳을 지도에 올렸어요. 핀이나 아래 이름을 누르면 자세히 보여요.</p>
+  info(`<p class="fine"><b>${esc(what)}</b> ${items.length}곳을 지도에 올렸어요. 이름을 누르면 지도에서 보여 주고, 마음에 들면 '담기'만 눌러 두세요. 날짜는 나중에 일정 단계에서 정해요.</p>
     ${miss ? `<div class="pfoot"><button type="button" class="primary small" data-gm="grall"${grBusy ? ' disabled' : ''}>${grBusy ? '구글 평점 받는 중…' : `⭐ 구글 평점 받기 ${Math.min(miss, GR_BATCH)}곳`}</button></div>
       <p class="fine">이름·주소로 구글에서 찾아 별점과 매긴 사람 수를 받아요(이 폰에 25일 보관, 이름·주소를 구글로 보내요).${miss > GR_BATCH ? ` 아직 ${miss}곳이 남아 ${GR_BATCH}곳씩 받아요.` : ''}</p>`
       : '<p class="fine">구글 평점 높은 순이에요(구글 지도 기준, 25일마다 새로 받아요).</p>'}
@@ -234,6 +236,10 @@ function showEat(e){
   if(!v) rateInto(e);
 }
 
+// 날짜는 정하고 싶을 때만: 접어 둔 칸 (먼저 어떤 곳이 있는지 보고 담는 게 우선 — 사용자 요청 11/16)
+//   sel: 지금 정해 둔 날(dayOf) | null, btn: '이 날로' 버튼 속성
+const dayBox = (sel, btn) => `<details class="gmdays"><summary>📅 ${sel != null ? `${sel + 1}일차로 정해 둠 · 바꾸기` : '날짜도 정하기 (나중에 해도 돼요)'}</summary>
+    <div class="pfoot"><select data-gmday aria-label="갈 날">${dayOptions(sel)}</select><button type="button" class="ghost small" ${btn}>이 날로</button></div></details>`;
 function dayOptions(sel){
   return `<option value="">날짜는 자동으로</option>` + cb.getDays().map(d => `<option value="${d.i}"${sel === d.i ? ' selected' : ''}>${esc(d.label)}</option>`).join('');
 }
@@ -248,10 +254,11 @@ function showKnown(p){
   info(`<div class="gmcard"><b>${esc(p.name)}</b><span class="fine">${esc(tag)}${meta ? ' · ' + esc(meta) : ''}${(AREAS[p.area] || {}).name ? ' · ' + esc(AREAS[p.area].name) : ''}</span>
     ${hotelMode() ? '' : `<span class="fine gr" data-grline>${esc(rateText(v) || (v && v.none ? '구글 지도에서 이곳을 찾지 못했어요.' : '구글 평점 확인 중…'))}</span>`}
     ${p.note ? `<p class="fine">${esc(p.note)}</p>` : ''}
-    <div class="pfoot"><select data-gmday aria-label="담을 날">${dayOptions(dayOf(s, p))}</select>
-      <button type="button" class="primary small" data-gm="move" data-v="${esc(p.id)}">${on ? '이 날로' : '일정에 담기'}</button>
-      ${on ? `<button type="button" class="ghost small" data-gm="toggle" data-v="${esc(p.id)}">빼기</button>` : ''}
-      <a class="link" href="${esc((v && v.u) || '#')}" target="_blank" rel="noopener" data-grlink${v && v.u ? '' : ' hidden'}>구글 지도 ↗</a>${backBtn()}</div></div>`);
+    <div class="pfoot">${s.must[p.id] ? '<span class="fine">✓ 꼭 갈 곳으로 담겨 있어요</span>'
+        : `<button type="button" class="pickbtn" data-gm="ktoggle" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button>`}
+      <a class="link" href="${esc((v && v.u) || '#')}" target="_blank" rel="noopener" data-grlink${v && v.u ? '' : ' hidden'}>구글 지도 ↗</a>${backBtn()}</div>
+    ${on ? '<p class="fine">담은 곳은 일정 단계에서 날짜·동선을 정해요. 정하기 전엔 앱이 가까운 곳끼리 묶어 자동으로 짜 둬요.</p>' : ''}
+    ${dayBox(dayOf(s, p), `data-gm="move" data-v="${esc(p.id)}"`)}</div>`);
   if(!hotelMode() && !v) rateInto(p);
 }
 
@@ -284,9 +291,8 @@ async function showPlace(placeOrId){
   const hotelFirst = hm || lodge;
   const hotelBtn = inHotels ? `<span class="fine">🏨 숙소 후보에 있어요${inHotels.name !== cur.name ? ` (${esc(inHotels.name)})` : ''}</span>`
     : `<button type="button" class="${hotelFirst ? 'primary' : 'ghost'} small" data-gm="hotel">🏨 숙소 후보로${hotelFirst ? ' 담기' : ''}</button>`;
-  const planPart = `<select data-gmday aria-label="담을 날">${dayOptions(dayOf(s, mine))}</select>
-      <button type="button" class="${hotelFirst ? 'ghost' : 'primary'} small" data-gm="pick">${on ? '이 날로 옮기기' : '일정에 담기'}</button>
-      ${on ? `<button type="button" class="ghost small" data-gm="toggle" data-v="${esc(mine.id)}">빼기</button>` : ''}`;
+  const planPart = on ? `<span class="fine">✓ 담은 곳</span><button type="button" class="ghost small" data-gm="toggle" data-v="${esc(mine.id)}">빼기</button>`
+    : `<button type="button" class="${hotelFirst ? 'ghost' : 'primary'} small" data-gm="pick" data-nodate>담기</button>`;
   const actions = hm ? hotelBtn : lodge ? hotelBtn + planPart : planPart + hotelBtn;
   info(`<div class="gmcard"><b>${esc(cur.name)}</b>
     <span class="fine">${esc(place.primaryTypeDisplayName || '')}${place.rating ? ` · ★ ${place.rating.toFixed(1)}${place.userRatingCount ? ` (${place.userRatingCount.toLocaleString('ko-KR')})` : ''}` : ''}</span>
@@ -295,7 +301,8 @@ async function showPlace(placeOrId){
     ${oh && oh.weekdayDescriptions ? `<details class="more"><summary>영업시간</summary><p class="fine">${oh.weekdayDescriptions.map(esc).join('<br>')}</p></details>` : ''}
     ${known && !hm ? `<span class="fine">트립노선 추천 장소 '${esc(known.name)}'(으)로 담아요.</span>` : ''}
     <div class="pfoot">${actions}
-      ${cur.mapsUrl ? `<a class="link" href="${esc(cur.mapsUrl)}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}${backBtn()}</div></div>`);
+      ${cur.mapsUrl ? `<a class="link" href="${esc(cur.mapsUrl)}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}${backBtn()}</div>
+    ${hm ? '' : dayBox(dayOf(s, mine), 'data-gm="pick"')}</div>`);
 }
 
 // 자동 완성 (같은 검색 흐름은 한 세션으로 묶음: 고르기 전까지 후보 요청은 따로 돈을 받지 않는 방식)
@@ -317,7 +324,8 @@ async function suggest(q){
 
 function onClick(e){
   const b = e.target.closest('[data-gm]'); if(!b) return;
-  const a = b.dataset.gm; const daySel = sheet.querySelector('[data-gmday]'); const day = daySel && daySel.value !== '' ? +daySel.value : null;
+  const a = b.dataset.gm; const daySel = sheet.querySelector('[data-gmday]');
+  const day = b.hasAttribute('data-nodate') || !daySel || daySel.value === '' ? null : +daySel.value;   // '담기'는 날짜 없이, '이 날로'만 고른 날
   if(a === 'close') closeMap();
   else if(a === 'sug'){
     const p = (sheet.__sug || [])[+b.dataset.i]; sheet.querySelector('.gmsug').hidden = true;
@@ -338,6 +346,11 @@ function onClick(e){
     map.panTo(x.pos); if(map.getZoom() < 15) map.setZoom(15); openPin(x);
   }
   else if(a === 'back'){ want++; clearTemp(); kp = null; idleInfo(); }
+  else if(a === 'ktoggle'){ const p = kp && kp.id === b.dataset.v ? kp : null; cb.onToggle(b.dataset.v); drawPins(); if(p) showKnown(p); }
+  else if(a === 'lpick'){   // 목록에서 바로 담기·빼기 (보던 자리 그대로)
+    const el = sheet.querySelector('.msinfo'); const top = el.scrollTop;
+    cb.onToggle(b.dataset.id); drawPins(); listInfo(); el.scrollTop = top;
+  }
   else if(a === 'grall') rateAll();
   else if(a === 'hotel' && cur){
     // 숙소 후보로: app.js onHotel → { name, dup } | { name:'', msg }(지역 밖 등)

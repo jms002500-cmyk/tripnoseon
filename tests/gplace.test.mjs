@@ -128,7 +128,7 @@ test('공유 장소 찾을 말: 이름+주소 → 이름 → 앞 세 낱말', ()
 
 test('담기 알림: 담음·옮김·이미 그 날·자동·못 담음', () => {
   assert.deepEqual(pickMsg('', 1, false, null), { ok:false, text:'담지 못했어요. 닫았다가 다시 눌러 주세요.' });
-  assert.equal(pickMsg('센소지', null, false, null).text, "'센소지'을(를) 일정에 담았어요.");
+  assert.equal(pickMsg('센소지', null, false, null).text, "'센소지'을(를) 담았어요. 날짜는 나중에 일정 단계에서 정해도 돼요.");
   assert.equal(pickMsg('센소지', 1, false, null).text, "'센소지'을(를) 2일차에 담았어요.");
   assert.equal(pickMsg('센소지', 2, true, 0).text, "'센소지'을(를) 3일차로 옮겼어요.");
   assert.equal(pickMsg('센소지', 0, true, 0).text, "'센소지'은(는) 이미 1일차에 있어요.");

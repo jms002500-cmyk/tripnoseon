@@ -181,7 +181,7 @@ export function findInputs(q, name){
 export function pickMsg(name, day, wasOn, wasDay){
   if(!name) return { ok:false, text:'담지 못했어요. 닫았다가 다시 눌러 주세요.' };
   const q = `'${name}'`;
-  if(!wasOn) return { ok:true, text:`${q}을(를) ${day == null ? '일정에' : `${day + 1}일차에`} 담았어요.` };
+  if(!wasOn) return { ok:true, text:day == null ? `${q}을(를) 담았어요. 날짜는 나중에 일정 단계에서 정해도 돼요.` : `${q}을(를) ${day + 1}일차에 담았어요.` };
   if(day == null) return { ok:true, text:`${q}은(는) 날짜를 자동으로 정해요.` };
   return { ok:true, text:day === wasDay ? `${q}은(는) 이미 ${day + 1}일차에 있어요.` : `${q}을(를) ${day + 1}일차로 옮겼어요.` };
 }
