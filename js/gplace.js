@@ -5,7 +5,7 @@
 // 구글 이용 약관: 장소 ID는 계속 저장해도 되고, 좌표 등은 30일 넘게 두지 않게 받은 날(gAt)을 남기고 앱을 열 때 새로 받음(staleGoogle·applyRefresh)
 import { PLACES } from './data.js';
 import { dist, allPlaces } from './logic.js';
-import { nearestArea } from './gimport.js';
+import { nearestArea, safeMapUrl } from './gimport.js';
 
 // 앞에서부터 먼저 맞는 것 (구글 종류 이름은 developers.google.com/maps/documentation/places/web-service/place-types)
 const KIND_RULES = [
@@ -80,6 +80,39 @@ export function toCustom(g, newId, now){
     addr:String(g.addr || '').slice(0, 120), gAt:now || Date.now() };
   const cd = closedDays(g.periods); if(cd.length) p.closed = cd;
   return p;
+}
+
+// ── 구글 장소 → 숙소 후보 (2026-11-16, 사용자 요청: 구글 지도에서 본 숙소를 앱에 바로) ──
+// 숙소 종류 (구글 Places 'Lodging' 표). 대부분 'lodging'도 같이 붙지만 빠진 곳이 있어 다 적음
+const LODGING = new Set(['lodging', 'hotel', 'resort_hotel', 'extended_stay_hotel', 'motel', 'hostel', 'inn', 'guest_house',
+  'bed_and_breakfast', 'japanese_inn', 'budget_japanese_inn', 'private_guest_room', 'cottage', 'farmstay', 'campground', 'camping_cabin']);
+export const isLodging = types => (types || []).some(t => LODGING.has(t));
+
+// 구글 장소 하나 → 숙소 후보 (addHotel과 같은 칸 + 장소 ID·받은 날: 약관대로 좌표는 25일마다 새로 받음, refreshHotel)
+//   g: { id, name, lat, lng, addr, mapsUrl }  cur: 가격 통화(s.hotelCur)
+export function toHotel(g, newId, now, cur){
+  const name = String(g.name || '구글 지도에서 고른 숙소').slice(0, 60);
+  const mapUrl = safeMapUrl(g.mapsUrl) || gmapsPlaceUrl(name, g.id);
+  return { id:newId, name, price:0, pcur:cur || '', mapUrl, bookUrl:'', memo:'',
+    lat:+g.lat, lng:+g.lng, area:nearestArea(g).key, st:'ok', src:'google', approx:false, label:'',
+    gid:String(g.id || ''), gAt:now || Date.now(), addr:String(g.addr || '').slice(0, 120) };
+}
+// 이미 담은 숙소 후보인지: 같은 장소 ID, 아니면 이름이 겹치고 300m 안 → 그 후보 | null
+export function sameHotel(hotels, g){
+  const list = hotels || [];
+  if(g && g.id){ const h = list.find(x => x.gid && x.gid === g.id); if(h) return h; }
+  const pt = latLngOf(g);
+  return list.find(h => {
+    const a = normName(h.name), b = normName(g && g.name); if(a.length < 2 || b.length < 2 || !(a.includes(b) || b.includes(a))) return false;
+    const hp = latLngOf(h); return !pt || !hp || dist(hp, pt) < 0.3;
+  }) || null;
+}
+// 새로 받은 구글 정보로 숙소 후보 고침: 좌표·동네·주소·받은 날만 (이름·가격·메모·예약 연결은 그대로)
+export function refreshHotel(h, g, now){
+  if(!h || !g || !Number.isFinite(+g.lat) || !Number.isFinite(+g.lng)) return h;
+  const out = Object.assign({}, h, { lat:+g.lat, lng:+g.lng, area:nearestArea(g).key, gAt:now, st:'ok', approx:false });
+  if(g.addr) out.addr = String(g.addr).slice(0, 120);
+  return out;
 }
 
 // 새로 받을 구글 장소: 받은 지 REFRESH_DAYS일이 지난 것 (30일 전에 여유 있게)

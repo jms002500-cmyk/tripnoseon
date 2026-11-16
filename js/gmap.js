@@ -2,6 +2,7 @@
 //   검색: 치는 동안 장소 후보(자동 완성) → 고르면 장소 카드
 //   지도의 장소 아이콘 누르기 → 장소 카드
 //   장소 카드: 평점·영업시간·주소 + '몇 일차에 담기' → 바로 일정에. 담은 곳·숙소 후보는 핀으로
+//   '🏨 숙소 후보로 담기'(onHotel): 숙박 종류면 먼저 보임. 숙소 동네 단계에서 열면(mode:'hotel') 숙소 담기만
 // 구글 지도는 이 시트를 처음 열 때만 불러옴(앱 첫 화면을 가볍게, 혼자 계획만 하는 사람은 구글에 아무것도 안 보냄).
 // app.js가 상태·날짜를 넘기고(getState, getDays), 담기·빼기는 콜백(onPick, onToggle)으로 돌려줌.
 // 계산(종류·영업시간·같은 장소 찾기)은 gplace.js. #view 밖(body 끝)에 붙어서 다시 그려도 지도가 남음.
@@ -9,7 +10,7 @@ import { hrText } from './flight.js';
 import { mapsConfig } from './maps-config.js';
 import { REGION } from './data.js';
 import { esc } from './ui.js';
-import { matchKnown, closedDays, pinList, dayOf, findInputs, pickMsg } from './gplace.js';
+import { matchKnown, closedDays, pinList, dayOf, findInputs, pickMsg, isLodging } from './gplace.js';
 import { withTimeout } from './net.js';
 
 const FIELDS = ['id', 'displayName', 'location', 'formattedAddress', 'types', 'rating', 'userRatingCount', 'regularOpeningHours', 'googleMapsURI', 'primaryTypeDisplayName'];
@@ -47,8 +48,8 @@ function buildSheet(){
   sheet.className = 'mapsheet'; sheet.hidden = true;
   sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', '구글 지도에서 찾아 담기');
   sheet.innerHTML = `
-    <div class="mshead"><b>구글 지도에서 담기</b><button type="button" class="ghost small" data-gm="close">닫기</button></div>
-    <div class="mssearch"><input type="search" id="gmq" placeholder="장소 이름 (예: 센소지, 이치란 시부야)" aria-label="장소 이름 검색" maxlength="60" autocomplete="off"></div>
+    <div class="mshead"><b class="mstitle">구글 지도에서 담기</b><button type="button" class="ghost small" data-gm="close">닫기</button></div>
+    <div class="mssearch"><input type="search" id="gmq" placeholder="장소 이름" aria-label="장소 이름 검색" maxlength="60" autocomplete="off"></div>
     <ul class="gmsug" hidden></ul>
     <div class="mslegend" aria-label="지도 표시">
       <span><i class="lg-must"></i>꼭 갈 곳</span><span><i class="lg-on"></i>담은 곳</span><span><i class="lg-rec"></i>안 담은 추천</span><span><i class="lg-hotel"></i>숙소 후보</span><span><i class="lg-look"></i>지금 보는 곳</span>
@@ -67,7 +68,19 @@ function buildSheet(){
 }
 
 function info(html){ sheet.querySelector('.msinfo').innerHTML = html; }
-const defaultInfo = () => info('<p class="fine">이름으로 찾거나, 지도의 장소 아이콘을 눌러 담아요. 검색어와 고른 장소는 구글로 보내요.</p>');
+const hotelMode = () => !!cb && cb.mode === 'hotel';   // 숙소 동네 단계의 '구글 지도에서 숙소 찾기'로 연 지도
+const defaultInfo = () => info(hotelMode()
+  ? '<p class="fine">숙소 이름으로 찾거나, 지도의 숙소 아이콘을 눌러 숙소 후보로 담아요. 검색어와 고른 숙소는 구글로 보내요.</p>'
+  : '<p class="fine">이름으로 찾거나, 지도의 장소 아이콘을 눌러 담아요. 숙소는 카드의 \'숙소 후보로\'를 눌러요. 검색어와 고른 장소는 구글로 보내요.</p>');
+// 시트 제목·검색칸 안내: 숙소 찾기인지, 여행 지역이 어디인지에 맞춤
+function setHead(){
+  const t = sheet.querySelector('.mstitle'), q = sheet.querySelector('#gmq');
+  t.textContent = hotelMode() ? '구글 지도에서 숙소 찾기' : '구글 지도에서 담기';
+  const ex = hotelMode() ? (REGION.key === 'hksz' ? '예: 예약한 호텔 이름, 침사추이 호텔' : '예: 예약한 호텔 이름, 신주쿠 호텔')
+    : (REGION.key === 'hksz' ? '예: 빅토리아 피크, 침사추이 딤섬' : '예: 센소지, 이치란 시부야');
+  q.placeholder = `${hotelMode() ? '숙소' : '장소'} 이름 (${ex})`;
+  q.setAttribute('aria-label', hotelMode() ? '숙소 이름 검색' : '장소 이름 검색');
+}
 
 // 핀: 꼭 갈 곳(빨강, 크게) · 담은 곳(주황) · 안 담은 추천(흰 바탕·회색 테두리, 작게) · 숙소 후보(초록). 앞에 올수록 위에 그림
 //   색은 화면 토큰(styles.css --warn·--accent·--good)과 같은 값. 범례는 buildSheet .mslegend
@@ -132,15 +145,22 @@ async function showPlace(placeOrId){
   const mine = known ? known : (s.custom || []).find(c => c.gid === cur.id);
   const on = mine && s.picked[mine.id];
   const off = closedDays(periods);
+  // 숙소(구글 종류가 숙박)거나 숙소 찾기로 연 지도면 '숙소 후보로 담기'가 먼저. 숙소 찾기에서는 일정 담기를 감춤
+  const hm = hotelMode(), lodge = isLodging(cur.types), inHotels = cb.findHotel ? cb.findHotel(cur) : null;
+  const hotelFirst = hm || lodge;
+  const hotelBtn = inHotels ? `<span class="fine">🏨 숙소 후보에 있어요${inHotels.name !== cur.name ? ` (${esc(inHotels.name)})` : ''}</span>`
+    : `<button type="button" class="${hotelFirst ? 'primary' : 'ghost'} small" data-gm="hotel">🏨 숙소 후보로${hotelFirst ? ' 담기' : ''}</button>`;
+  const planPart = `<select data-gmday aria-label="담을 날">${dayOptions(dayOf(s, mine))}</select>
+      <button type="button" class="${hotelFirst ? 'ghost' : 'primary'} small" data-gm="pick">${on ? '이 날로 옮기기' : '일정에 담기'}</button>
+      ${on ? `<button type="button" class="ghost small" data-gm="toggle" data-v="${esc(mine.id)}">빼기</button>` : ''}`;
+  const actions = hm ? hotelBtn : lodge ? hotelBtn + planPart : planPart + hotelBtn;
   info(`<div class="gmcard"><b>${esc(cur.name)}</b>
     <span class="fine">${esc(place.primaryTypeDisplayName || '')}${place.rating ? ` · ★ ${place.rating.toFixed(1)}${place.userRatingCount ? ` (${place.userRatingCount.toLocaleString('ko-KR')})` : ''}` : ''}</span>
     ${cur.addr ? `<span class="fine">${esc(cur.addr)}</span>` : ''}
     ${off.length ? `<span class="warnline">${off.map(d => WD[d]).join('·')}요일 휴무</span>` : ''}
     ${oh && oh.weekdayDescriptions ? `<details class="more"><summary>영업시간</summary><p class="fine">${oh.weekdayDescriptions.map(esc).join('<br>')}</p></details>` : ''}
-    ${known ? `<span class="fine">트립노선 추천 장소 '${esc(known.name)}'(으)로 담아요.</span>` : ''}
-    <div class="pfoot"><select data-gmday aria-label="담을 날">${dayOptions(dayOf(s, mine))}</select>
-      <button type="button" class="primary small" data-gm="pick">${on ? '이 날로 옮기기' : '일정에 담기'}</button>
-      ${on ? `<button type="button" class="ghost small" data-gm="toggle" data-v="${esc(mine.id)}">빼기</button>` : ''}
+    ${known && !hm ? `<span class="fine">트립노선 추천 장소 '${esc(known.name)}'(으)로 담아요.</span>` : ''}
+    <div class="pfoot">${actions}
       ${cur.mapsUrl ? `<a class="link" href="${esc(cur.mapsUrl)}" target="_blank" rel="noopener">구글 지도 ↗</a>` : ''}</div></div>`);
 }
 
@@ -179,6 +199,14 @@ function onClick(e){
     picked(cb.onPick(null, day, p.id), day, wasOn, wasDay, '');
   }
   else if(a === 'toggle'){ cb.onToggle(b.dataset.v); clearTemp(); drawPins(); defaultInfo(); }
+  else if(a === 'hotel' && cur){
+    // 숙소 후보로: app.js onHotel → { name, dup } | { name:'', msg }(지역 밖 등)
+    const r = cb.onHotel ? cb.onHotel(cur) : null; drawPins();
+    if(!r || !r.name){ info(`<p class="warnline">${esc((r && r.msg) || '숙소 후보에 담지 못했어요. 닫았다가 다시 눌러 주세요.')}</p>`); return; }
+    info(`<p class="lmsg">${esc(r.dup ? `'${r.name}'은(는) 이미 숙소 후보에 있어요.` : `'${r.name}'을(를) 숙소 후보에 담았어요. 가격·예약 링크는 숙소 동네 단계에서 적어요.`)}</p>
+      <div class="pfoot"><button type="button" class="primary small" data-gm="gohotel">숙소 후보 보러 가기</button><span class="fine">계속 찾거나 닫기를 눌러도 돼요.</span></div>`);
+  }
+  else if(a === 'gohotel'){ const go = cb.onGoHotel; closeMap(); if(go) go(); }
 }
 // onPick이 돌려준 이름으로 알림 ('' = 못 담음 → 경고). 담은 뒤 핀 다시 그림
 function picked(name, day, wasOn, wasDay, more){
@@ -233,6 +261,7 @@ export async function refreshPlaces(gids){
 export async function openMap(callbacks, query){
   cb = callbacks;
   if(!sheet) buildSheet();
+  setHead();
   sheet.hidden = false; document.body.classList.add('noscroll');
   try{ await libs(); }
   catch(e){

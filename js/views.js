@@ -1101,12 +1101,15 @@ function hotelSection(s, areaKey){
     ${s.hotelMsg ? `<p class="warnline">${esc(s.hotelMsg)}</p>` : ''}
     ${s.fx && rateOf(s) > 0 ? `<p class="fine">환율 1${(CURRENCY[mainCur(s)] || {}).label || '엔'} ≈ ${rateOf(s).toFixed(2)}원 (${esc(s.fx.date)}, ${esc(s.fx.src)}). 통화가 다른 가격은 이 환율로 바꿔 비교해요.</p>` : ''}
     ${c.rows.length > 1 ? `<div class="chips" role="group" aria-label="정렬">${chip('hsort', 'place', '위치 좋은 순', s.hotelSort !== 'price')}${chip('hsort', 'price', '1박 싼 순', s.hotelSort === 'price')}</div>` : ''}
-    ${c.rows.length ? `<div class="list">${c.rows.map((r, i) => hotelCard(r, i, s, c)).join('')}</div>` : ''}
+    ${c.rows.length ? `<div class="list" id="hotellist">${c.rows.map((r, i) => hotelCard(r, i, s, c)).join('')}</div>` : ''}
     ${c.noLoc.length ? `<div class="box"><h2>위치를 확인할 후보</h2><ul class="implist">${c.noLoc.map(h => hotelNoLoc(h, s)).join('')}</ul>
       ${s.hotelErr ? '<p class="warnline">위치 찾기가 멈췄어요. 인터넷 연결을 확인하고 다시 눌러 주세요.</p><div><button type="button" class="ghost small" data-act="hfind">다시 찾기</button></div>' : ''}</div>` : ''}
     ${c.rows.length && !c.nights ? '<p class="fine">여행 날짜를 정하면 박 수에 맞춘 합계와 1인당 가격도 보여 드려요.</p>' : ''}
     <form class="box" id="hotelform">
       <h2>숙소 후보 담기</h2>
+      <div><button type="button" class="primary small" data-act="hgmap">🗺 구글 지도에서 숙소 찾아 담기</button></div>
+      <p class="fine">숙소 이름으로 찾아 누르면 정확한 위치로 들어가요. 구글 지도 앱에서 본 숙소는 '공유 → 트립노선'으로 보내도 돼요. 구글 지도에 저장만 해서는 앱에 들어오지 않아요(구글이 저장 목록을 다른 앱에 열어 주지 않아요).</p>
+      <p class="fine"><b>직접 적어 담기</b></p>
       <label for="hname">숙소 이름<input id="hname" type="text" required maxlength="60" placeholder="예: 예약 사이트에 나온 호텔 이름"></label>
       <div class="row2">
         <label for="hprice">1박 가격 (${cur.label})<input id="hprice" type="number" min="0" step="1" inputmode="numeric" placeholder="세금 포함 객실 1개"></label>

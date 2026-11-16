@@ -33,7 +33,7 @@ import { parseImport, toRow, rowToPlace, coordsFromUrl, nearTokyo, nearestArea, 
 import { geocode } from './geocode.js';
 import { openMap, closeMap, mapOpen, nearbyFood, refreshPlaces } from './gmap.js';
 import { mealSlots, foodKey } from './food.js';
-import { matchKnown, toCustom, staleGoogle, applyRefresh } from './gplace.js';
+import { matchKnown, toCustom, staleGoogle, applyRefresh, toHotel, sameHotel, refreshHotel } from './gplace.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd, wxStale, keepWeather } from './weather.js';
 import { loadFx, convert, addKrw } from './prices.js';
@@ -928,9 +928,20 @@ function addHotel(){
 // 구글 지도 시트: 담은 곳 핀, 장소 카드에서 '몇 일차에 담기'로 바로 일정에
 //   g: 구글 장소(gplace.toCustom이 받는 모양) | null(이미 담은 곳 날짜만 옮길 때, knownId)
 //   이미 있는 도쿄 장소(65곳)와 같은 곳이면 그 장소를, 전에 담은 구글 장소면 그것을 다시 씀
-function openLiveMap(query){
+function openLiveMap(query, mode){
   const opened = openMap({
+    mode: mode || '',   // 'hotel': 숙소 동네 단계의 '구글 지도에서 숙소 찾기' (카드에 숙소 담기만)
     getState: () => state,
+    // 숙소 후보로 담기 (구글 장소 → state.hotels). 같은 곳이면 다시 담지 않음, 여행 지역 밖이면 담지 않음
+    findHotel: g => sameHotel(state.hotels, g),
+    onHotel: g => {
+      const s = state; const ex = sameHotel(s.hotels, g);
+      if(ex) return { name:ex.name, dup:true };
+      if(!nearTokyo(g)) return { name:'', msg:`지금 여행 지역(${(REGIONS[s.city] || {}).name || '이 지역'}) 밖에 있는 곳이라 숙소 후보에 담지 않았어요.` };
+      const h = toHotel(g, 'h' + Date.now().toString(36), Date.now(), s.hotelCur);
+      s.hotels.push(h); s.hotelMsg = ''; save(); render(); return { name:h.name, dup:false };
+    },
+    onGoHotel: () => { const s = state; s.mode = null; s.step = STEPS.indexOf('숙소 동네'); render(); scrollBelowTop(document.querySelector('#hotellist') || document.querySelector('#hotelform')); },
     getDays: () => buildDays(state).map(d => ({ i:d.i, label:`${d.i + 1}일차 · ${d.label}` })),
     onToggle: id => { const s = state; if(s.picked[id]) unpick(s, id); else s.picked[id] = true; save(); render(); },
     onPick: (g, day, knownId) => {
@@ -1089,6 +1100,7 @@ function act(a, v){
     case 'aiplanclear': s.sh.aiPlan = { want:(s.sh.aiPlan || {}).want || '' }; break;
     case 'hfind': findHotelLocations(); return;
     case 'mapopen': openLiveMap(); return;
+    case 'hgmap': openLiveMap(null, 'hotel'); return;   // 숙소 동네 단계: 구글 지도에서 숙소 찾아 후보로
     case 'wxretry': ensureWeather(true); return;
     case 'hpick': s.hotelPick = s.hotelPick === v ? null : v; break;
     case 'hdel': s.hotels = s.hotels.filter(h => h.id !== v); if(s.hotelPick === v) s.hotelPick = null;
@@ -2063,12 +2075,14 @@ window.addEventListener('online', () => {
 let gRefreshing = false;
 async function refreshGoogle(){
   if(gRefreshing || !navigator.onLine) return;
-  const stale = staleGoogle(state.custom, Date.now()).slice(0, 30); if(!stale.length) return;
+  // 구글에서 고른 숙소 후보(src 'google', 2026-11-16~)도 같은 규칙으로
+  const stale = staleGoogle(state.custom, Date.now()).concat(staleGoogle(state.hotels, Date.now())).slice(0, 30); if(!stale.length) return;
   gRefreshing = true;
   try{
-    const got = await refreshPlaces(stale.map(p => p.gid)); if(!got.length) return;
+    const got = await refreshPlaces([...new Set(stale.map(p => p.gid))]); if(!got.length) return;
     const now = Date.now(); const by = new Map(got.map(g => [g.id, g]));
     state.custom = state.custom.map(p => p.src === 'google' && by.has(p.gid) ? applyRefresh(p, by.get(p.gid), now) : p);
+    state.hotels = (state.hotels || []).map(h => h.src === 'google' && by.has(h.gid) ? refreshHotel(h, by.get(h.gid), now) : h);
     save(); renderRemote();
   }catch(e){ console.warn('구글 장소 새로 받기 실패', e); }
   finally{ gRefreshing = false; }

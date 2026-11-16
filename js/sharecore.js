@@ -181,8 +181,8 @@ export function cleanShared(s){
   s.party = listOfObjs(s.party); s.party.forEach(x => { fixStrs(x, ['id', 'name']); if(typeof x.name !== 'string') x.name = ''; });
   s.moves = listOfObjs(s.moves); s.moves.forEach(m => { fixStrs(m, ['id', 'k', 'date', 'time', 'how', 'from', 'to', 'note', 'kap', 'bus', 'barea']); fixNums(m, ['min'], null); });
   s.hotels = listOfObjs(s.hotels); s.hotels.forEach(h => {
-    fixStrs(h, ['id', 'name', 'ko', 'pcur', 'mapUrl', 'bookUrl', 'memo', 'area', 'st', 'src', 'label', 'addr', 'tel', 'vid']);
-    fixNums(h, ['price'], 0); fixNums(h, ['lat', 'lng'], null);
+    fixStrs(h, ['id', 'name', 'ko', 'pcur', 'mapUrl', 'bookUrl', 'memo', 'area', 'st', 'src', 'label', 'addr', 'tel', 'vid', 'gid']);
+    fixNums(h, ['price'], 0); fixNums(h, ['lat', 'lng'], null); fixNums(h, ['gAt'], 0);   // gid·gAt: 구글 지도에서 고른 숙소(gplace.js toHotel)
     if(typeof h.name !== 'string') h.name = '';
     if(h.prices != null){ h.prices = mapOfObjs(h.prices); Object.values(h.prices).forEach(x => { fixNums(x, ['v'], 0); fixStrs(x, ['cur', 'at']); }); }   // 사이트별 가격 { 사이트: { v, cur, at } }
   });
