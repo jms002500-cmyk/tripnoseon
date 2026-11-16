@@ -38,6 +38,7 @@ import { KR_AIRPORTS, krAirport, moveKap, crowdOf, ERR_TEXT as PK_ERR, PK_PAGES 
 import { BUS_AREAS, BUS_PAGES, BUS_ERR, isWeekend, nextTimes, gapOf, hhmm } from './airbus.js';
 import { MTR_STATIONS, MTR_LINES, MTR_ERR, MTR_SOURCE, nearStations, distText, stationKo, waitText, dirText } from './hktransit.js';
 import { THEMES, themeOf, inTheme, themeCounts } from './themes.js';
+import { grOf, rateText } from './grating.js';
 import { CPS, cpOfBorder, crossDir, moveCross, BORDER_ALT, lateCross } from './border.js';
 import { homeTime, dayTimes } from './ics.js';
 import { tomorrowOf, EVE_FROM } from './tomorrow.js';
@@ -744,17 +745,22 @@ function stationNear(p){
   const n = nearStations(p, 1, 1.2)[0]; return n ? `${stationKo(n.code)} ${distText(n.km)}` : '';
 }
 
+// 받아 둔 구글 평점 한 조각 ' · 구글 ★4.4 (5,178명)' (js/grating.js, 추천 지도에서 받음 — 목록을 그릴 때 구글을 부르지 않음)
+const grBit = id => { const t = rateText(grOf(id)); return t ? ` · <span class="gr">${esc(t)}</span>` : ''; };
+
 // 테마로 골라 보기: 테마를 누르면 우리 가족에 맞는 곳 5곳을 바로 담을 수 있게, 아래 목록도 그 테마로 거름 (js/themes.js)
 function themeBox(s){
   const all = allPlaces(s); const n = themeCounts(all); const cur = themeOf(s.themeFilter);
   const top = cur ? all.filter(cur.test).map(p => ({ p, f:fitScore(p, s) })).sort((a, b) => (b.f.score + (s.must[b.p.id] ? 100 : 0)) - (a.f.score + (s.must[a.p.id] ? 100 : 0))).slice(0, 5) : [];
   const row = ({ p, f }) => { const on = !!s.picked[p.id]; const st = stationNear(p);
-    return `<li><div class="sbody"><b>${esc(p.name)}</b><span>${esc((AREAS[p.area] || {}).name || '')}${st ? ` · 🚇 ${esc(st)}` : ''}${f.why[0] ? ` · ${esc(f.why[0])}` : ''}</span></div>
+    return `<li><div class="sbody"><b>${esc(p.name)}</b><span>${esc((AREAS[p.area] || {}).name || '')}${st ? ` · 🚇 ${esc(st)}` : ''}${f.why[0] ? ` · ${esc(f.why[0])}` : ''}${grBit(p.id)}</span></div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></li>`; };
   return `<div class="box" id="themebox">
       <h2>테마로 골라 보기</h2>
       <p class="fine">하고 싶은 것을 누르면 ${esc(partyText(s))}에게 맞는 곳부터 보여 드려요. 다시 누르면 풀려요.</p>
       <div class="chips" role="group" aria-label="테마">${THEMES.filter(t => n[t.key]).map(t => chip('theme', t.key, `${t.icon} ${t.label} ${n[t.key]}`, !!cur && cur.key === t.key)).join('')}</div>
+      <div class="pfoot"><button type="button" class="ghost small" data-act="mapreco">🗺 ${cur ? `${esc(cur.label)} ${n[cur.key]}곳` : '추천 장소 전체'} 지도로 한눈에 보기</button></div>
+      <p class="fine">지도에서 어디에 있는지 같이 보고, 구글 평점(별점·매긴 사람 수)도 받아 볼 수 있어요.</p>
       ${cur ? `<ul class="themetop">${top.map(row).join('')}</ul>
       <div class="pfoot"><button type="button" class="ghost small" data-act="helpgo" data-v="picklist">${esc(cur.label)} ${n[cur.key]}곳 모두 보기 ↓</button>${cur.key === 'food' && EATS.length ? '<button type="button" class="ghost small" data-act="helpgo" data-v="eats">가족 식당 보기 ↓</button>' : ''}</div>` : ''}
     </div>`;
@@ -793,7 +799,7 @@ function placeCard(p, s, n){
   return `<article class="pcard${on ? ' on' : ''}${whoDim(s, p)}" id="pc-${esc(p.id)}">
     <div class="ptop"><div><h3>${n ? `<span class="pnum">${n}</span>` : ''}${esc(p.name)}</h3>${p.ja ? `<p class="ja">${esc(p.ja)}</p>` : ''}${p.addr ? `<p class="ja">📍 ${esc(p.addr)}</p>` : ''}</div>
       <button type="button" class="pickbtn" data-act="pick" data-v="${esc(p.id)}" aria-pressed="${on}">${on ? '담음 ✓' : '담기'}</button></div>
-    <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + hrText(p.hours)}${closedText(p) ? ` · <span class="closed">${esc(closedText(p))}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}</p>
+    <p class="meta">${p.kind ? esc(kindName(p.kind)) + ' · ' : ''}${tripCities(s).length > 1 && placeCity(p) ? CITY_KO[placeCity(p)] + ' ' : ''}${esc(AREAS[p.area].name)} · ${p.full ? '하루 종일' : '약 ' + hrText(p.hours)}${closedText(p) ? ` · <span class="closed">${esc(closedText(p))}</span>` : ''}${p.approx ? ' · 위치 대략' : ''}${grBit(p.id)}</p>
     ${stationNear(p) ? `<p class="meta sta">🚇 가까운 역: ${esc(stationNear(p))}</p>` : ''}
     ${(f.why.length || f.neg.length) ? `<div class="why">${f.why.map(w => `<span>${esc(w)}</span>`).join('')}${f.neg.map(w => `<span class="neg">${esc(w)}</span>`).join('')}</div>` : ''}
     ${p.note ? `<p class="pnote">${esc(p.note)}</p>` : ''}
@@ -2150,7 +2156,7 @@ function eatRow(e, compact){
   const pr = priceText(e.price); const sz = cityOfArea(e.area) === 'sz';
   const away = e.km == null ? '' : e.walk <= 15 ? ` · 걸어서 ${e.walk}분` : ` · 약 ${e.km.toFixed(1)}km`;
   const link = (u, t) => `<a class="link" href="${esc(u)}" target="_blank" rel="noopener">${t}</a>`;
-  const line = `${esc(e.kind)} · ${pr ? `1인 약 ${esc(pr)}` : '가격 정보 없음'}${pricey(e) ? ' · 💸 특별한 한 끼' : ''}${away}${e.off ? ' · <span class="closed">이날 쉬어요</span>' : ''}`;
+  const line = `${esc(e.kind)} · ${pr ? `1인 약 ${esc(pr)}` : '가격 정보 없음'}${pricey(e) ? ' · 💸 특별한 한 끼' : ''}${away}${e.off ? ' · <span class="closed">이날 쉬어요</span>' : ''}${grBit(e.id)}`;
   const more = `<p class="fine">⏳ ${esc(e.queue)}<br>🕘 ${esc(e.hours)}${e.closed && e.closed.length ? ` · ${esc(closedText(e))}` : ''}${e.note ? `<br>${esc(e.note)}` : ''}</p>
         <p class="fine">${e.book ? '출처 안내서 값이에요(공식 확인 전). 가기 전에 확인하세요.' : `출처 ${e.src.map(u => link(u, esc(srcName(u)) + ' ↗')).join(' · ')} (${esc(e.checked)} 확인)`}</p>`;
   const body = `<span>${esc(e.menu)}</span>
@@ -2174,6 +2180,8 @@ function eatsBox(s, cities){
   if(!n) return one ? `<p class="fine">🍜 ${esc(one.name)}에는 앱이 고른 식당이 아직 없어요. 여행 중엔 '오늘 하루' 화면의 식당 찾기를 써 주세요.</p>` : '';
   return `<details class="box more eatbox"${(s.sh || {}).eatsOpen ? ' open' : ''}><summary>🍜 ${one ? esc(one.name) : '동네별'} 가족 식당 ${n}곳</summary>
     <p class="fine">아이와 함께 가기 좋은 곳을 미슐랭 가이드·현지 매체 등 출처 두 곳 이상으로 확인해 골랐어요(2026년 11월). 일정 시간에는 안 들어가고, 여행 중 '오늘 하루' 화면에서 점심·저녁 자리 근처 식당으로 다시 보여 드려요. 가격·영업시간은 대략값이라 가기 전에 한 번 더 확인하세요.</p>
+    <div class="pfoot"><button type="button" class="primary small" data-act="mapeats">🗺 가족 식당 지도로 보기</button></div>
+    <p class="fine">지도에서 위치를 보고 구글 평점(별점·매긴 사람 수)도 받아 볼 수 있어요. 받은 평점은 아래 목록에도 나와요.</p>
     ${groups.map(g => `<h3 class="vday">${cities.length > 1 ? CITY_FLAG[g.area.city] + ' ' : ''}${esc(g.area.name)}</h3><ul class="implist flist">${g.items.map(eatRow).join('')}</ul>`).join('')}
   </details>`;
 }

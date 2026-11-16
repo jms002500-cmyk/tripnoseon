@@ -6,6 +6,7 @@
 import { PLACES } from './data.js';
 import { dist, allPlaces } from './logic.js';
 import { nearestArea, safeMapUrl } from './gimport.js';
+import { themeOf } from './themes.js';
 
 // 앞에서부터 먼저 맞는 것 (구글 종류 이름은 developers.google.com/maps/documentation/places/web-service/place-types)
 const KIND_RULES = [
@@ -146,11 +147,21 @@ export function latLngOf(p){
 }
 // 핀 종류: 꼭 갈 곳 > 담은 곳 > 안 담은 추천
 export const pinKind = (s, p) => s.must && s.must[p.id] ? 'must' : s.picked && s.picked[p.id] ? 'on' : 'rec';
-// 지도에 그릴 핀 → [{ kind, pos, title, place | hotel }]. showRec가 false면 안 담은 추천은 뺌(꼭 갈 곳은 늘 담은 곳)
-export function pinList(s, showRec){
+// 지도에 그릴 핀 → [{ kind, pos, title, place | hotel | eat }]
+//   opt: true/false(안 담은 추천도 그릴지) 또는 { rec, theme, eats }
+//     rec:false → 안 담은 추천은 뺌(꼭 갈 곳·담은 곳은 늘), theme:'shop'… → 안 담은 추천을 그 테마만(themes.js),
+//     eats:[가족 식당] → 식당 핀(kind 'eat')도 (추천 지도, v0.89.0)
+export function pinList(s, opt){
+  const o = opt && typeof opt === 'object' ? opt : { rec:opt !== false };
+  const th = o.theme ? themeOf(o.theme) : null;
   const out = [];
-  allPlaces(s).forEach(p => { const pos = latLngOf(p); const kind = pinKind(s, p); if(pos && (showRec || kind !== 'rec')) out.push({ kind, pos, title:p.name || '', place:p }); });
+  allPlaces(s).forEach(p => {
+    const pos = latLngOf(p); const kind = pinKind(s, p); if(!pos) return;
+    if(kind === 'rec' && (o.rec === false || (th && !th.test(p)))) return;
+    out.push({ kind, pos, title:p.name || '', place:p });
+  });
   (s.hotels || []).forEach(h => { const pos = latLngOf(h); if(pos) out.push({ kind:'hotel', pos, title:h.name || '', hotel:h }); });
+  (Array.isArray(o.eats) ? o.eats : []).forEach(e => { const pos = latLngOf(e); if(pos) out.push({ kind:'eat', pos, title:e.name || '', eat:e }); });
   return out;
 }
 // 담은 장소가 지금 들어 있는 날(카드의 날짜 고르기 기본값) → 일차 번호 | null(자동·빼 둠·안 담음). 하루 종일 장소는 fullDay

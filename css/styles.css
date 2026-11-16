@@ -7,7 +7,8 @@
   --btn:#142030; --btn-ink:#FFFFFF;
   --map-bg:#E9EFF2; --map-loop:#8DBF3A;
   --who0:#0F7C8C; --who1:#7A45C4; --who2:#C23A78; --who3:#3F7F18; --who4:#2C66C9; --who5:#8A5A1C;   /* 함께 짜기 사람 색 (참여 순서) */
-  --pin-look:#1A73E8;   /* 구글 지도 시트 '지금 보는 곳' 핀(gmap.js) — 지도 위라 라이트·다크 같은 색 */
+  --pin-look:#1A73E8;
+  --pin-eat:#0F7C8C;    /* 구글 지도 시트 '가족 식당' 핀(gmap.js PIN.eat) — 지도 위라 라이트·다크 같은 색 */   /* 구글 지도 시트 '지금 보는 곳' 핀(gmap.js) — 지도 위라 라이트·다크 같은 색 */
   --f-display:"Do Hyeon","IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
@@ -702,6 +703,16 @@ html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn
 .mslegend .lg-rec{background:var(--surface); border:2px solid var(--muted); width:10px; height:10px}
 .mslegend .lg-hotel{background:var(--good)}
 .mslegend .lg-look{background:var(--pin-look)}
+.mslegend .lg-eat{background:var(--pin-eat)}
+/* 추천 지도 (v0.89.0): 테마 고르기·가족 식당, 아래 목록 */
+.msfilter{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:0 0 8px; font-size:var(--fs-sm)}
+.msfilter select{flex:1 1 200px; min-width:0; max-width:100%; min-height:var(--tap); padding:7px 8px; border:1.5px solid var(--rule); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; font-size:var(--fs-md)}
+.msfilter label{display:inline-flex; align-items:center; gap:5px; color:var(--ink); min-height:var(--tap)}
+.gmnear{list-style:none; margin:6px 0 0; padding:0; display:flex; flex-direction:column; gap:4px}
+.gmnear button{display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; min-height:var(--tap); padding:8px 10px; border:1px solid var(--rule); border-radius:10px; background:var(--surface); color:var(--ink); font:inherit; text-align:left; cursor:pointer}
+.gmnear button b{overflow-wrap:anywhere}
+.gmnear button span{font-size:var(--fs-sm); color:var(--muted)}
+.gr{color:var(--accent-ink); font-style:normal; font-weight:600}
 .mslegend label{display:inline-flex; align-items:center; gap:5px; margin-left:auto; color:var(--ink)}
 .gmsug{list-style:none; margin:0 0 8px; padding:0; background:var(--surface); border:1px solid var(--rule); border-radius:10px; max-height:40vh; overflow:auto}
 .gmsug button{width:100%; text-align:left; background:none; border:0; border-top:1px solid var(--rule); padding:9px 12px; display:flex; flex-direction:column; gap:1px}

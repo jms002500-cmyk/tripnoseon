@@ -928,9 +928,12 @@ function addHotel(){
 // 구글 지도 시트: 담은 곳 핀, 장소 카드에서 '몇 일차에 담기'로 바로 일정에
 //   g: 구글 장소(gplace.toCustom이 받는 모양) | null(이미 담은 곳 날짜만 옮길 때, knownId)
 //   이미 있는 도쿄 장소(65곳)와 같은 곳이면 그 장소를, 전에 담은 구글 장소면 그것을 다시 씀
-function openLiveMap(query, mode){
+let ratedT = null;
+function openLiveMap(query, mode, view){
   const opened = openMap({
     mode: mode || '',   // 'hotel': 숙소 동네 단계의 '구글 지도에서 숙소 찾기' (카드에 숙소 담기만)
+    view: view || null,   // 추천 지도: { theme, eats, rec } (테마 상자·식당 상자의 '지도로 보기')
+    onRated: () => { clearTimeout(ratedT); ratedT = setTimeout(render, 300); },   // 구글 평점을 받으면 뒤 화면 목록에도 (몰아서 한 번)
     getState: () => state,
     // 숙소 후보로 담기 (구글 장소 → state.hotels). 같은 곳이면 다시 담지 않음, 여행 지역 밖이면 담지 않음
     findHotel: g => sameHotel(state.hotels, g),
@@ -1101,6 +1104,8 @@ function act(a, v){
     case 'hfind': findHotelLocations(); return;
     case 'mapopen': openLiveMap(); return;
     case 'hgmap': openLiveMap(null, 'hotel'); return;   // 숙소 동네 단계: 구글 지도에서 숙소 찾아 후보로
+    case 'mapreco': openLiveMap(null, '', { theme:s.themeFilter && s.themeFilter !== 'all' ? s.themeFilter : 'all' }); return;   // 테마 상자: 추천 장소를 지도에 한눈에
+    case 'mapeats': openLiveMap(null, '', { theme:'', eats:true, rec:false }); return;   // 식당 상자: 가족 식당을 지도에
     case 'wxretry': ensureWeather(true); return;
     case 'hpick': s.hotelPick = s.hotelPick === v ? null : v; break;
     case 'hdel': s.hotels = s.hotels.filter(h => h.id !== v); if(s.hotelPick === v) s.hotelPick = null;
