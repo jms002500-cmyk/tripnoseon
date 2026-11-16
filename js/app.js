@@ -1111,8 +1111,10 @@ function act(a, v){
     case 'mapeats': openLiveMap(null, '', { theme:'', eats:true, rec:false }); return;   // 식당 상자: 가족 식당을 지도에
     case 'mainpull': case 'mainadd': case 'eatday': {   // 이날의 메인 근처: 다른 날 곳을 이날로 · 안 담은 추천을 이날 담기 (하루 종일 메인 날이면 먹을 곳으로)
       const [id, di] = String(v).split('|'); const d = plan(s).days[+di]; if(!d) break;   // eatday: 그날 카드 안 가족 식당을 이날 일정으로 (v0.92.0)
-      pullToDay(s, id, +di, !!d.full);
-      if(a === 'eatday'){ const e = EATS.find(x => x.id === id); if(e) toast(`'${e.name}'을(를) ${+di + 1}일차 ${d.full ? '먹을 곳' : '식사 자리'}에 넣었어요.`); }
+      const r = pullToDay(s, id, +di, !!d.full);
+      const away = r.moved.length ? ` 그날 식당이 점심·저녁 두 곳을 넘어서 '${r.moved.map(q => q.name).join("', '")}'은(는) 다른 날로 옮겼어요.` : '';
+      if(a === 'eatday'){ const e = EATS.find(x => x.id === id); if(e) toast(`'${e.name}'을(를) ${+di + 1}일차 ${d.full ? '먹을 곳' : '식사 자리'}에 넣었어요.${away}`); }
+      else if(away) toast(away.trim());
       break;
     }
     case 'mapday': {   // 메인 근처 지도: 추천 전체·가족 식당을 메인 가운데로

@@ -91,6 +91,20 @@ test('하루 종일 날(디즈니)로 정한 식당은 그날 먹을 곳 · 이�
   assert.equal(dayOf(plan(s), 'eat_hk_adc'), other);
 });
 
+test('이날 담기로 식당이 두 곳을 넘으면 새 식당에서 먼 식당을 다른 날로 (폰 시뮬레이션에서 찾음)', async () => {
+  await D.loadRegion('hksz');
+  const s = trip(); ['hk_space', 'hk_mplus', 'hk_avenue'].forEach(id => { s.picked[id] = true; });
+  const P0 = plan(s); const di = dayOf(P0, 'hk_mplus');
+  ['eat_hk_dtf', 'eat_hk_adc'].forEach(id => { s.picked[id] = true; s.assign[id] = di; });   // 그날 점심·저녁이 이미 찼음 (메인을 고르면 이렇게 고정됨)
+  const r = pullToDay(s, 'eat_hk_tinlungheen', di, false);
+  assert.deepEqual(r.moved.map(p => p.id), ['eat_hk_adc']);   // 틴룽힌(서구룡)에서 더 먼 조던 쪽
+  const P = plan(s);
+  assert.equal(P.days[di].items.filter(mealStop).length, MAX_MEALS);
+  assert.notEqual(dayOf(P, 'eat_hk_adc'), di); assert.notEqual(dayOf(P, 'eat_hk_adc'), null);
+  // 식당이 아닌 곳은 그대로
+  assert.deepEqual(pullToDay(s, 'hk_history', di, false).moved, []);
+});
+
 test('지도: 가족 식당 층을 켜면 담은 식당은 식당 핀 하나로만', async () => {
   await D.loadRegion('hksz');
   const s = trip(); s.picked.eat_hk_dtf = true;

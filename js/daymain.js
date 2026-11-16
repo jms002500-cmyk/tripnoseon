@@ -1,7 +1,7 @@
 // 이날의 메인 (v0.91.0, 2026-11-16 사용자 요청: "메인이 되는 위치를 선택하면 그 근처에 있는 것들을 추천해서 동선을 짜주는 것")
 //   일정 단계 날짜 카드의 '🎯 이날의 메인'. 순수 함수(테스트 대상) — 일정 계산은 logic.js plan(메인 날로 근처 곳을 모음),
 //   화면은 views.js mainRow·mainNear, 누르기는 app.js
-import { NEAR_MAIN_KM, isFood, buildDays, allPlaces, dist, plan, pinPlan } from './logic.js';
+import { NEAR_MAIN_KM, isFood, buildDays, allPlaces, dist, plan, pinPlan, mealStop, MAX_MEALS } from './logic.js';
 import { latLngOf } from './gplace.js';
 
 // 이날의 메인 정하기 (key: 날짜, id: 장소 id, ''면 메인 풀기) → s를 고침
@@ -56,9 +56,24 @@ export function mainChoices(s, d){
 }
 
 // 이날 근처로 옮기기·담기 (하루 종일 날이면 먹을 곳은 그날 '먹을 곳'으로·다른 곳은 날짜를 풀고, 아니면 다른 곳은 그대로 두고 그날로)
+//   식당이면: 그날 식당이 점심·저녁 두 곳(MAX_MEALS)을 넘게 되면, 새 식당에서 가장 먼 식당을 풀어 다른 날로 보냄
+//   (v0.92.1, 폰 시뮬레이션: 메인을 고르면 식당도 그날에 고정돼서, '이날 담기'를 누르면 저녁이 두 곳이 됐음)
+//   → { moved:[다른 날로 보낸 식당] }
 export function pullToDay(s, id, di, full){
-  const a = full ? Object.assign({}, s.assign) : pinPlan(s);   // 담기 전 일정 기준으로 다른 곳을 고정 (담은 뒤에 재면 다른 곳이 한 번 섞임)
+  const P0 = full ? null : plan(s);
+  const a = full ? Object.assign({}, s.assign) : pinPlan(s, P0);   // 담기 전 일정 기준으로 다른 곳을 고정 (담은 뒤에 재면 다른 곳이 한 번 섞임)
   s.picked = Object.assign({}, s.picked, { [id]:true });
-  if(full && !isFood(allPlaces(s).find(p => p.id === id))) delete a[id]; else a[id] = di;
+  const p = allPlaces(s).find(x => x.id === id);
+  if(full && !isFood(p)) delete a[id]; else a[id] = di;
+  const moved = [];
+  const d0 = P0 && P0.days[di];
+  if(d0 && mealStop(p)){
+    const main = (s.dmain || {})[d0.key];
+    const meals = d0.items.filter(q => q.id !== id && mealStop(q));
+    const over = meals.length + 1 - MAX_MEALS;   // 메인인 식당도 세지만 풀지는 않음
+    meals.filter(q => q.id !== main).sort((x, y) => dist(p, y) - dist(p, x)).slice(0, Math.max(0, over))   // 먼 곳부터
+      .forEach(q => { delete a[q.id]; moved.push(q); });
+  }
   s.assign = a;
+  return { moved };
 }
