@@ -7,9 +7,9 @@ import { budgetOf } from './budget.js';
 
 export const SHARED_KEYS = ['who', 'adults', 'kids', 'styles', 'pace', 'country', 'city', 'cityOnly', 'start', 'end', 'flight', 'fsegs', 'moves',
   'picked', 'must', 'fullDay', 'custom', 'hotelArea', 'assign', 'hotels', 'hotelPick', 'hotelCur',
-  'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights', 'prep', 'by', 'bags'];
+  'spend', 'party', 'lrate', 'budget', 'pack', 'safety', 'dlock', 'nights', 'prep', 'by', 'bags', 'dmain'];
 // id → 값 모양의 납작한 맵. 칸 하나씩 따로 보내서 두 사람이 다른 장소를 담거나 지출·준비물을 동시에 고쳐도 서로 덮어쓰지 않게
-export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights', 'prep', 'by', 'fsegs', 'bags'];
+export const MAP_KEYS = ['picked', 'must', 'fullDay', 'assign', 'spend', 'pack', 'dlock', 'nights', 'prep', 'by', 'fsegs', 'bags', 'dmain'];
 // id가 있는 객체 배열(오가는 길·직접 담은 곳·숙소 후보·나누는 사람). 서버에는 배열 대신
 //   p.<칸>Items {id: 항목} + p.<칸>Order [id 순서]로 둬서 항목 하나씩 따로 보냄 → 두 사람이 다른 항목을 동시에 더하고·고치고·지워도 둘 다 남음.
 //   순서는 통째로 보내지만 순서에 없는 항목도 버리지 않고 뒤에 붙여서(id 순), 순서끼리 덮어써도 항목은 안 사라짐.
@@ -163,10 +163,11 @@ export function cleanShared(s){
   { const n = toNum(s.lrate); s.lrate = n != null && n >= 0 ? n : 0; }
   s.budget = objOr(s.budget, DEFAULT.budget);
   s.safety = objOr(s.safety, DEFAULT.safety); fixStrs(s.safety, ['hname', 'addr', 'tel', 'meet']);
-  ['picked', 'must', 'fullDay', 'assign', 'dlock', 'nights', 'prep'].forEach(k => { s[k] = objOr(s[k], DEFAULT[k]); delete s[k].__proto__; });
+  ['picked', 'must', 'fullDay', 'assign', 'dlock', 'nights', 'prep', 'dmain'].forEach(k => { s[k] = objOr(s[k], DEFAULT[k]); delete s[k].__proto__; });
   // 일정 순서는 날 번호(-1은 빼두기), 밤별 숙소는 숙소 후보 id·'area:동네' 글자만 (다른 모양이면 일정 계산이 멈춤)
   Object.keys(s.assign).forEach(id => { if(!(typeof s.assign[id] === 'number' && Number.isFinite(s.assign[id]))) delete s.assign[id]; });
   Object.keys(s.nights).forEach(k => { if(typeof s.nights[k] !== 'string') delete s.nights[k]; });
+  Object.keys(s.dmain).forEach(k => { if(!DATE.test(k) || typeof s.dmain[k] !== 'string' || s.dmain[k].length > 80) delete s.dmain[k]; });   // 이날의 메인 { 날짜: 장소 id }
   s.spend = mapOfObjs(s.spend);
   { const o = {}; const v = isMap(s.bags) ? s.bags : {}; Object.keys(v).filter(k => DATE.test(k)).slice(0, 12).forEach(k => { if(['keep', 'first', 'car', 'carry'].includes(v[k])) o[k] = v[k]; }); s.bags = o; }   // 짐 옮기는 날 (js/bags.js)
   Object.values(s.spend).forEach(e => {

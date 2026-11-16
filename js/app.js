@@ -34,6 +34,7 @@ import { geocode } from './geocode.js';
 import { openMap, closeMap, mapOpen, nearbyFood, refreshPlaces } from './gmap.js';
 import { mealSlots, foodKey } from './food.js';
 import { matchKnown, toCustom, staleGoogle, applyRefresh, toHotel, sameHotel, refreshHotel } from './gplace.js';
+import { setMain, pullToDay } from './daymain.js';
 import { vacantSearch, partyNote } from './rakuten.js';
 import { loadWeather, tripMonthDays, canForecast, ymd, wxStale, keepWeather } from './weather.js';
 import { loadFx, convert, addKrw } from './prices.js';
@@ -759,7 +760,8 @@ function updatePreview(){
   p.textContent = r.ok ? `→ ${previewText(s, r.e)}` : r.error; p.classList.toggle('bad', !r.ok);
 }
 // 가족 식당 상자를 펼치고 접은 것을 기억 (다시 그려도 그대로, views.js eatsBox)
-document.addEventListener('toggle', e => { const t = e.target; if(t && t.classList && t.classList.contains('eatbox')) state.sh.eatsOpen = t.open; }, true);
+document.addEventListener('toggle', e => { const t = e.target; if(t && t.classList && t.classList.contains('eatbox')) state.sh.eatsOpen = t.open;
+  if(t && t.classList && t.classList.contains('mainnear') && t.dataset.k){ state.sh.mainOpen = Object.assign({}, state.sh.mainOpen, { [t.dataset.k]:t.open }); } }, true);
 document.addEventListener('input', e => {
   if(e.target.id === 'psearch'){   // 검색 결과만 다시 그림 (입력 칸을 그대로 둬서 한글 조합이 안 끊기게)
     const s = state; s.sh.pq = e.target.value;
@@ -871,7 +873,8 @@ async function exportLedger(){
 function showReadResult(){ const b = document.getElementById('vread'); if(b) b.scrollIntoView({ block:'start' }); }
 function focusVaultForm(){ const f = document.getElementById('vaultform'); if(f){ f.scrollIntoView({ block:'start' }); document.getElementById('vtitle').focus({ preventScroll:true }); } }
 
-function unpick(s, id){ delete s.picked[id]; delete s.must[id]; delete s.assign[id]; delete s.fullDay[id]; }
+function unpick(s, id){ delete s.picked[id]; delete s.must[id]; delete s.assign[id]; delete s.fullDay[id];
+  if(Object.values(s.dmain || {}).includes(id)){ const o = Object.assign({}, s.dmain); Object.keys(o).forEach(k => { if(o[k] === id) delete o[k]; }); s.dmain = o; } }
 
 // 구글 지도 가져오기: 대기 목록에 올리고, 좌표 없는 곳은 바로 이름으로 위치 찾기 시작
 function addImports(list){
@@ -1106,6 +1109,14 @@ function act(a, v){
     case 'hgmap': openLiveMap(null, 'hotel'); return;   // 숙소 동네 단계: 구글 지도에서 숙소 찾아 후보로
     case 'mapreco': openLiveMap(null, '', { theme:s.themeFilter && s.themeFilter !== 'all' ? s.themeFilter : 'all' }); return;   // 테마 상자: 추천 장소를 지도에 한눈에
     case 'mapeats': openLiveMap(null, '', { theme:'', eats:true, rec:false }); return;   // 식당 상자: 가족 식당을 지도에
+    case 'mainpull': case 'mainadd': {   // 이날의 메인 근처: 다른 날 곳을 이날로 · 안 담은 추천을 이날 담기 (하루 종일 메인 날이면 먹을 곳으로)
+      const [id, di] = String(v).split('|'); const d = plan(s).days[+di]; if(!d) break;
+      pullToDay(s, id, +di, !!d.full); break;
+    }
+    case 'mapday': {   // 메인 근처 지도: 추천 전체·가족 식당을 메인 가운데로
+      const d = plan(s).days[+v]; if(!d || !d.main) return;
+      openLiveMap(null, '', { theme:'all', eats:true, center:{ lat:+d.main.lat, lng:+d.main.lng } }); return;
+    }
     case 'wxretry': ensureWeather(true); return;
     case 'hpick': s.hotelPick = s.hotelPick === v ? null : v; break;
     case 'hdel': s.hotels = s.hotels.filter(h => h.id !== v); if(s.hotelPick === v) s.hotelPick = null;
@@ -1848,13 +1859,14 @@ function onChange(e){
   if(t.id === 'vfiles'){ const L = Array.from(t.files || []); if(L.length) fillFormFrom(L); return; }   // 붙인 확인서로 빈 칸 채우기 (첨부는 저장할 때)
   if(t.id === 'flreadfile'){ const L = Array.from(t.files || []); if(L.length) readFromWhere(L); return; }
   if(t.dataset.kid != null){ s.kids[+t.dataset.kid] = Math.min(17, Math.max(0, parseInt(t.value, 10) || 0)); }
-  else if(t.dataset.date){ if(!t.value) return; setTripDate(s, t.dataset.date, t.value); s.fullDay = {}; s.assign = {}; s.dlock = {}; s.nights = {}; }
+  else if(t.dataset.date){ if(!t.value) return; setTripDate(s, t.dataset.date, t.value); s.fullDay = {}; s.assign = {}; s.dlock = {}; s.nights = {}; s.dmain = {}; }
   else if(t.dataset.full){
     // 다른 '하루 종일' 장소와 날짜가 겹치면 서로 맞바꿈
     const id = t.dataset.full; const nv = +t.value; const fa = fullAssign(s, buildDays(s)); const prev = fa[id];
     Object.keys(fa).forEach(k => { if(k !== id && fa[k] === nv) s.fullDay[k] = prev; });
     s.fullDay[id] = nv;
   }
+  else if(t.dataset.dmain != null){ setMain(s, t.dataset.dmain, t.value); }   // 이날의 메인 (js/daymain.js)
   else if(t.dataset.night){ const k = t.dataset.night; const o = Object.assign({}, s.nights); if(t.value) o[k] = t.value; else delete o[k]; s.nights = o; }
   else if(t.dataset.move){ const id = t.dataset.move; s.assign = pinPlan(s); if(t.value === '') delete s.assign[id]; else s.assign[id] = +t.value; }   // 다른 곳은 지금 날짜에 그대로 (logic.js pinPlan)
   else if(t.dataset.import != null){

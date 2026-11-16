@@ -719,6 +719,11 @@ html[data-size="big"] .bar .prevbtn .pvt, html[data-size="bigger"] .bar .prevbtn
 .gmdays{margin-top:4px}
 .gmdays > summary{display:flex; align-items:center; min-height:var(--tap); font-size:var(--fs-sm); color:var(--accent-ink); cursor:pointer}
 .gmdays .pfoot{margin-top:4px}
+/* 이날의 메인 (v0.91.0) */
+.mainrow{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin:6px 0; font-size:var(--fs-sm); font-weight:600; color:var(--ink)}
+.mainrow select{flex:1 1 180px; min-width:0; max-width:100%; min-height:var(--tap); padding:7px 8px; border:1.5px solid var(--rule); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; font-size:var(--fs-md); font-weight:400}
+.mealsnear{margin-top:8px}
+.mainnear{margin-top:8px}
 .gmnear button span{font-size:var(--fs-sm); color:var(--muted)}
 .gr{color:var(--accent-ink); font-style:normal; font-weight:600}
 .mslegend label{display:inline-flex; align-items:center; gap:5px; margin-left:auto; color:var(--ink)}

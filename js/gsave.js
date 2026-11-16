@@ -33,7 +33,7 @@ export function gsaveList(s, P){
   }));
   if(hs.length) rows.push({ d:null, title:'🏨 숙소', items:hs });
   P.days.forEach(d => {
-    const items = (d.full ? [d.full] : []).concat(d.items).filter(p => !seen.has(p.id) && seen.add(p.id)).map(p => item(p.id, p.name, gsaveUrl(p)));
+    const items = (d.full ? [d.full] : []).concat(d.items, d.meals || []).filter(p => !seen.has(p.id) && seen.add(p.id)).map(p => item(p.id, p.name, gsaveUrl(p)));
     if(items.length) rows.push({ d, title:`${d.i + 1}일차 · ${d.label}`, items });
   });
   const rest = (P.unassigned || []).map(u => u.p).filter(p => !seen.has(p.id) && seen.add(p.id)).map(p => item(p.id, p.name, gsaveUrl(p)));

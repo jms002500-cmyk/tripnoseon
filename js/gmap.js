@@ -15,7 +15,7 @@ import { esc } from './ui.js';
 import { matchKnown, closedDays, pinList, dayOf, findInputs, pickMsg, isLodging, latLngOf } from './gplace.js';
 import { withTimeout } from './net.js';
 import { THEMES, themeOf, themeCounts } from './themes.js';
-import { allPlaces } from './logic.js';
+import { allPlaces, dist, NEAR_MAIN_KM } from './logic.js';
 import { eatIcon, priceText, eatMapUrl, eatAmapUrl } from './eats.js';
 import { lookupOf, nearEnough, rateText, byRating, grCache, grPut, grOf } from './grating.js';
 import { safeMapUrl } from './gimport.js';
@@ -29,6 +29,7 @@ let showRec = true;   // 안 담은 추천 장소도 지도에 (범례의 '추�
 let transit = null, showTransit = true;   // 지하철·대중교통 노선 겹쳐 보기 (범례의 '지하철 노선')
 // 추천 지도 (v0.89.0): curTheme ''(그냥 담기) | 'all'(추천 전체) | 테마 키 — 고르면 아래에 목록·평점. showEats: 가족 식당 핀
 let curTheme = '', showEats = false, lastPins = [], grBusy = false;
+let focusPt = null;   // 일정의 '메인 근처 지도'로 열면 메인 좌표: 목록을 메인 2.5km 안·가까운 순으로 (v0.91.0)
 const MAPS_WAIT = 20000;   // 구글 지도 스크립트·라이브러리를 기다리는 시간
 
 // 구글 지도 불러오기 (키가 없거나 틀리면 실패)
@@ -151,15 +152,21 @@ function listItems(){
   const th = curTheme && curTheme !== 'all' ? themeOf(curTheme) : null;
   return lastPins.filter(x => x.eat || (x.place && curTheme && (!th || th.test(x.place)))).map(x => ({ id:(x.place || x.eat).id, x }));
 }
+// 지금 목록: 메인 근처 지도면 메인 2.5km 안만 가까운 순(km 붙임), 아니면 전부
+function shownItems(){
+  const items = listItems(); if(!focusPt) return items;
+  return items.map(o => Object.assign(o, { km:dist(focusPt, o.x.pos) })).filter(o => o.km <= NEAR_MAIN_KM).sort((a, b) => a.km - b.km);
+}
+const kmText = km => km < 1 ? `약 ${Math.max(50, Math.round(km * 20) * 50)}m` : `약 ${Math.round(km * 10) / 10}km`;
 const kindTag = x => x.kind === 'must' ? '꼭 갈 곳' : x.kind === 'on' ? '담은 곳' : (x.place.kind || '추천');
 const GR_BATCH = 40;   // '구글 평점 받기' 한 번에 (하루 사용량·요금이 한꺼번에 나가지 않게)
 function listInfo(){
-  const items = listItems(); const now = Date.now();
-  const what = [curTheme === 'all' ? '추천 전체' : curTheme ? (themeOf(curTheme) || {}).label : '', showEats ? '가족 식당' : ''].filter(Boolean).join(' · ');
+  const items = shownItems(); const now = Date.now();
+  const what = (focusPt ? `메인 근처 ${NEAR_MAIN_KM}km · ` : '') + [curTheme === 'all' ? '추천 전체' : curTheme ? (themeOf(curTheme) || {}).label : '', showEats ? '가족 식당' : ''].filter(Boolean).join(' · ');
   const miss = items.filter(o => !grOf(o.id)).length;
   const row = o => {
     const t = o.x.place || o.x.eat; const v = grOf(o.id); const rt = rateText(v);
-    const sub = [o.x.eat ? t.kind : kindTag(o.x), (AREAS[t.area] || {}).name].filter(Boolean).join(' · ');
+    const sub = [o.x.eat ? t.kind : kindTag(o.x), (AREAS[t.area] || {}).name, o.km != null ? kmText(o.km) : ''].filter(Boolean).join(' · ');
     const pk = !o.x.place ? '' : o.x.kind === 'must' ? '<span class="pickbtn" aria-disabled="true">꼭 갈 곳</span>'
       : `<button type="button" class="pickbtn" data-gm="lpick" data-id="${esc(o.id)}" aria-pressed="${o.x.kind === 'on'}" aria-label="${esc(t.name)} ${o.x.kind === 'on' ? '빼기' : '담기'}">${o.x.kind === 'on' ? '담음 ✓' : '담기'}</button>`;
     return `<li><button type="button" data-gm="focus" data-id="${esc(o.id)}"><b>${o.x.eat ? eatIcon(t) + ' ' : ''}${esc(t.name)}</b><span>${esc(sub)}${rt ? ` · <em class="gr">${esc(rt)}</em>` : ''}</span></button>${pk}</li>`;
@@ -167,13 +174,13 @@ function listInfo(){
   info(`<p class="fine"><b>${esc(what)}</b> ${items.length}곳을 지도에 올렸어요. 이름을 누르면 지도에서 보여 주고, 마음에 들면 '담기'만 눌러 두세요. 날짜는 나중에 일정 단계에서 정해요.</p>
     ${miss ? `<div class="pfoot"><button type="button" class="primary small" data-gm="grall"${grBusy ? ' disabled' : ''}>${grBusy ? '구글 평점 받는 중…' : `⭐ 구글 평점 받기 ${Math.min(miss, GR_BATCH)}곳`}</button></div>
       <p class="fine">이름·주소로 구글에서 찾아 별점과 매긴 사람 수를 받아요(이 폰에 25일 보관, 이름·주소를 구글로 보내요).${miss > GR_BATCH ? ` 아직 ${miss}곳이 남아 ${GR_BATCH}곳씩 받아요.` : ''}</p>`
-      : '<p class="fine">구글 평점 높은 순이에요(구글 지도 기준, 25일마다 새로 받아요).</p>'}
-    <ul class="gmnear">${byRating(items, grCache(), now).map(row).join('')}</ul>`);
+      : `<p class="fine">${focusPt ? '메인에서 가까운 순이에요.' : '구글 평점 높은 순이에요(구글 지도 기준, 25일마다 새로 받아요).'}</p>`}
+    <ul class="gmnear">${(focusPt ? items : byRating(items, grCache(), now)).map(row).join('')}</ul>`);
 }
 // 지금 목록의 곳이 다 보이게 지도를 맞춤
 function fitShown(){
   if(!map || !listMode() || !window.google || !window.google.maps.LatLngBounds) return;
-  const pts = listItems().map(o => o.x.pos); if(pts.length < 2) return;
+  const pts = shownItems().map(o => o.x.pos); if(pts.length < 2) return;
   const b = new window.google.maps.LatLngBounds(); pts.forEach(p => b.extend(p)); map.fitBounds(b, 40);
 }
 
@@ -209,7 +216,7 @@ async function rateInto(x){
 // 목록의 곳 평점을 한꺼번에 (GR_BATCH곳씩, 하나씩 차례로)
 async function rateAll(){
   if(grBusy) return; grBusy = true; idleInfo();
-  const todo = listItems().filter(o => !grOf(o.id)).slice(0, GR_BATCH);
+  const todo = shownItems().filter(o => !grOf(o.id)).slice(0, GR_BATCH);
   let done = 0, fail = 0;
   for(const o of todo){
     if(sheet.hidden) break;
@@ -411,12 +418,13 @@ export async function refreshPlaces(gids){
 
 // query: 구글 지도 앱에서 공유받은 장소 — 문자열(찾을 말) | { q, name } (gimport.js sharedPlace). 지도를 연 뒤 그 장소 카드를 띄움
 //   → true(지도를 염) | false(키·인터넷·지도 오류: 시트에 까닭을 적어 둠. 공유는 app.js가 가져온 곳 목록으로 돌림)
-//   callbacks.view: { theme:''|'all'|테마 키, eats:true|false, rec } — 테마 상자·식당 상자의 '지도로 보기'(추천 지도)
+//   callbacks.view: { theme:''|'all'|테마 키, eats:true|false, rec, center } — 테마 상자·식당 상자의 '지도로 보기'(추천 지도), 일정의 '메인 근처 지도'(center)
 export async function openMap(callbacks, query){
   cb = callbacks;
   const v = cb.view || null;
   if(hotelMode() || !v){ curTheme = ''; showEats = false; }
   else { curTheme = v.theme || ''; showEats = !!v.eats; if(v.rec != null) showRec = !!v.rec; }
+  focusPt = !hotelMode() && v && v.center ? v.center : null;
   if(!sheet) buildSheet();
   setHead();
   sheet.hidden = false; document.body.classList.add('noscroll');
@@ -434,7 +442,8 @@ export async function openMap(callbacks, query){
       map.addListener('click', ev => { if(ev.placeId){ ev.stop(); showPlace(ev.placeId); } });
       try{ transit = new G.maps.TransitLayer(); if(showTransit) transit.setMap(map); }catch(e){ transit = null; }   // 노선을 못 그려도 지도는 그대로
     }
-    drawPins(); idleInfo(); if(v) fitShown();
+    drawPins(); idleInfo();
+    if(v && v.center){ map.setCenter(v.center); map.setZoom(15); } else if(v) fitShown();   // 메인 근처 지도는 메인 가운데로
   }catch(e){ map = null; info('<p class="warnline">구글 지도를 그리지 못했어요. 닫았다가 다시 열어 주세요.</p>'); return false; }
   if(query){
     const sh = typeof query === 'string' ? { q:query, name:'' } : query;

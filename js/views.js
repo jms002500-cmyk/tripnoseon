@@ -39,6 +39,7 @@ import { BUS_AREAS, BUS_PAGES, BUS_ERR, isWeekend, nextTimes, gapOf, hhmm } from
 import { MTR_STATIONS, MTR_LINES, MTR_ERR, MTR_SOURCE, nearStations, distText, stationKo, waitText, dirText } from './hktransit.js';
 import { THEMES, themeOf, inTheme, themeCounts } from './themes.js';
 import { grOf, rateText } from './grating.js';
+import { nearMain, mainChoices } from './daymain.js';
 import { CPS, cpOfBorder, crossDir, moveCross, BORDER_ALT, lateCross } from './border.js';
 import { homeTime, dayTimes } from './ics.js';
 import { tomorrowOf, EVE_FROM } from './tomorrow.js';
@@ -1643,21 +1644,23 @@ export function vPlan(s){
       const tight = !d.full && (T.travelMin || mvMin) && d.used + (T.travelMin + mvMin) / 60 > d.cap + 1 + (d.cross && !d.start ? 2 : 0);   // 하루 끝은 다닐 시간 + 2시간 30분(js/flight.js dayEnd): 식사 1시간 30분을 빼면 이동 여유 1시간. 국경 넘는 날은 뺀 2시간이 이동 시간(국경 구간)에도 들어 있어 두 번 세지 않게
       const back = d.start && d.cross ? d.items.filter(p => { const c = placeCity(p); return c && c !== (AREAS[d.to && (d.to.key || d.to.area)] || {}).city; }) : [];   // 짐을 먼저 옮기는데 떠나온 도시 장소가 남아 있음
       const body = d.full
-        ? `<div class="fullday${whoDim(s, d.full)}"><b>${esc(d.full.name)}</b>${whoTag(s, d.full)}<span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(d.from, d.full))}" target="_blank" rel="noopener">숙소에서 ${T.legs[0] ? `약 ${minText(T.legs[0].min)} · ${esc(T.legs[0].mode)} · ` : ''}길찾기 ↗</a>${docBtns(s, docsOf(s, { place:d.full.id }))}${closedOn(d.full, d) ? '<p class="warnline">이날은 쉬는 날이에요. 다른 날로 옮겨 주세요.</p>' : (d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>`
+        ? `<div class="fullday${whoDim(s, d.full)}"><b>${esc(d.full.name)}</b>${whoTag(s, d.full)}<span>하루 종일 · ${esc(d.full.note || '')}</span><a class="link" href="${esc(gdir(d.from, d.full))}" target="_blank" rel="noopener">숙소에서 ${T.legs[0] ? `약 ${minText(T.legs[0].min)} · ${esc(T.legs[0].mode)} · ` : ''}길찾기 ↗</a>${docBtns(s, docsOf(s, { place:d.full.id }))}${closedOn(d.full, d) ? '<p class="warnline">이날은 쉬는 날이에요. 다른 날로 옮겨 주세요.</p>' : (d.wd === 0 || d.wd === 6) ? '<p class="warnline">주말이라 많이 붐벼요. 평일로 옮길 수 있으면 옮겨 보세요.</p>' : ''}</div>${mealsNear(s, d)}`
         : d.items.length
           ? `<ol class="stops">${d.items.map((p, j) => { const cl = closedOn(p, d);
               const prev = j ? d.items[j-1] : (d.start || d.from);
-              return `<li${whoDim(s, p) ? ' class="whodim"' : ''}><span class="num">${j+1}</span><div class="sbody"><b>${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${hrText(p.hours)}${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${docBtns(s, docsOf(s, { place:p.id }))}${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
+              return `<li${whoDim(s, p) ? ' class="whodim"' : ''}><span class="num">${j+1}</span><div class="sbody"><b>${d.main && d.main.id === p.id ? '🎯 ' : ''}${esc(p.name)}</b><span>${esc(AREAS[p.area].name)} · 약 ${hrText(p.hours)}${cl ? ` · <span class="closed">이날 휴무예요</span>` : ''}</span><a class="link" href="${esc(gdir(prev, p))}" target="_blank" rel="noopener">${j ? '앞 장소에서' : '숙소에서'} ${T.legs[j] ? `약 ${minText(T.legs[j].min)} · ${esc(T.legs[j].mode)} · ` : ''}길찾기 ↗</a>${docBtns(s, docsOf(s, { place:p.id }))}${voteBar(s, p)}</div>${d.locked ? '' : moveSelect(p, P.days, s.assign[p.id])}</li>`; }).join('')}</ol>`
           : `<p class="empty">${d.kind === 'arrive' ? '도착해서 짐 풀고 숙소 근처를 가볍게 걷기 좋은 날이에요.' : d.kind === 'depart' ? departLine(d) : '아직 비어 있어요. 장소를 더 담거나 쉬는 날로 두세요.'}</p>`;
       return `<article class="day${d.locked ? ' locked' : ''}" style="--day:${col}">
         <header>${badge(d.i)}<div><h3>${d.i+1}일차 · ${d.label}${d.locked ? ' <span class="lockb">🔒 확정</span>' : ''}</h3><p>${d.full || d.cap > 0 || d.used > 0 || (!d.arrive && !d.depart) ? `${kindLabel(d.kind)} · ` : ''}${d.full ? '하루 종일' : d.cap > 0 || d.used > 0 ? `${hrText(d.used)} / 약 ${hrText(d.cap)}` : d.arrive ? '도착해서 쉬는 날' : d.depart ? '짐 싸고 공항 가는 날' : '쉬는 날'}${T.travelMin ? ` · 이동 약 ${minText(T.travelMin)}` : ''}${(r => r ? ` · 예보 ${esc(r.text || '')}${probText(r) ? `${r.psr ? ' · ' : ' '}${esc(probText(r))}` : ''}` : '')(dayRain(wxOf(s, P), ymdStr(d.date)))}</p></div></header>
         ${tight ? `<p class="warnline">이동까지 넣으면 약 ${minText(Math.round(d.used * 60 + T.travelMin + mvMin))}이라 하루가 빠듯해요. 한 곳을 다른 날로 옮겨 보세요.</p>` : ''}
         ${back.length ? `<p class="warnline">짐을 먼저 옮기는 날이라 새 숙소(${esc(d.to.name)}) 쪽에서 다녀요. 국경 건너편 장소: ${esc(back.slice(0, 2).map(p => p.name).join(', '))}${back.length > 2 ? ` 등 ${back.length}곳` : ''} — 다른 날로 옮기거나 짐 옮기는 방법을 바꿔 보세요.</p>` : ''}
         ${crowdWarn(s, d)}
+        ${mainRow(s, d)}
         ${dayMoves(s, d, mctx, 'start')}
         ${split ? `<p class="fine">🏨 ${d.from.name !== d.to.name ? `🧳 숙소 옮기는 날: ${esc(d.from.name)} → ${esc(d.to.name)}${d.cross ? ' · 짐 옮기고 국경 넘는 2시간을 빼고 짰어요' : ''}` : `${esc(d.to.name)}`}</p>` : ''}
         ${split ? bagBox(s, d) : ''}
         ${body}
+        ${d.main ? mainNear(s, P, d) : ''}
         ${dayEvents(s, d, EV).map(e => `<p class="fine">🎄 이날 행사: ${esc(e.name)}${e.time ? ' · ' + esc(e.time) : ''}</p>`).join('')}
         ${dayMoves(s, d, mctx, 'end')}
         ${itcLine(s, d)}
@@ -1690,6 +1693,39 @@ export function vPlan(s){
     ${P.unassigned.length ? `<div class="box" id="unbox"><h2>아직 일정에 못 넣은 곳</h2><ol class="stops">${P.unassigned.map(u => `<li><span class="num" style="--day:var(--muted)">·</span><div class="sbody"><b>${esc(u.p.name)}</b><span>${esc(u.why)}</span></div>${u.p.full ? '' : moveSelect(u.p, P.days, s.assign[u.p.id])}</li>`).join('')}</ol></div>` : ''}
     ${anyItems ? `<p class="fine">이동 시간은 직선거리로 어림한 값이에요(${REGION.key === 'tokyo' ? '구글은 일본 대중교통 경로를 다른 앱에 주지 않아요' : '국경을 넘는 구간은 출입국 시간을 더했어요'}). 정확한 시간·노선은 길찾기를 눌러 구글 지도에서 보세요.</p>` : '<p class="empty">담은 장소가 없어요. 장소 담기 단계에서 몇 곳을 담아 주세요.</p>'}
   </section>`;
+}
+
+/* 이날의 메인 (v0.91.0, js/daymain.js): 메인을 고르면 그 근처 담은 곳이 그날로 모이고, 근처 추천·가족 식당을 더 담을 수 있음 */
+function mainRow(s, d){
+  if(!d.full && !(d.cap > 0) && !d.items.length) return '';   // 도착·출발만 하는 날
+  const cur = (s.dmain || {})[d.key] || ''; const list = mainChoices(s, d); if(!list.length && !cur) return '';
+  const opts = `<option value="">메인 없이 (자동으로 묶기)</option>` + list.map(p => `<option value="${esc(p.id)}"${p.id === cur ? ' selected' : ''}>${s.must[p.id] ? '⭐ ' : ''}${esc(p.name)}${p.full ? ' (하루 종일)' : ''}</option>`).join('');
+  return `<label class="mainrow"><span>🎯 이날의 메인</span><select data-dmain="${esc(d.key)}" aria-label="${d.i + 1}일차 메인">${opts}</select></label>
+    ${cur && !d.main ? '<p class="fine">메인으로 고른 곳을 이날 넣지 못했어요(이날 하루 종일 쓰는 곳이 있거나 다른 날에 이미 메인으로 정해져 있어요).</p>'
+      : d.main && !cur ? '' : d.main ? `<p class="fine">${esc(d.main.name)} ${d.full ? '근처에 담아 둔 먹을 곳을 이날 붙여 보여 드려요.' : `${NEAR_MAIN_TEXT} 안에 담아 둔 곳을 이날로 모았어요.`}</p>` : ''}`;
+}
+const NEAR_MAIN_TEXT = '2.5km';
+// 하루 종일 메인(디즈니 등) 날: 그 근처에 담아 둔 먹을 곳 (일정 시간에는 안 넣음)
+function mealsNear(s, d){
+  if(!d.meals || !d.meals.length) return '';
+  return `<div class="mealsnear"><p class="fine">🍴 <b>${esc(d.full.name)}</b> 근처에 담아 둔 먹을 곳 ${d.meals.length}곳 · 하루 종일 일정이라 시간에는 안 넣어요</p>
+    <ul class="implist flist">${d.meals.map(p => `<li class="imp"><div class="sbody"><b>${esc(p.name)}</b><span>${esc(distText(dist(d.full, p)))}${grBit(p.id)}</span>
+      <span class="lacts"><a class="link" href="${esc(gdir(d.full, p))}" target="_blank" rel="noopener">${esc(d.full.name)}에서 길찾기 ↗</a></span></div></li>`).join('')}</ul></div>`;
+}
+// 메인 근처 더 담기: 다른 날에 있는 근처 담은 곳 [이날로], 안 담은 근처 추천 [이날 담기], 근처 가족 식당, 근처 지도
+function mainNear(s, P, d){
+  const N = nearMain(s, P, d); if(!N) return '';
+  const eats = eatsNear(EATS, d.main, { km:1.5, limit:5 });
+  const what = d.full ? '먹을 곳' : '곳';
+  const li = (o, act, label, sub) => `<li class="imp"><div class="sbody"><b>${esc(o.p.name)}</b><span>${sub} · ${esc(distText(o.km))}${grBit(o.p.id)}</span></div><button type="button" class="ghost small" data-act="${act}" data-v="${esc(o.p.id)}|${d.i}">${label}</button></li>`;
+  const n = N.other.length + N.recs.length + eats.length;
+  return `<details class="more mainnear" data-k="${esc(d.key)}"${((s.sh || {}).mainOpen || {})[d.key] ? ' open' : ''}><summary>🎯 ${esc(d.main.name)} 근처 ${NEAR_MAIN_TEXT} · 더 담기${n ? ` ${n}곳` : ''}</summary>
+    ${N.other.length ? `<p class="fine"><b>다른 날에 담아 둔 근처 ${what}</b></p><ul class="implist">${N.other.map(o => li(o, 'mainpull', '이날로', o.day != null ? `지금 ${o.day + 1}일차` : '아직 날짜 없음')).join('')}</ul>` : ''}
+    ${N.recs.length ? `<p class="fine"><b>근처 추천 ${what} (아직 안 담음)</b></p><ul class="implist">${N.recs.map(o => li(o, 'mainadd', '이날 담기', esc(kindName(o.p.kind)))).join('')}</ul>` : ''}
+    ${eats.length ? `<p class="fine"><b>🍜 근처 가족 식당</b> · 누르면 메뉴·지도가 펼쳐져요 (일정 시간엔 안 들어가요)</p><ul class="implist flist">${eats.map(e => eatRow(e, true)).join('')}</ul>` : ''}
+    ${n ? '' : `<p class="fine">메인 ${NEAR_MAIN_TEXT} 안에 더 담을 만한 곳이 없어요.</p>`}
+    <div class="pfoot"><button type="button" class="ghost small" data-act="mapday" data-v="${d.i}">🗺 메인 근처 지도로 보기 (구글 평점도)</button></div>
+  </details>`;
 }
 
 /* Step 7 · 준비물 (함께 짜기 여행이면 가족이 같이 체크) */
